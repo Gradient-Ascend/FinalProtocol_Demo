@@ -1,6 +1,5 @@
-import { BASH_PRESETS, BOARD_SIZE, EXPLICIT_FLAGS, FLAG_WEIGHTS, WALLS } from './battle-config'
-import { inAttackRange, releaseCount, stepDamage } from './attack-methods'
-import type { AttackPreset, BattleState, Coord, EnemyState, FlagKind } from './battle-types'
+import { BASH_PRESETS, BOARD_SIZE, ENEMY_DEFINITIONS, EXPLICIT_FLAGS, FLAG_WEIGHTS, WALLS } from './battle-config'
+import type { AttackPreset, BattleState, Coord, Curtain, EnemyBehavior, EnemyState, FlagKind } from './battle-types'
 
 export function mulberry32(seed: number): () => number {
   return () => {
@@ -44,64 +43,133 @@ export function isOccupied(state: BattleState, pos: Coord): boolean {
   return sameCoord(state.player.pos, pos) || livingEnemies(state).some(enemy => sameCoord(enemy.pos, pos))
 }
 
-export function canEnter(state: BattleState, from: Coord, to: Coord): boolean {
-  return inside(to) && manhattan(from, to) === 1 && !state.walls[to.y][to.x] && !isOccupied(state, to)
+export function isWarpLocked(state: BattleState, pos: Coord): boolean {
+  return state.curtains.some(curtain => curtain.locked && (curtain.axis === 'column' ? curtain.index === pos.x : curtain.index === pos.y))
 }
 
-export function predictedDamage(state: BattleState, presetIndex = state.player.activeBash, stepsOverride?: number): Record<string, number> {
-  const preset = BASH_PRESETS[presetIndex]
-  const steps = stepsOverride ?? releaseCount(state)
-  const hp = Object.fromEntries(livingEnemies(state).map(enemy => [enemy.id, enemy.robustness]))
-  const shields = Object.fromEntries(livingEnemies(state).map(enemy => [enemy.id, enemy.block]))
-  const result: Record<string, number> = {}
-  let focus = state.player.focusReady ? 2 : 0
-  for (const [stepIndex, step] of preset.steps.slice(0, steps).entries()) {
-    const candidates = livingEnemies(state).filter(enemy => (hp[enemy.id] ?? 0) > 0 && inAttackRange(state.player.pos, enemy.pos, step))
-    const targets = step.area === 'all'
-      ? candidates
-      : candidates.sort((a, b) => manhattan(state.player.pos, a.pos) - manhattan(state.player.pos, b.pos) || a.id.localeCompare(b.id)).slice(0, 1)
-    for (const target of targets) {
-      const damage = stepDamage(step, state, target, stepIndex) + focus
-      focus = 0
-      const absorbed = Math.min(Math.max(0, shields[target.id] - (step.pierce ?? 0)), damage)
-      shields[target.id] -= absorbed
-      hp[target.id] = Math.max(0, hp[target.id] - (damage - absorbed))
-      result[target.id] = (result[target.id] ?? 0) + damage
+export function canEnter(state: BattleState, from: Coord, to: Coord): boolean {
+  return inside(to) && manhattan(from, to) === 1 && !state.walls[to.y][to.x] && !isWarpLocked(state, to) && !isOccupied(state, to)
+}
+
+export function curtainLabel(curtain: Curtain): string {
+  return `${curtain.axis === 'column' ? 'C' : 'R'}${curtain.index.toString(16).toUpperCase().padStart(2, '0')}`
+}
+
+// A curtain is scheduled two full planning turns before it fires. Its target is
+// fixed at scheduling time and cannot follow the player's later route.
+export function scheduleCurtains(state: BattleState, fireTurn: number): void {
+  const boss = livingEnemies(state).find(enemy => enemy.bossStages?.length)
+  if (!boss) { state.curtains = []; return }
+  const stage = boss.bossStages?.find(candidate => candidate.stage === boss.stage) ?? boss.bossStages?.[0]
+  const primaryAxis = state.curtainCycle % 2 === 0 ? 'column' as const : 'row' as const
+  const lines: Curtain[] = [{
+    axis: primaryAxis,
+    index: primaryAxis === 'column' ? state.player.pos.x : state.player.pos.y,
+    fireTurn, locked: false, unlockTurn: null,
+  }]
+  if (stage?.curtainLines === 2) {
+    const secondaryAxis = primaryAxis === 'column' ? 'row' as const : 'column' as const
+    lines.push({
+      axis: secondaryAxis,
+      index: secondaryAxis === 'column' ? state.player.pos.x : state.player.pos.y,
+      fireTurn, locked: false, unlockTurn: null,
+    })
+  }
+  state.curtains = lines
+  state.curtainCycle++
+}
+
+export function advanceCurtains(state: BattleState): { type: 'lock' | 'unlock'; curtain: Curtain }[] {
+  const events: { type: 'lock' | 'unlock'; curtain: Curtain }[] = []
+  const remaining: Curtain[] = []
+  for (const curtain of state.curtains) {
+    if (curtain.locked && curtain.unlockTurn === state.turn) {
+      events.push({ type: 'unlock', curtain })
+      continue
+    }
+    if (!curtain.locked && curtain.fireTurn === state.turn) {
+      curtain.locked = true
+      curtain.unlockTurn = state.turn + 1
+      events.push({ type: 'lock', curtain })
+    }
+    remaining.push(curtain)
+  }
+  state.curtains = remaining
+  if (!state.curtains.length && livingEnemies(state).some(enemy => enemy.bossStages?.length)) {
+    scheduleCurtains(state, state.turn + 3)
+  }
+  return events
+}
+
+const FLAG_PRIORITY: Record<EnemyBehavior, FlagKind[]> = {
+  hunter: ['bash', 'core', 'privilege', 'overload', 'blank'],
+  collector: ['overload', 'bash', 'core', 'privilege', 'blank'],
+  disruptor: ['core', 'bash', 'overload', 'privilege', 'blank'],
+  warden: ['bash', 'privilege', 'core', 'overload', 'blank'],
+}
+
+function flagScore(behavior: EnemyBehavior, flag: FlagKind): number {
+  return FLAG_PRIORITY[behavior].length - FLAG_PRIORITY[behavior].indexOf(flag) - 1
+}
+
+function purgeTarget(state: BattleState, enemy: EnemyState, endpoint: Coord): Coord | null {
+  const candidates: Coord[] = []
+  for (let y = endpoint.y - 1; y <= endpoint.y + 1; y++) {
+    for (let x = endpoint.x - 1; x <= endpoint.x + 1; x++) {
+      const pos = { x, y }
+      if (!inside(pos) || state.walls[y][x] || state.flags[y][x] === 'blank' || isWarpLocked(state, pos)) continue
+      if (enemy.route.some(routePos => sameCoord(routePos, pos)) || isOccupied(state, pos)) continue
+      candidates.push(pos)
     }
   }
-  return result
+  candidates.sort((a, b) => {
+    const flagA = state.flags[a.y][a.x]
+    const flagB = state.flags[b.y][b.x]
+    return flagScore('disruptor', flagB) - flagScore('disruptor', flagA)
+      || manhattan(a, state.player.pos) - manhattan(b, state.player.pos)
+      || a.y - b.y || a.x - b.x
+  })
+  return candidates[0] ?? null
 }
 
+// Routes are exposed during planning and never re-rolled after the player commits.
 export function enemyRoutes(state: BattleState): void {
   const reserved = new Set(livingEnemies(state).map(enemy => `${enemy.pos.x},${enemy.pos.y}`))
   for (const enemy of livingEnemies(state)) {
     enemy.route = []
+    enemy.effectCell = null
     let cursor = { ...enemy.pos }
+    const visited = new Set([`${cursor.x},${cursor.y}`])
     reserved.delete(`${cursor.x},${cursor.y}`)
-    for (let step = 0; step < 2; step++) {
+    for (let step = 0; step < enemy.routeLength; step++) {
       const options = [
         { x: cursor.x + 1, y: cursor.y }, { x: cursor.x - 1, y: cursor.y },
         { x: cursor.x, y: cursor.y + 1 }, { x: cursor.x, y: cursor.y - 1 },
-      ].filter(pos => inside(pos) && !state.walls[pos.y][pos.x] && !reserved.has(`${pos.x},${pos.y}`) && !sameCoord(pos, state.player.pos))
+      ].filter(pos => inside(pos) && !state.walls[pos.y][pos.x] && !reserved.has(`${pos.x},${pos.y}`)
+        && !visited.has(`${pos.x},${pos.y}`) && !sameCoord(pos, state.player.pos) && !isWarpLocked(state, pos))
       options.sort((a, b) => {
-        const distance = manhattan(a, state.player.pos) - manhattan(b, state.player.pos)
-        if (distance) return distance
-        const flagA = state.flags[a.y][a.x]
-        const flagB = state.flags[b.y][b.x]
-        const score = (flag: FlagKind) => flag === 'bash' ? 0 : flag === 'core' ? 1 : flag === 'privilege' ? 2 : 3
-        return score(flagA) - score(flagB) || a.y - b.y || a.x - b.x
+        const distanceA = manhattan(a, state.player.pos)
+        const distanceB = manhattan(b, state.player.pos)
+        if (enemy.behavior === 'hunter' || enemy.behavior === 'warden') {
+          return distanceA - distanceB
+            || flagScore(enemy.behavior, state.flags[b.y][b.x]) - flagScore(enemy.behavior, state.flags[a.y][a.x])
+            || a.y - b.y || a.x - b.x
+        }
+        return flagScore(enemy.behavior, state.flags[b.y][b.x]) - flagScore(enemy.behavior, state.flags[a.y][a.x])
+          || distanceA - distanceB || a.y - b.y || a.x - b.x
       })
       const next = options[0]
-      if (!next || manhattan(next, state.player.pos) >= manhattan(cursor, state.player.pos)) break
+      if (!next || ((enemy.behavior === 'hunter' || enemy.behavior === 'warden')
+        && manhattan(next, state.player.pos) >= manhattan(cursor, state.player.pos))) break
       enemy.route.push(next)
       reserved.add(`${next.x},${next.y}`)
+      visited.add(`${next.x},${next.y}`)
       cursor = next
     }
-    // Adjacent hostiles still spend an operation collecting their current Warp;
-    // otherwise they would stall forever with an empty route and zero Bash steps.
-    if (!enemy.route.length && state.flags[cursor.y][cursor.x] !== 'blank') {
+    if (!enemy.route.length && state.flags[cursor.y][cursor.x] !== 'blank' && !isWarpLocked(state, cursor)) {
       enemy.route.push({ ...cursor })
     }
+    if (enemy.behavior === 'disruptor') enemy.effectCell = purgeTarget(state, enemy, cursor)
     reserved.add(`${cursor.x},${cursor.y}`)
   }
 }
@@ -115,9 +183,10 @@ export function createInitialState(muted = false, reducedMotion = false): Battle
     const [x, y] = key.split(',').map(Number)
     flags[y][x] = flag
   }
+  const incoming = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => randomFlag(random)))
   const state: BattleState = {
     phase: 'title', resumePhase: null, turn: 1, boardSize: BOARD_SIZE,
-    flags, walls,
+    flags, incoming, walls, curtains: [], curtainCycle: 0,
     player: {
       pos: { x: 7, y: 7 }, sanity: 60, maxSanity: 60, block: 0, overload: 0,
       activeBash: 0, focusReady: false,
@@ -127,27 +196,30 @@ export function createInitialState(muted = false, reducedMotion = false): Battle
         { id: 'firewall', name: 'FIREWALL', counter: 0, threshold: 4, description: '+4 Block' },
       ],
     },
-    enemies: [
-      {
-        id: 'E01', name: 'DESIRE / TRACE', pos: { x: 7, y: 4 }, robustness: 12, maxRobustness: 12,
-        block: 0, desire: [2, 2, 3], securityPerFlag: 1, soulCounter: 0, soulThreshold: 3,
-        soulHeal: 3, route: [], statuses: ['DESIRE', 'SECURITY', 'SOUL'],
-      },
-      {
-        id: 'E02', name: 'DESIRE / RUSH', pos: { x: 10, y: 7 }, robustness: 10, maxRobustness: 10,
-        block: 0, desire: [2, 3], securityPerFlag: 1, soulCounter: 0, soulThreshold: 3,
-        soulHeal: 2, route: [], statuses: ['DESIRE', 'SECURITY', 'SOUL'],
-      },
-    ],
-    actions: [], log: [{ id: 1, text: 'BLACKWALL_01 containment route exposed.', tone: 'neutral' }],
+    enemies: ENEMY_DEFINITIONS.map(definition => ({
+      ...definition,
+      pos: { ...definition.pos },
+      desire: [...definition.desire],
+      bossStages: definition.bossStages?.map(stage => ({ ...stage, desire: [...stage.desire] })),
+      maxRobustness: definition.robustness,
+      block: 0,
+      soulCounter: 0,
+      stage: 1,
+      route: [],
+      effectCell: null,
+      statuses: definition.bossStages ? ['DESIRE', 'SECURITY', 'SOUL', 'BREAKDOWN'] : ['DESIRE', 'SECURITY', 'SOUL'],
+    })),
+    actions: [], log: [{ id: 1, text: 'WARDEN curtain protocol exposed.', tone: 'neutral' }],
     muted, reducedMotion, message: '', attackPreview: null, overloadArmed: false,
   }
+  scheduleCurtains(state, 3)
   enemyRoutes(state)
   return state
 }
 
-export function refillBoard(state: BattleState, random: () => number): void {
+export function refillBoard(state: BattleState, random: () => number, changedColumns?: ReadonlySet<number>): void {
   for (let x = 0; x < BOARD_SIZE; x++) {
+    if (changedColumns && !changedColumns.has(x)) continue
     let bottom = BOARD_SIZE - 1
     while (bottom >= 0) {
       if (state.walls[bottom][x]) { bottom--; continue }
@@ -160,8 +232,11 @@ export function refillBoard(state: BattleState, random: () => number): void {
       }
       let index = 0
       for (let y = bottom; y > top; y--) {
-        state.flags[y][x] = index < remaining.length ? remaining[index++] : randomFlag(random)
+        state.flags[y][x] = index < remaining.length
+          ? remaining[index++]
+          : state.incoming[x].shift() ?? randomFlag(random)
       }
+      while (state.incoming[x].length < BOARD_SIZE) state.incoming[x].push(randomFlag(random))
       bottom = top - 1
     }
   }

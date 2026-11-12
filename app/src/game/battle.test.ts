@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BattleStore } from './battle-store'
-import { coordKey, createInitialState, enemyRoutes, predictedDamage } from './battle-rules'
-import { attackRoll, inAttackRange, releaseCount, stepDamage } from './attack-methods'
+import { coordKey, createInitialState, enemyRoutes, refillBoard, scheduleCurtains } from './battle-rules'
+import { attackRoll, inAttackRange, predictedDamage, predictedSequence, releaseCount, stepDamage } from './attack-methods'
 import { BASH_PRESETS } from './battle-config'
 
 function readyStore(): BattleStore {
@@ -18,12 +18,15 @@ describe('battle rules', () => {
     expect(coordKey({ x: 14, y: 14 })).toBe('0xEE')
   })
 
-  it('creates a 15×15 board with two exposed hostile routes', () => {
+  it('creates one Warden with a public two-turn Curtain forecast', () => {
     const state = createInitialState()
     expect(state.flags).toHaveLength(15)
-    expect(state.flags[0]).toHaveLength(15)
-    expect(state.enemies).toHaveLength(2)
-    expect(state.enemies.every(enemy => enemy.route.length > 0)).toBe(true)
+    expect(state.incoming).toHaveLength(15)
+    expect(state.enemies).toHaveLength(1)
+    expect(state.enemies[0].name).toBe('WARDEN / CURTAIN')
+    expect(state.enemies[0].stage).toBe(1)
+    expect(state.enemies[0].route.length).toBeGreaterThan(0)
+    expect(state.curtains).toEqual([{ axis: 'column', index: 7, fireTurn: 3, locked: false, unlockTurn: null }])
   })
 
   it('limits planning to eight orthogonal operations', () => {
@@ -44,7 +47,7 @@ describe('battle rules', () => {
     store.addStep(0, -1)
     const state = store.getSnapshot()
     const preview = { ...state, player: { ...state.player, pos: store.plannedPosition() } }
-    expect(predictedDamage(preview).E01).toBe(2)
+    expect(predictedDamage(preview).B01).toBe(2)
   })
 })
 
@@ -55,10 +58,10 @@ describe('turn resolution', () => {
     store.addStep(0, -1)
     await store.executeTurn()
     const state = store.getSnapshot()
-    expect(state.enemies[0].robustness).toBe(10)
+    expect(state.enemies[0].robustness).toBe(34)
     expect(state.turn).toBe(2)
     expect(state.actions).toHaveLength(0)
-    expect(store.getSnapshot().phase).toBe('planning')
+    expect(state.phase).toBe('planning')
   })
 
   it('advances independent Core counters and leaves FOCUS ready at threshold', async () => {
@@ -87,20 +90,19 @@ describe('turn resolution', () => {
     state.player.overload = 5
     store.addStep(0, -1)
     store.addStep(0, -1)
-    const before = state.enemies.map(enemy => enemy.robustness)
+    const before = state.enemies[0].robustness
     store.useOverload()
     expect(state.player.activeBash).toBe(1)
     expect(state.player.overload).toBe(0)
     expect(store.getSnapshot().actions).toHaveLength(3)
-    expect(state.enemies.some((enemy, index) => enemy.robustness < before[index])).toBe(true)
+    expect(state.enemies[0].robustness).toBeLessThan(before)
   })
 
-  it('opens escape when every hostile Robustness reaches zero', async () => {
+  it('opens escape when Warden Robustness reaches zero', async () => {
     const store = readyStore()
     const state = store.getSnapshot()
     state.enemies[0].robustness = 1
     state.enemies[0].block = 0
-    state.enemies[1].robustness = 0
     store.addStep(0, -1)
     await store.executeTurn()
     expect(store.getSnapshot().phase).toBe('victory')
@@ -112,7 +114,6 @@ describe('turn resolution', () => {
     state.player.sanity = 1
     state.enemies[0].pos = { x: 7, y: 6 }
     state.enemies[0].route = [{ x: 8, y: 6 }]
-    state.enemies[1].robustness = 0
     state.flags[6][8] = 'bash'
     await store.executeTurn()
     expect(state.player.sanity).toBe(0)
@@ -120,18 +121,15 @@ describe('turn resolution', () => {
   })
 })
 
-
 describe('enemy operation planning', () => {
-  it('lets an adjacent hostile collect its current Warp instead of stalling', () => {
+  it('lets an adjacent Warden collect its current Warp instead of stalling', () => {
     const state = createInitialState()
     state.enemies[0].pos = { x: 7, y: 6 }
-    state.enemies[1].robustness = 0
     state.flags[6][7] = 'bash'
     enemyRoutes(state)
     expect(state.enemies[0].route).toEqual([{ x: 7, y: 6 }])
   })
 })
-
 
 describe('method-based Bash attacks', () => {
   it('caps releases by Bash collected, remaining AP and IV', () => {
@@ -174,7 +172,6 @@ describe('method-based Bash attacks', () => {
   })
 })
 
-
 it('releases the complete I–IV VECTOR sequence with four Bash and four AP remaining', async () => {
   const store = readyStore()
   const state = store.getSnapshot()
@@ -190,9 +187,8 @@ it('releases the complete I–IV VECTOR sequence with four Bash and four AP rema
   store.addStep(1, 0)
   expect(releaseCount(store.getSnapshot())).toBe(4)
   await store.executeTurn()
-  expect(store.getSnapshot().enemies[0].robustness).toBe(1)
+  expect(store.getSnapshot().enemies[0].robustness).toBe(25)
 })
-
 
 it('requires a second Overload request to switch Bash and release damage', () => {
   const store = readyStore()
@@ -200,14 +196,106 @@ it('requires a second Overload request to switch Bash and release damage', () =>
   state.player.overload = 5
   store.addStep(0, -1)
   store.addStep(0, -1)
-  const before = store.getSnapshot().enemies.map(enemy => enemy.robustness)
+  const before = store.getSnapshot().enemies[0].robustness
   store.requestOverload()
   expect(store.getSnapshot().overloadArmed).toBe(true)
   expect(store.getSnapshot().player.activeBash).toBe(0)
   expect(store.getSnapshot().attackPreview).toEqual({ presetIndex: 1, stepIndex: 0 })
-  expect(store.getSnapshot().enemies.map(enemy => enemy.robustness)).toEqual(before)
+  expect(store.getSnapshot().enemies[0].robustness).toBe(before)
   store.requestOverload()
   expect(store.getSnapshot().overloadArmed).toBe(false)
   expect(store.getSnapshot().player.activeBash).toBe(1)
-  expect(store.getSnapshot().enemies.some((enemy, index) => enemy.robustness < before[index])).toBe(true)
+  expect(store.getSnapshot().enemies[0].robustness).toBeLessThan(before)
+})
+
+describe('GDD strategy infrastructure', () => {
+  it('uses the same ordered attack sequence for preview and immediate resolution', () => {
+    const store = readyStore()
+    const state = store.getSnapshot()
+    state.player.overload = 5
+    store.addStep(0, -1)
+    store.addStep(0, -1)
+    const planned = store.getSnapshot()
+    const before = planned.enemies[0].robustness
+    const previewState = {
+      ...planned,
+      player: { ...planned.player, activeBash: 1 },
+      actions: [...planned.actions, { type: 'overload' as const }],
+    }
+    const hits = predictedSequence(previewState)
+    store.requestOverload()
+    store.requestOverload()
+    expect(store.getSnapshot().enemies[0].robustness, JSON.stringify(hits)).toBe(hits.length ? hits[hits.length - 1].after : before)
+  })
+
+  it('drops only changed columns and consumes their public incoming queues', () => {
+    const state = createInitialState()
+    const untouched = state.flags.map(row => row[6])
+    const untouchedIncoming = [...state.incoming[6]]
+    const changedIncoming = [...state.incoming[7]]
+    const next = state.incoming[7][0]
+    state.flags[14][7] = 'blank'
+    refillBoard(state, () => 0.5, new Set([7]))
+    expect(state.flags.map(row => row[6])).toEqual(untouched)
+    expect(state.incoming[6]).toEqual(untouchedIncoming)
+    expect(state.incoming[7]).toHaveLength(15)
+    expect(state.incoming[7]).not.toEqual(changedIncoming)
+    expect(state.flags.some(row => row[7] === next)).toBe(true)
+  })
+})
+
+describe('Warden boss protocol', () => {
+  it('keeps a scheduled Curtain fixed while the player moves', async () => {
+    const store = readyStore()
+    store.addStep(1, 0)
+    await store.executeTurn()
+    expect(store.getSnapshot().player.pos).toEqual({ x: 8, y: 7 })
+    expect(store.getSnapshot().curtains[0]).toMatchObject({ axis: 'column', index: 7, fireTurn: 3, locked: false })
+  })
+
+  it('seals the forecast column for exactly one planning turn', async () => {
+    const store = readyStore()
+    await store.executeTurn()
+    await store.executeTurn()
+    expect(store.getSnapshot().curtains[0].locked).toBe(false)
+    await store.executeTurn()
+    expect(store.getSnapshot().turn).toBe(4)
+    expect(store.getSnapshot().curtains[0]).toMatchObject({ index: 7, locked: true, unlockTurn: 4 })
+    store.addStep(0, -1)
+    expect(store.getSnapshot().actions).toHaveLength(0)
+    expect(store.getSnapshot().message).toContain('sealed')
+    await store.executeTurn()
+    expect(store.getSnapshot().curtains).toHaveLength(1)
+    expect(store.getSnapshot().curtains[0]).toMatchObject({ fireTurn: 7, locked: false })
+  })
+
+  it('Breakdown swaps Desire, Security and Soul sets at half Robustness', async () => {
+    const store = readyStore()
+    const state = store.getSnapshot()
+    state.enemies[0].robustness = 19
+    state.enemies[0].route = []
+    store.addStep(0, -1)
+    store.addStep(0, -1)
+    await store.executeTurn()
+    const boss = store.getSnapshot().enemies[0]
+    expect(boss.stage).toBe(2)
+    expect(boss.desireName).toBe('OVERTURE')
+    expect(boss.desire).toEqual([2, 3, 4])
+    expect(boss.securityName).toBe('DEADLOCK')
+    expect(boss.securityPerFlag).toBe(2)
+    expect(boss.soulName).toBe('REWRITE')
+    expect(boss.soulThreshold).toBe(2)
+    expect(store.getSnapshot().log.some(entry => entry.text.includes('BREAKDOWN / Stage II'))).toBe(true)
+  })
+
+  it('Stage II schedules a dual-axis Curtain with the same countdown', () => {
+    const state = createInitialState()
+    const boss = state.enemies[0]
+    boss.stage = 2
+    state.curtains = []
+    scheduleCurtains(state, 6)
+    expect(state.curtains).toHaveLength(2)
+    expect(new Set(state.curtains.map(curtain => curtain.axis))).toEqual(new Set(['column', 'row']))
+    expect(state.curtains.every(curtain => curtain.fireTurn === 6 && !curtain.locked)).toBe(true)
+  })
 })

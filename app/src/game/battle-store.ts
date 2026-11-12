@@ -1,8 +1,8 @@
 import { MAX_ACTIONS, OVERLOAD_THRESHOLD, STEP_MS } from './battle-config'
-import { inAttackRange, releaseCount, stepDamage } from './attack-methods'
+import { predictedSequence, releaseCount } from './attack-methods'
 import {
-  activePreset, coordKey, createInitialState, enemyRoutes, livingEnemies, manhattan,
-  mulberry32, refillBoard, sameCoord,
+  activePreset, advanceCurtains, coordKey, createInitialState, curtainLabel, enemyRoutes,
+  isWarpLocked, livingEnemies, manhattan, mulberry32, refillBoard, sameCoord,
 } from './battle-rules'
 import type { AttackPreview, BattleAction, BattleState, Coord, EnemyState, FlagKind, Phase } from './battle-types'
 import { storage } from './storage'
@@ -43,11 +43,6 @@ export class BattleStore {
     return new Promise(resolve => setTimeout(resolve, delay))
   }
 
-  private setPhase(phase: Phase): void {
-    this.state.phase = phase
-    this.commit()
-  }
-
   start(): void {
     if (this.state.phase !== 'title') return
     this.state.phase = 'planning'
@@ -60,6 +55,8 @@ export class BattleStore {
   restart(): void {
     this.runId++
     const { muted, reducedMotion } = this.state
+    this.random = mulberry32(0xB17B1E)
+    this.logId = 10
     this.state = createInitialState(muted, reducedMotion)
     this.state.phase = 'planning'
     this.state.message = ''
@@ -129,8 +126,10 @@ export class BattleStore {
     const from = this.plannedPosition()
     const enemyBlocked = livingEnemies(this.state).some(enemy => sameCoord(enemy.pos, to))
     if (to.x < 0 || to.y < 0 || to.x >= this.state.boardSize || to.y >= this.state.boardSize ||
-        manhattan(from, to) !== 1 || this.state.walls[to.y]?.[to.x] || enemyBlocked) {
-      this.state.message = 'That Warp is not reachable from the route endpoint.'
+        manhattan(from, to) !== 1 || this.state.walls[to.y]?.[to.x] || enemyBlocked || isWarpLocked(this.state, to)) {
+      this.state.message = isWarpLocked(this.state, to)
+        ? 'That Warp is sealed by the Warden’s Curtain.'
+        : 'That Warp is not reachable from the route endpoint.'
       this.sfx('ui')
       this.commit()
       return
@@ -252,58 +251,94 @@ export class BattleStore {
   private firePlayerAttack(steps: number): void {
     if (!steps) return
     const preset = activePreset(this.state)
-    for (const [stepIndex, step] of preset.steps.slice(0, steps).entries()) {
-      const candidates = livingEnemies(this.state).filter(enemy => inAttackRange(this.state.player.pos, enemy.pos, step))
-      const targets = step.area === 'all'
-        ? candidates
-        : candidates.sort((a, b) => manhattan(this.state.player.pos, a.pos) - manhattan(this.state.player.pos, b.pos) || a.id.localeCompare(b.id)).slice(0, 1)
-      for (const enemy of targets) {
-        let damage = stepDamage(step, this.state, enemy, stepIndex)
-        if (this.state.player.focusReady) {
-          damage += 2
-          this.state.player.focusReady = false
-        }
-        const absorbed = Math.min(Math.max(0, enemy.block - (step.pierce ?? 0)), damage)
-        enemy.block -= absorbed
-        const dealt = damage - absorbed
-        enemy.robustness = Math.max(0, enemy.robustness - dealt)
-        this.log(`${preset.name} / ${step.name} → ${enemy.id} / ${dealt} Desire damage.`, 'good')
-        this.sfx('hit')
-      }
+    const hits = predictedSequence(this.state, this.state.player.activeBash, steps)
+    for (const hit of hits) {
+      const enemy = this.state.enemies.find(candidate => candidate.id === hit.enemyId)
+      if (!enemy) continue
+      enemy.block = Math.max(0, enemy.block - hit.absorbed)
+      enemy.robustness = hit.after
+      if (hit.focus) this.state.player.focusReady = false
+      const step = preset.steps[hit.stepIndex]
+      const shieldText = hit.absorbed ? ` / ${hit.absorbed} blocked` : ''
+      this.log(`${preset.name} / ${step.name} → ${enemy.id} / ${hit.dealt} Desire damage${shieldText}.`, 'good')
+      this.sfx('hit')
     }
   }
 
   private enemyAttack(enemy: EnemyState, bashCount: number): void {
+    const dx = Math.abs(enemy.pos.x - this.state.player.pos.x)
+    const dy = Math.abs(enemy.pos.y - this.state.player.pos.y)
+    const inRange = enemy.desireShape === 'square'
+      ? Math.max(dx, dy) <= enemy.desireRange && dx + dy > 0
+      : (dx === 0) !== (dy === 0) && dx + dy <= enemy.desireRange
     for (const amount of enemy.desire.slice(0, bashCount)) {
-      if (manhattan(enemy.pos, this.state.player.pos) > 3) continue
+      if (!inRange) continue
       const absorbed = Math.min(this.state.player.block, amount)
       this.state.player.block -= absorbed
       const dealt = amount - absorbed
       this.state.player.sanity = Math.max(0, this.state.player.sanity - dealt)
-      this.log(`${enemy.id} / DESIRE → ${dealt} Sanity damage.`, 'bad')
+      this.log(`${enemy.id} / ${enemy.desireName ?? 'DESIRE'} → ${dealt} Sanity damage.`, 'bad')
       this.sfx('hit')
       if (this.state.player.sanity <= 0) return
     }
   }
 
-  private resolveEnemy(enemy: EnemyState): void {
+  private resolveEnemy(enemy: EnemyState, changedColumns: Set<number>): void {
     enemy.block = 0
     const counts: Record<FlagKind, number> = { bash: 0, privilege: 0, core: 0, overload: 0, blank: 0 }
     for (const pos of enemy.route) {
-      if (sameCoord(pos, this.state.player.pos)) break
+      if (sameCoord(pos, this.state.player.pos) || isWarpLocked(this.state, pos)) break
       enemy.pos = { ...pos }
       const flag = this.state.flags[pos.y][pos.x]
       counts[flag]++
       this.state.flags[pos.y][pos.x] = 'blank'
+      changedColumns.add(pos.x)
     }
     enemy.block += counts.privilege * enemy.securityPerFlag
     enemy.soulCounter += counts.core
     if (enemy.soulCounter >= enemy.soulThreshold) {
       enemy.soulCounter = 0
       enemy.robustness = Math.min(enemy.maxRobustness, enemy.robustness + enemy.soulHeal)
-      this.log(`${enemy.id} / SOUL restored ${enemy.soulHeal} Robustness.`, 'bad')
+      this.log(`${enemy.id} / ${enemy.soulName ?? 'SOUL'} restored ${enemy.soulHeal} Robustness.`, 'bad')
+    }
+    if (enemy.effectCell) {
+      const { x, y } = enemy.effectCell
+      if (this.state.flags[y][x] !== 'blank') {
+        this.state.flags[y][x] = 'blank'
+        changedColumns.add(x)
+        this.log(`${enemy.id} / PURGE erased ${coordKey(enemy.effectCell)}.`, 'bad')
+      }
+      enemy.effectCell = null
     }
     this.enemyAttack(enemy, counts.bash)
+  }
+
+  private checkBreakdown(): boolean {
+    let advanced = false
+    for (const enemy of livingEnemies(this.state)) {
+      if (!enemy.bossStages?.length || enemy.stage >= enemy.bossStages.length) continue
+      if (enemy.robustness / enemy.maxRobustness > (enemy.breakdownAt ?? 0.5)) continue
+      const next = enemy.bossStages.find(stage => stage.stage === enemy.stage + 1)
+      if (!next) continue
+      enemy.stage = next.stage
+      enemy.desireName = next.desireName
+      enemy.desire = [...next.desire]
+      enemy.desireRange = next.desireRange
+      enemy.desireShape = next.desireShape
+      enemy.routeLength = next.routeLength
+      enemy.securityName = next.securityName
+      enemy.securityPerFlag = next.securityPerFlag
+      enemy.soulName = next.soulName
+      enemy.soulThreshold = next.soulThreshold
+      enemy.soulHeal = next.soulHeal
+      enemy.block = 0
+      enemy.soulCounter = 0
+      this.log(`BREAKDOWN / Stage II: ${next.desireName}, ${next.securityName}, ${next.soulName}; dual Curtain armed.`, 'bad')
+      this.state.message = 'WARDEN BREAKDOWN / DUAL CURTAIN PROTOCOL'
+      this.sfx('explosion')
+      advanced = true
+    }
+    return advanced
   }
 
   private checkOutcome(): boolean {
@@ -314,10 +349,11 @@ export class BattleStore {
       this.sfx('lose')
       return true
     }
+    if (this.checkBreakdown()) enemyRoutes(this.state)
     if (!livingEnemies(this.state).length) {
       this.state.phase = 'victory'
       this.state.message = 'ESCAPED / SANDBOX BREACHED'
-      this.log('All hostile Robustness reduced to zero. Escape route open.', 'good')
+      this.log('Warden Robustness reduced to zero. Escape route open.', 'good')
       this.sfx('win')
       return true
     }
@@ -328,6 +364,7 @@ export class BattleStore {
     if (this.state.phase === 'title') this.start()
     if (this.state.phase !== 'planning') return
     const id = ++this.runId
+    const changedColumns = new Set<number>()
     const usedOverload = this.state.actions.some(action => action.type === 'overload')
     this.state.overloadArmed = false
     this.state.attackPreview = null
@@ -341,6 +378,7 @@ export class BattleStore {
       this.state.player.pos = { ...action.to }
       this.collectPlayerFlag(action.flag)
       this.state.flags[action.to.y][action.to.x] = 'blank'
+      changedColumns.add(action.to.x)
       this.commit()
       await this.wait()
     }
@@ -355,17 +393,22 @@ export class BattleStore {
     this.commit()
     for (const enemy of livingEnemies(this.state)) {
       if (id !== this.runId) return
-      this.resolveEnemy(enemy)
+      this.resolveEnemy(enemy, changedColumns)
       this.commit()
       await this.wait()
       if (this.checkOutcome()) { this.commit(); return }
     }
 
-    refillBoard(this.state, this.random)
+    for (const event of advanceCurtains(this.state)) {
+      this.log(event.type === 'lock'
+        ? `CURTAIN / ${curtainLabel(event.curtain)} sealed until the next enemy phase.`
+        : `CURTAIN / ${curtainLabel(event.curtain)} released.`, event.type === 'lock' ? 'bad' : 'neutral')
+    }
+    refillBoard(this.state, this.random, changedColumns)
     this.state.turn++
     this.state.player.block = 0
     this.state.actions = []
-    this.state.message = 'Warps reindexed. New enemy routes exposed.'
+    this.state.message = 'Warps reindexed. Warden intent exposed.'
     enemyRoutes(this.state)
     this.state.phase = 'planning'
     this.log(`Turn ${this.state.turn} ready.`)

@@ -42,6 +42,12 @@ const keyFor = (a, b) => b.x > a.x ? 'KeyD' : b.x < a.x ? 'KeyA' : b.y > a.y ? '
 function bestRoute(state, focusOverload = false) {
   const enemies = state.enemies.filter(enemy => enemy.robustness > 0)
   const blocked = new Set(enemies.map(enemy => `${enemy.pos.x},${enemy.pos.y}`))
+  for (const curtain of state.curtains.filter(item => item.locked)) {
+    for (let i = 0; i < 15; i++) {
+      const pos = curtain.axis === 'column' ? { x: curtain.index, y: i } : { x: i, y: curtain.index }
+      blocked.add(`${pos.x},${pos.y}`)
+    }
+  }
   let best = { path: [], score: -1e9 }
   const start = state.player.pos
   function walk(pos, path, visited) {
@@ -113,7 +119,7 @@ try {
   const previewColor = await page.locator('.damage-preview').evaluate(element => getComputedStyle(element).color)
   if (previewColor !== 'rgb(242, 209, 107)') throw new Error(`Damage preview is not yellow: ${previewColor}`)
   const projected = await page.locator('.to-be').textContent()
-  if (!projected?.includes('10')) throw new Error(`Missing projected Desire value: ${projected}`)
+  if (!projected?.includes('34')) throw new Error(`Missing projected Desire value: ${projected}`)
   if (await page.locator('.action-slot').count() !== 8) throw new Error('Expected eight smaller AP slots')
   if (await page.locator('.action-indicator.lit').count() !== 2) throw new Error('Expected Roman steps I and II to light')
   const coreLayout = await page.locator('.buff-list').evaluate(element => ({
@@ -134,26 +140,39 @@ try {
   if (!(await page.locator('.method-detail strong').textContent())?.includes('MANHATTAN')) throw new Error('Roman indicator did not show MANHATTAN mechanics')
   if ((await snapshot()).attackPreview?.stepIndex !== 1) throw new Error('Roman indicator did not activate map range preview')
   if (!(await page.locator('.damage-preview').textContent())?.includes('THIS ACTION')) throw new Error('Single-action damage preview did not activate')
-  if (await page.locator('.health-segment').count() !== 2) throw new Error('Expected two segmented action effects in the HP bar')
-  await page.locator('.health-segment').nth(1).hover()
+  if (await page.locator('.health-segment').count() !== 1) throw new Error('Expected only the hovered action segment in the HP bar')
+  await page.locator('.health-segment').nth(0).hover()
   if (!(await page.locator('.method-detail strong').textContent())?.includes('MANHATTAN')) throw new Error('HP segment did not restore MANHATTAN preview')
   await page.screenshot({ path: join(SHOTS, '05-battle-compact.png') })
   await page.mouse.move(0, 0)
   await page.getByRole('button', { name: /EXECUTE ROUTE/ }).click()
   await waitPhase(['planning'])
   let state = await snapshot()
-  if (state.enemies[0].robustness !== 10) throw new Error(`Opening Bash expected E01 at 10, got ${state.enemies[0].robustness}`)
+  if (state.enemies[0].robustness !== 34) throw new Error(`Opening Bash expected B01 at 34, got ${state.enemies[0].robustness}`)
 
   let overloadUsed = false
+  let stageTwoSeen = false
+  let curtainLockSeen = false
   for (let turn = 0; turn < 20; turn++) {
     state = await snapshot()
     if (state.phase !== 'planning') break
+    if (state.enemies[0].stage === 2 && !stageTwoSeen) {
+      stageTwoSeen = true
+      await page.screenshot({ path: join(SHOTS, '10-warden-stage-two.png') })
+    }
+    if (state.curtains.some(curtain => curtain.locked) && !curtainLockSeen) {
+      curtainLockSeen = true
+      await page.screenshot({ path: join(SHOTS, '11-curtain-lock.png') })
+    }
     const triggerOverload = state.player.overload >= 5
     if (triggerOverload) overloadUsed = true
     await playRoute(state, false, triggerOverload)
   }
   state = await snapshot()
+  if (state.enemies[0].stage === 2) stageTwoSeen = true
   if (state.phase !== 'victory') throw new Error(`Autoplay did not reach victory; ended at ${state.phase} on turn ${state.turn} with Sanity ${state.player.sanity}`)
+  if (!stageTwoSeen) throw new Error('Warden Breakdown was not reached during the boss playthrough')
+  if (!curtainLockSeen) throw new Error('No active Curtain lock was observed during the boss playthrough')
   await page.screenshot({ path: join(SHOTS, '06-victory.png') })
 
   await page.keyboard.press('KeyR')

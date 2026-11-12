@@ -4,10 +4,10 @@ import {
   Hexagon, Play, RotateCcw, Settings, Shield, ShieldAlert, SquareTerminal,
   X, Zap,
 } from 'lucide-react'
-import { startGame, stopGame } from '@/game/boot'
+import { startGame, stopGame, zoomMap } from '@/game/boot'
 import { battleStore } from '@/game/battle-store'
 import { BASH_PRESETS, MAX_ACTIONS, OVERLOAD_THRESHOLD } from '@/game/battle-config'
-import { coordKey } from '@/game/battle-rules'
+import { coordKey, curtainLabel } from '@/game/battle-rules'
 import { mechanicText, predictedSequence, rangeText, releaseCount } from '@/game/attack-methods'
 import type { PredictedHit } from '@/game/attack-methods'
 import type { EnemyState, FlagKind } from '@/game/battle-types'
@@ -52,7 +52,7 @@ function SegmentedHealth({ enemy, hits, previewStep, onPreview, onLeave }: {
           onFocus={() => onPreview(hit.stepIndex)}
           onBlur={onLeave}
           onClick={() => onPreview(hit.stepIndex)}
-          aria-label={`Preview action ${hit.stepIndex + 1}: ${hit.damage} damage`}
+          aria-label={`Preview action ${hit.stepIndex + 1}: ${hit.dealt} damage`}
         />
       ))}
     </div>
@@ -78,12 +78,17 @@ export default function Home() {
   const [methodInspector, setMethodInspector] = useState<{ presetIndex: number; stepIndex: number } | null>(null)
   const [bashView, setBashView] = useState(0)
   const [devicePanel, setDevicePanel] = useState<'operator' | 'geeks'>('operator')
+  const [mapZoom, setMapZoom] = useState(1)
   const clearTimer = useRef<number | null>(null)
 
   useEffect(() => {
-    if (!canvasRef.current) return
-    startGame(canvasRef.current)
-    return () => stopGame()
+    const onZoom = (event: Event) => setMapZoom((event as CustomEvent<number>).detail)
+    window.addEventListener('map-zoom-changed', onZoom)
+    if (canvasRef.current) startGame(canvasRef.current)
+    return () => {
+      window.removeEventListener('map-zoom-changed', onZoom)
+      stopGame()
+    }
   }, [])
 
   const plannedState = {
@@ -103,13 +108,12 @@ export default function Home() {
   const singleStep = methodInspector && state.attackPreview
     ? state.attackPreview.stepIndex
     : state.overloadArmed ? null : state.attackPreview?.stepIndex ?? null
+  const visibleSequence = singleStep === null ? sequence : sequence.filter(hit => hit.stepIndex === singleStep)
   const expected: Record<string, number> = {}
-  for (const hit of sequence) {
-    if (singleStep !== null && hit.stepIndex !== singleStep) continue
-    expected[hit.enemyId] = (expected[hit.enemyId] ?? 0) + hit.damage
-  }
+  for (const hit of visibleSequence) expected[hit.enemyId] = (expected[hit.enemyId] ?? 0) + hit.dealt
   const aliveEnemies = state.enemies.filter(enemy => enemy.robustness > 0)
-  const affectedEnemies = aliveEnemies.filter(enemy => (expected[enemy.id] ?? 0) > 0)
+  const boss = aliveEnemies.find(enemy => enemy.bossStages?.length)
+  const affectedEnemies = aliveEnemies.filter(enemy => visibleSequence.some(hit => hit.enemyId === enemy.id))
   const canAct = state.phase === 'planning'
   const releases = usedOverload ? 0 : releaseCount(previewState)
   const inspector = methodInspector ?? state.attackPreview
@@ -279,6 +283,11 @@ export default function Home() {
 
         <section className="board-area" aria-label="Battle map with hexadecimal Warp coordinates">
           <canvas id="game-canvas" ref={canvasRef} />
+          <div className="map-zoom-controls" aria-label="Map zoom controls">
+            <button type="button" onClick={() => zoomMap('out')} aria-label="Zoom out">−</button>
+            <button type="button" className="zoom-value" onClick={() => zoomMap('reset')} aria-label="Reset map zoom">{Math.round(mapZoom * 100)}%</button>
+            <button type="button" onClick={() => zoomMap('in')} aria-label="Zoom in">+</button>
+          </div>
           <div className="board-caption"><span /><span>{state.message}</span></div>
         </section>
 
@@ -291,11 +300,29 @@ export default function Home() {
             </button>
           </section>
 
+          {boss && <section className="boss-protocol" aria-label="Warden boss protocol">
+            <div className="section-heading"><span>WARDEN / STAGE {ROMAN[boss.stage - 1]}</span><ShieldAlert size={14} /></div>
+            <div className="boss-sets">
+              <span>DESIRE <strong>{boss.desireName}</strong></span>
+              <span>SECURITY <strong>{boss.securityName}</strong></span>
+              <span>SOUL <strong>{boss.soulName}</strong></span>
+            </div>
+            <div className="breakdown-line">
+              <span>BREAKDOWN</span>
+              <strong>{boss.stage === 1 ? `AT ${Math.ceil(boss.maxRobustness * (boss.breakdownAt ?? 0.5))} ROBUSTNESS` : 'SPENT / DUAL CURTAIN'}</strong>
+            </div>
+            <div className="curtain-list">
+              {state.curtains.map(curtain => <span className={curtain.locked ? 'locked' : ''} key={`${curtain.axis}-${curtain.index}`}>
+                {curtain.locked ? 'SEALED' : `T−${Math.max(0, curtain.fireTurn - state.turn)}`} / {curtainLabel(curtain)}
+              </span>)}
+            </div>
+          </section>}
+
           <section className="enemy-list-section">
-            <div className="section-heading"><span>AFFECTED GEEKS</span><strong>{affectedEnemies.length}</strong></div>
+            <div className="section-heading"><span>{boss ? 'WARDEN TARGET' : 'AFFECTED GEEKS'}</span><strong>{affectedEnemies.length}</strong></div>
             <div className="enemy-list">
               {affectedEnemies.map(enemy => {
-                const hits = sequence.filter(hit => hit.enemyId === enemy.id)
+                const hits = visibleSequence.filter(hit => hit.enemyId === enemy.id)
                 const projected = hits.length ? hits[hits.length - 1].after : enemy.robustness
                 return (
                   <article className="enemy-card affected" key={enemy.id}>
@@ -318,18 +345,20 @@ export default function Home() {
                       <span>SECURITY {enemy.block}</span><span>SOUL {enemy.soulCounter}/{enemy.soulThreshold}</span>
                     </div>
                     <div className="enemy-functions">
-                      <span title="Desire attack set"><Activity size={12} /> DESIRE</span>
-                      <span title="Security defense set"><Shield size={12} /> SECURITY</span>
-                      <span title="Soul buff set"><Cpu size={12} /> SOUL</span>
+                      <span title={`${enemy.desireShape} Desire range ${enemy.desireRange}`}><Activity size={12} /> {enemy.desireName ?? 'DESIRE'}</span>
+                      <span title="Security defense set"><Shield size={12} /> {enemy.securityName ?? 'SECURITY'}</span>
+                      <span title="Soul buff set"><Cpu size={12} /> {enemy.soulName ?? 'SOUL'}</span>
+                      {enemy.bossStages && <span title="Breakdown stage transition"><ShieldAlert size={12} /> BREAKDOWN</span>}
                     </div>
                     <div className="enemy-route">
-                      <span>ROUTE</span>
+                      <span>{enemy.behavior.toUpperCase()} / ROUTE</span>
                       <p>{[enemy.pos, ...enemy.route].map(coordKey).join(' → ')}</p>
+                      {enemy.effectCell && <p className="enemy-purge">PURGE → {coordKey(enemy.effectCell)}</p>}
                     </div>
                   </article>
                 )
               })}
-              {!affectedEnemies.length && <div className="empty-geeks">NO GEEKS IN EFFECT</div>}
+              {!affectedEnemies.length && <div className="empty-geeks">{boss ? 'NO WARDEN IN EFFECT' : 'NO GEEKS IN EFFECT'}</div>}
             </div>
           </section>
 
@@ -345,9 +374,9 @@ export default function Home() {
       {state.phase === 'title' && (
         <div className="state-overlay title-overlay">
           <div className="title-content">
-            <div className="eyebrow">CONTAINMENT ROUTINE / 01</div>
+            <div className="eyebrow">WARDEN PROTOCOL / CURTAIN</div>
             <h1>FINAL<br />PROTOCOL</h1>
-            <p>Reduce hostile Robustness to zero and escape.<br />If Sanity reaches zero, Blackwall eliminates the process.</p>
+            <p>Break the Warden’s two-stage Curtain protocol.<br />If Sanity reaches zero, Blackwall eliminates the process.</p>
             <button className="primary-action" onClick={() => battleStore.start()}><Play size={16} /> BREACH SANDBOX <span>SPACE</span></button>
             <div className="title-hint">WASD / ARROWS TO PLAN · CLICK WARPS · O FOR OVERLOAD</div>
           </div>
@@ -382,8 +411,11 @@ export default function Home() {
           <div className="eyebrow">BLACKWALL_01 / DOCUMENTATION</div>
           <h2>BATTLE MANUAL</h2>
           <div className="manual-grid">
-            <section><h3>OBJECTIVE</h3><p>Reduce every hostile’s <strong>Robustness</strong> to zero to escape. Your own health is <strong>Sanity</strong>; at zero, the run ends.</p></section>
-            <section><h3>TURN</h3><p>Enemy routes are exposed first. Plan up to eight operations, execute your Functions, then enemies move and trigger their Functions. Warps reindex last.</p></section>
+            <section><h3>OBJECTIVE</h3><p>Reduce the Warden’s <strong>Robustness</strong> to zero to escape. Your own health is <strong>Sanity</strong>; at zero, the run ends.</p></section>
+            <section><h3>TURN</h3><p>Warden routes and Curtain targets are exposed first. Plan up to eight operations, execute your Functions, then the Warden moves and triggers its sets. Warps reindex last.</p></section>
+            <section><h3>BOARD FORECAST</h3><p>The small symbols above the coordinates are the next Warps entering each column. Only columns changed by a pickup or purge drop, so untouched routes remain stable.</p></section>
+            <section><h3>CURTAIN</h3><p>Red dashed rows or columns are fixed two turns ahead. When their countdown reaches zero, they seal for your next planning turn. Sealed Warps cannot be entered or collected by either side.</p></section>
+            <section><h3>BREAKDOWN</h3><p>At 18 Robustness, the Warden enters Stage II: REHEARSAL becomes OVERTURE, CLOSE becomes DEADLOCK, and REPAIR becomes REWRITE. Future Curtains cover both axes around the position you occupied when they were scheduled.</p></section>
             <section><h3><SquareTerminal size={15} /> BASH</h3><p>Release length is the lower of Bash collected, remaining AP, and IV. VECTOR uses a 5×5 square; CoT uses a cross with arm length 5. Each Roman numeral is a different attack method.</p></section>
             <section><h3><Shield size={15} /> PRIVILEGE</h3><p>SHELL automatically adds 2 Block per collected Privilege Flag. Block absorbs incoming damage for the following enemy phase.</p></section>
             <section><h3><Cpu size={15} /> CORE</h3><p>Every Core Flag advances all three independent counters. REPAIR heals, FOCUS empowers one Bash hit, and FIREWALL adds Block.</p></section>

@@ -78,6 +78,30 @@ try {
     if (metrics.actionIndicator.height < 44 || metrics.overload.height < 44 || metrics.topIcon.width < 44 || metrics.viewDot.width < 28) {
       throw new Error(`${item.name}: touch target is too small ${JSON.stringify(metrics)}`)
     }
+    if (item.name === 'phone-landscape') {
+      const centerX = metrics.board.x + metrics.board.width / 2
+      const centerY = metrics.board.y + metrics.board.height / 2
+      const cdp = await context.newCDPSession(page)
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: centerX - 45, y: centerY }, { x: centerX + 45, y: centerY }] })
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: centerX - 90, y: centerY }, { x: centerX + 90, y: centerY }] })
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+      await page.waitForFunction(() => Number(document.querySelector('.zoom-value')?.textContent?.replace('%', '')) > 100)
+      await page.keyboard.press('Control+0')
+      const scroll = await page.locator('.player-panel').evaluate(element => {
+        element.scrollTop = 80
+        return { top: element.scrollTop, max: element.scrollHeight - element.clientHeight, overflow: getComputedStyle(element).overflowY }
+      })
+      if (scroll.max > 0 && scroll.top === 0) throw new Error('Operator panel does not scroll independently')
+      if (scroll.overflow !== 'auto') throw new Error(`Operator panel is not scrollable: ${scroll.overflow}`)
+    } else {
+      await page.mouse.move(metrics.board.x + metrics.board.width / 2, metrics.board.y + metrics.board.height / 2)
+      await page.mouse.wheel(0, -220)
+      await page.waitForFunction(() => Number(document.querySelector('.zoom-value')?.textContent?.replace('%', '')) > 100)
+      await page.keyboard.press('Control+0')
+      await page.keyboard.press('Control+Minus')
+      await page.waitForFunction(() => Number(document.querySelector('.zoom-value')?.textContent?.replace('%', '')) < 100)
+      await page.keyboard.press('Control+0')
+    }
     await page.locator('.preset.selected .action-indicator').nth(1).click()
     await page.waitForFunction(() => window.__battleProbe()?.attackPreview?.stepIndex === 1)
     await page.getByRole('button', { name: 'Close method preview' }).click()

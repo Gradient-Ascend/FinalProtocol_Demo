@@ -1,4 +1,5 @@
 import { BASH_PRESETS, MAX_ACTIONS } from './battle-config'
+import { livingEnemies, manhattan } from './battle-rules'
 import type { AttackStep, BattleState, Coord, EnemyState } from './battle-types'
 
 export function inAttackRange(origin: Coord, target: Coord, step: AttackStep): boolean {
@@ -26,9 +27,7 @@ export function attackRoll(state: BattleState, stepIndex: number, targetId: stri
 }
 
 export function stepDamage(step: AttackStep, state: BattleState, target: EnemyState, stepIndex: number): number {
-  if (step.mode === 'manhattan') {
-    return Math.abs(state.player.pos.x - target.pos.x) + Math.abs(state.player.pos.y - target.pos.y)
-  }
+  if (step.mode === 'manhattan') return manhattan(state.player.pos, target.pos)
   if (step.mode === 'random') return attackRoll(state, stepIndex, target.id)
   return step.amount
 }
@@ -37,41 +36,53 @@ export function presetFor(state: BattleState) {
   return BASH_PRESETS[state.player.activeBash]
 }
 
-
 export type PredictedHit = {
   enemyId: string
+  presetIndex: number
   stepIndex: number
   damage: number
+  absorbed: number
+  dealt: number
+  focus: number
   before: number
   after: number
 }
 
+// This pure sequence planner is the single source of truth for both the yellow
+// forecast and real damage. Applying a preview can never drift from its rules.
 export function predictedSequence(state: BattleState, presetIndex = state.player.activeBash, stepsOverride?: number): PredictedHit[] {
   const steps = stepsOverride ?? releaseCount(state)
-  const hp = Object.fromEntries(state.enemies.filter(enemy => enemy.robustness > 0).map(enemy => [enemy.id, enemy.robustness]))
-  const shields = Object.fromEntries(state.enemies.filter(enemy => enemy.robustness > 0).map(enemy => [enemy.id, enemy.block]))
+  const hp = Object.fromEntries(livingEnemies(state).map(enemy => [enemy.id, enemy.robustness]))
+  const shields = Object.fromEntries(livingEnemies(state).map(enemy => [enemy.id, enemy.block]))
   const hits: PredictedHit[] = []
-  let focus = state.player.focusReady ? 2 : 0
+  let focusReady = state.player.focusReady
   for (const [stepIndex, step] of BASH_PRESETS[presetIndex].steps.slice(0, steps).entries()) {
-    const candidates = state.enemies.filter(enemy => hp[enemy.id] > 0 && inAttackRange(state.player.pos, enemy.pos, step))
+    const candidates = livingEnemies(state).filter(enemy => hp[enemy.id] > 0 && inAttackRange(state.player.pos, enemy.pos, step))
     const targets = step.area === 'all'
       ? candidates
-      : candidates.sort((a, b) => {
-          const distanceA = Math.abs(state.player.pos.x - a.pos.x) + Math.abs(state.player.pos.y - a.pos.y)
-          const distanceB = Math.abs(state.player.pos.x - b.pos.x) + Math.abs(state.player.pos.y - b.pos.y)
-          return distanceA - distanceB || a.id.localeCompare(b.id)
-        }).slice(0, 1)
+      : candidates.sort((a, b) => manhattan(state.player.pos, a.pos) - manhattan(state.player.pos, b.pos) || a.id.localeCompare(b.id)).slice(0, 1)
     for (const target of targets) {
+      const focus = focusReady ? 2 : 0
+      focusReady = false
       const damage = stepDamage(step, state, target, stepIndex) + focus
-      focus = 0
       const absorbed = Math.min(Math.max(0, shields[target.id] - (step.pierce ?? 0)), damage)
       shields[target.id] -= absorbed
       const before = hp[target.id]
-      hp[target.id] = Math.max(0, before - (damage - absorbed))
-      hits.push({ enemyId: target.id, stepIndex, damage, before, after: hp[target.id] })
+      const dealt = Math.min(before, damage - absorbed)
+      const after = Math.max(0, before - dealt)
+      hp[target.id] = after
+      hits.push({ enemyId: target.id, presetIndex, stepIndex, damage, absorbed, dealt, focus, before, after })
     }
   }
   return hits
+}
+
+export function predictedDamage(state: BattleState, presetIndex = state.player.activeBash, stepsOverride?: number): Record<string, number> {
+  const result: Record<string, number> = {}
+  for (const hit of predictedSequence(state, presetIndex, stepsOverride)) {
+    result[hit.enemyId] = (result[hit.enemyId] ?? 0) + hit.dealt
+  }
+  return result
 }
 
 export function mechanicText(step: AttackStep): string {
@@ -84,6 +95,6 @@ export function mechanicText(step: AttackStep): string {
 
 export function rangeText(step: AttackStep): string {
   return step.shape === 'square'
-    ? '5×5 square / center excluded'
+    ? `${step.range * 2 + 1}×${step.range * 2 + 1} square / center excluded`
     : `Cross / arm length ${step.range} / center excluded`
 }

@@ -17,9 +17,17 @@ export class BattleRenderer {
   private origin = { x: 0, y: 0 }
   private cell = 36
   private boardPx = 540
+  private baseCell = 36
   private hover: Coord | null = null
   private unitSeen = new Map<string, string>()
   private movingUntil = new Map<string, number>()
+  private pointers = new Map<number, { x: number; y: number }>()
+  private pinchStartDistance = 0
+  private pinchStartZoom = 1
+  private pinching = false
+  private suppressClick = false
+  zoom = 1
+  onZoomChange?: (zoom: number) => void
 
   constructor(private canvas: HTMLCanvasElement, private store: BattleStore) {
     const ctx = canvas.getContext('2d')
@@ -27,16 +35,50 @@ export class BattleRenderer {
     this.ctx = ctx
     this.canvas.addEventListener('pointermove', this.onPointerMove)
     this.canvas.addEventListener('pointerleave', this.onPointerLeave)
+    this.canvas.addEventListener('pointerdown', this.onPointerDown)
+    this.canvas.addEventListener('pointerup', this.onPointerUp)
+    this.canvas.addEventListener('pointercancel', this.onPointerUp)
+    this.canvas.addEventListener('wheel', this.onWheel, { passive: false })
     this.resize()
     this.loop(0)
   }
 
   private onPointerMove = (event: PointerEvent): void => {
+    if (this.pointers.has(event.pointerId)) this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
     this.hover = this.cellAt(event.clientX, event.clientY)
+    if (this.pinching && this.pointers.size >= 2) {
+      const [a, b] = [...this.pointers.values()]
+      const distance = Math.hypot(a.x - b.x, a.y - b.y)
+      if (distance > 0 && this.pinchStartDistance > 0) {
+        this.zoomAt(this.pinchStartZoom * distance / this.pinchStartDistance, (a.x + b.x) / 2, (a.y + b.y) / 2)
+      }
+    }
+  }
+
+  private onPointerDown = (event: PointerEvent): void => {
+    this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    try { this.canvas.setPointerCapture(event.pointerId) } catch { /* Synthetic verification pointers may not be capturable. */ }
+    if (this.pointers.size === 2) {
+      const [a, b] = [...this.pointers.values()]
+      this.pinchStartDistance = Math.hypot(a.x - b.x, a.y - b.y)
+      this.pinchStartZoom = this.zoom
+      this.pinching = true
+      this.suppressClick = true
+    }
+  }
+
+  private onPointerUp = (event: PointerEvent): void => {
+    this.pointers.delete(event.pointerId)
+    if (this.pointers.size < 2) this.pinching = false
   }
 
   private onPointerLeave = (): void => {
     this.hover = null
+  }
+
+  private onWheel = (event: WheelEvent): void => {
+    event.preventDefault()
+    this.zoomAt(this.zoom * (event.deltaY < 0 ? 1.12 : 1 / 1.12), event.clientX, event.clientY)
   }
 
   resize = (): void => {
@@ -47,12 +89,42 @@ export class BattleRenderer {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     const width = rect.width
     const height = rect.height
-    this.cell = Math.max(12, Math.floor(Math.min((width - 66) / 15, (height - 66) / 15)))
+    // Reserve a second top row for the public incoming-Warp queue.
+    this.baseCell = Math.max(12, Math.floor(Math.min((width - 80) / 15, (height - 92) / 15)))
+    this.applyZoom()
+  }
+
+  private applyZoom(focal?: { x: number; y: number; gx: number; gy: number }): void {
+    const rect = this.canvas.getBoundingClientRect()
+    this.cell = Math.max(6, Math.round(this.baseCell * this.zoom))
     this.boardPx = this.cell * 15
-    this.origin = {
-      x: Math.round((width - this.boardPx) / 2 + 10),
-      y: Math.round((height - this.boardPx) / 2 + 10),
+    const baseOrigin = {
+      x: Math.round((rect.width - this.boardPx) / 2 + 10),
+      y: Math.round((rect.height - this.boardPx) / 2 + 20),
     }
+    this.origin = focal
+      ? { x: focal.x - focal.gx * this.cell, y: focal.y - focal.gy * this.cell }
+      : baseOrigin
+    this.onZoomChange?.(this.zoom)
+  }
+
+  zoomAt(next: number, clientX?: number, clientY?: number): void {
+    const rect = this.canvas.getBoundingClientRect()
+    const x = clientX === undefined ? rect.width / 2 : clientX - rect.left
+    const y = clientY === undefined ? rect.height / 2 : clientY - rect.top
+    const gx = (x - this.origin.x) / this.cell
+    const gy = (y - this.origin.y) / this.cell
+    this.zoom = Math.max(0.6, Math.min(2.4, next))
+    this.applyZoom({ x, y, gx, gy })
+  }
+
+  zoomIn(): void { this.zoomAt(this.zoom * 1.2) }
+  zoomOut(): void { this.zoomAt(this.zoom / 1.2) }
+  resetZoom(): void { this.zoom = 1; this.applyZoom() }
+  consumePinch(): boolean {
+    const suppressed = this.suppressClick
+    this.suppressClick = false
+    return suppressed
   }
 
   cellAt(clientX: number, clientY: number): Coord | null {
@@ -207,10 +279,14 @@ export class BattleRenderer {
     ctx.fillStyle = COLORS.muted
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
+    const incomingY = -0.5 - Math.max(28, this.cell * 0.9) / this.cell
     for (let i = 0; i < 15; i++) {
       const label = i.toString(16).toUpperCase()
-      ctx.fillText(label, this.origin.x + (i + 0.5) * this.cell, this.origin.y - 14)
+      ctx.fillText(label, this.origin.x + (i + 0.5) * this.cell, this.origin.y - 7)
       ctx.fillText(label, this.origin.x - 17, this.origin.y + (i + 0.5) * this.cell)
+      ctx.globalAlpha = 0.65
+      this.drawFlag(state.incoming[i][0], { x: i, y: incomingY }, 0.55)
+      ctx.globalAlpha = 1
     }
 
     for (let y = 0; y < 15; y++) {
@@ -224,6 +300,26 @@ export class BattleRenderer {
         ctx.strokeRect(px + 0.5, py + 0.5, this.cell - 1, this.cell - 1)
         if (state.walls[y][x]) {
           this.line({ x: px + 7, y: py + this.cell - 7 }, { x: px + this.cell - 7, y: py + 7 }, COLORS.faint, 1)
+        }
+      }
+    }
+
+    for (const curtain of state.curtains) {
+      for (let i = 0; i < 15; i++) {
+        const pos = curtain.axis === 'column' ? { x: curtain.index, y: i } : { x: i, y: curtain.index }
+        const px = this.origin.x + pos.x * this.cell
+        const py = this.origin.y + pos.y * this.cell
+        if (curtain.locked) {
+          ctx.fillStyle = 'rgba(255,112,112,0.12)'
+          ctx.fillRect(px + 1, py + 1, this.cell - 2, this.cell - 2)
+          this.line({ x: px + 5, y: py + 5 }, { x: px + this.cell - 5, y: py + this.cell - 5 }, COLORS.red, 0.8)
+          this.line({ x: px + this.cell - 5, y: py + 5 }, { x: px + 5, y: py + this.cell - 5 }, COLORS.red, 0.8)
+        } else {
+          ctx.strokeStyle = 'rgba(255,112,112,0.48)'
+          ctx.lineWidth = 0.9
+          ctx.setLineDash([2, 4])
+          ctx.strokeRect(px + 2.5, py + 2.5, this.cell - 5, this.cell - 5)
+          ctx.setLineDash([])
         }
       }
     }
@@ -249,6 +345,16 @@ export class BattleRenderer {
       for (const pos of enemy.route) {
         this.line(this.center(previous), this.center(pos), COLORS.muted, 1.4, [4, 5])
         previous = pos
+      }
+      if (enemy.effectCell) {
+        const px = this.origin.x + enemy.effectCell.x * this.cell
+        const py = this.origin.y + enemy.effectCell.y * this.cell
+        ctx.strokeStyle = COLORS.red
+        ctx.lineWidth = 1.2
+        ctx.setLineDash([2, 3])
+        ctx.strokeRect(px + 3.5, py + 3.5, this.cell - 7, this.cell - 7)
+        ctx.setLineDash([])
+        this.line(this.center(previous), this.center(enemy.effectCell), COLORS.red, 1, [2, 4])
       }
     }
 
@@ -306,5 +412,9 @@ export class BattleRenderer {
     cancelAnimationFrame(this.raf)
     this.canvas.removeEventListener('pointermove', this.onPointerMove)
     this.canvas.removeEventListener('pointerleave', this.onPointerLeave)
+    this.canvas.removeEventListener('pointerdown', this.onPointerDown)
+    this.canvas.removeEventListener('pointerup', this.onPointerUp)
+    this.canvas.removeEventListener('pointercancel', this.onPointerUp)
+    this.canvas.removeEventListener('wheel', this.onWheel)
   }
 }

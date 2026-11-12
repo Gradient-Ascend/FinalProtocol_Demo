@@ -10,16 +10,27 @@ declare global {
   }
 }
 
-let session: { dispose: () => void } | null = null
+export type MapZoomCommand = 'in' | 'out' | 'reset'
+let session: { dispose: () => void; zoom: (command: MapZoomCommand) => void } | null = null
+
+export function zoomMap(command: MapZoomCommand): void {
+  session?.zoom(command)
+}
 
 export function startGame(canvas: HTMLCanvasElement): void {
   stopGame()
   const renderer = new BattleRenderer(canvas, battleStore)
+  renderer.onZoomChange = zoom => window.dispatchEvent(new CustomEvent('map-zoom-changed', { detail: zoom }))
   const audio = new AudioSystem()
   battleStore.sfx = id => audio.sfx(id)
   battleStore.startMusic = () => audio.startMusic()
 
   const onKey = (event: KeyboardEvent): void => {
+    if (event.ctrlKey || event.metaKey) {
+      if (['Equal', 'NumpadAdd'].includes(event.code)) { event.preventDefault(); renderer.zoomIn(); return }
+      if (['Minus', 'NumpadSubtract'].includes(event.code)) { event.preventDefault(); renderer.zoomOut(); return }
+      if (['Digit0', 'Numpad0'].includes(event.code)) { event.preventDefault(); renderer.resetZoom(); return }
+    }
     const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Backspace']
     if (keys.includes(event.code)) event.preventDefault()
     if (event.repeat && !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) return
@@ -48,6 +59,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
   }
 
   const onClick = (event: MouseEvent): void => {
+    if (renderer.consumePinch()) return
     const cell = renderer.cellAt(event.clientX, event.clientY)
     if (cell) battleStore.addMove(cell)
   }
@@ -62,6 +74,11 @@ export function startGame(canvas: HTMLCanvasElement): void {
   window.__battleProbe = () => battleStore.getSnapshot()
 
   session = {
+    zoom: command => {
+      if (command === 'in') renderer.zoomIn()
+      else if (command === 'out') renderer.zoomOut()
+      else renderer.resetZoom()
+    },
     dispose: () => {
       renderer.dispose()
       audio.dispose()
