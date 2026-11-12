@@ -117,6 +117,7 @@ export type EnemyAttackPreview = {
 
 export type AttackEffect = {
   source: 'player' | 'enemy'
+  presetId: string
   origin: Coord
   target: Coord
   stepIndex: number
@@ -149,6 +150,7 @@ export type BattleState = {
   playerTrail: Coord[]
   enemies: EnemyState[]
   actions: BattleAction[]
+  resolvedMoves: number
   log: LogEntry[]
   muted: boolean
   reducedMotion: boolean

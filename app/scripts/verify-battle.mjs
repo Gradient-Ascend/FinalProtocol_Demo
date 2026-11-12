@@ -82,6 +82,10 @@ async function playRoute(state, focusOverload = false, triggerOverload = false) 
   if (triggerOverload) {
     await page.keyboard.press('KeyO')
     if (!(await snapshot()).overloadArmed) throw new Error('First O did not arm Overload preview')
+    const overloadPreview = await page.locator('.overload-preview-value').textContent()
+    if (!overloadPreview || (!/−\d+/.test(overloadPreview) && overloadPreview.trim() !== 'NO TARGET')) {
+      throw new Error(`Overload damage preview is missing: ${overloadPreview}`)
+    }
     await page.screenshot({ path: join(SHOTS, '08-overload.png') })
     await page.keyboard.press('KeyO')
     if ((await snapshot()).overloadArmed) throw new Error('Second O did not release Overload')
@@ -155,18 +159,41 @@ try {
     bar: element.parentElement.getBoundingClientRect().height,
   }))
   if (Math.abs(segmentThickness.segment - segmentThickness.bar) > 0.1) throw new Error(`Preview segment thickness differs from HP bar: ${JSON.stringify(segmentThickness)}`)
+  const rightRadius = await page.locator('.enemy-card .health-segment.right-edge').first().evaluate(element => getComputedStyle(element).borderTopRightRadius)
+  if (rightRadius !== '4px') throw new Error(`Outer-right preview edge is not rounded: ${rightRadius}`)
   await page.locator('.enemy-card .health-segment').nth(0).hover()
   if (!(await page.locator('.method-detail strong').textContent())?.includes('MANHATTAN')) throw new Error('HP segment did not restore MANHATTAN preview')
   await page.screenshot({ path: join(SHOTS, '05-battle-compact.png') })
   await page.mouse.move(0, 0)
+  await page.evaluate(() => { window.__battleProbe().player.overload = 5 })
+  await page.keyboard.press('KeyO')
+  const numericOverloadPreview = await page.locator('.overload-preview-value').textContent()
+  if (!/^−[2-5]$/.test(numericOverloadPreview?.trim() ?? '')) {
+    throw new Error(`Expected a numeric 2–5 damage Overload preview, got ${numericOverloadPreview}`)
+  }
+  await page.screenshot({ path: join(SHOTS, '08a-overload-damage.png') })
+  await page.keyboard.press('Escape')
+  await page.evaluate(() => { window.__battleProbe().reducedMotion = false })
   await page.getByRole('button', { name: /EXECUTE ROUTE/ }).click()
+  await page.waitForFunction(() => window.__battleProbe()?.phase === 'resolving' && window.__battleProbe()?.resolvedMoves > 0)
+  if ((await snapshot()).playerTrail.length < 2) throw new Error('Gray trail did not appear during the current route')
+  if (await page.locator('.incoming-preview').count() !== 1) throw new Error('Incoming preview did not remain live during route resolution')
+  await page.waitForFunction(() => window.__attackEffects.length > 0)
+  await page.screenshot({ path: join(SHOTS, '13-action-effect.png') })
+  await page.evaluate(() => { window.__battleProbe().reducedMotion = true })
   await waitPhase(['planning'])
   let state = await snapshot()
   if (state.enemies[0].robustness !== 34) throw new Error(`Opening Bash expected B01 at 34, got ${state.enemies[0].robustness}`)
-  if (state.playerTrail.length !== 3) throw new Error('Walked route was not retained in the gray-trail history')
+  if (state.playerTrail.length !== 1 || state.playerTrail[0].x !== 7 || state.playerTrail[0].y !== 5) {
+    throw new Error(`Gray trail did not clear at turn completion: ${JSON.stringify(state.playerTrail)}`)
+  }
   const openingEffects = await page.evaluate(() => window.__attackEffects)
   if (openingEffects.length < 2 || openingEffects[0].source !== 'player' || openingEffects[1].source !== 'player') {
     throw new Error(`Player attacks were not emitted sequentially: ${JSON.stringify(openingEffects)}`)
+  }
+  if (openingEffects[0].presetId !== 'vector' || openingEffects[1].presetId !== 'vector'
+    || openingEffects[0].stepIndex !== 0 || openingEffects[1].stepIndex !== 1) {
+    throw new Error(`Action-specific effect identities are missing: ${JSON.stringify(openingEffects.slice(0, 2))}`)
   }
 
   let overloadUsed = false
@@ -194,6 +221,7 @@ try {
   if (!curtainLockSeen) throw new Error('No active Curtain lock was observed during the boss playthrough')
   const effectSources = await page.evaluate(() => [...new Set(window.__attackEffects.map(effect => effect.source))])
   if (!effectSources.includes('enemy')) throw new Error('No enemy attack effect was emitted during the boss playthrough')
+  const victoryStats = { turn: state.turn, sanity: state.player.sanity }
   await page.screenshot({ path: join(SHOTS, '06-victory.png') })
 
   await page.keyboard.press('KeyR')
@@ -249,7 +277,7 @@ try {
 
   if (errors.length) throw new Error(`Browser errors: ${errors.join(' | ')}`)
   console.log(JSON.stringify({
-    result: 'PASS', openingDamage: 2, victory: true, elimination: true,
+    result: 'PASS', openingDamage: 2, victory: true, victoryStats, elimination: true,
     overloadTriggeredInBrowser: overloadUsed, menus: true, settings: true,
     restart: true, resized: true, performance, consoleErrors: 0,
   }, null, 2))

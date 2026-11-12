@@ -34,43 +34,43 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
   {
     id: 'B01', name: 'WARDEN / CURTAIN', behavior: 'warden', pos: { x: 7, y: 4 },
     robustness: 36, breakdownAt: 0.5,
-    desireName: 'REHEARSAL', desire: [2, 2, 3], desireRange: 3, desireShape: 'square', routeLength: 2,
+    desireName: 'REHEARSAL', desire: [2, 3, 4], desireRange: 3, desireShape: 'square', routeLength: 3,
     desireSteps: [
       { amount: 2, range: 3, shape: 'square' },
-      { amount: 2, range: 6, shape: 'rectangle', width: 1 },
-      { amount: 3, range: 4, shape: 'square' },
+      { amount: 3, range: 6, shape: 'rectangle', width: 1 },
+      { amount: 4, range: 4, shape: 'square' },
     ],
     securityName: 'CLOSE', securityPerFlag: 1,
     soulName: 'REPAIR', soulThreshold: 3, soulHeal: 3,
     bossStages: [
       {
-        stage: 1, desireName: 'REHEARSAL', desire: [2, 2, 3], desireRange: 3, desireShape: 'square', routeLength: 2,
+        stage: 1, desireName: 'REHEARSAL', desire: [2, 3, 4], desireRange: 3, desireShape: 'square', routeLength: 3,
         desireSteps: [
           { amount: 2, range: 3, shape: 'square' },
-          { amount: 2, range: 6, shape: 'rectangle', width: 1 },
-          { amount: 3, range: 4, shape: 'square' },
+          { amount: 3, range: 6, shape: 'rectangle', width: 1 },
+          { amount: 4, range: 4, shape: 'square' },
         ],
         securityName: 'CLOSE', securityPerFlag: 1, soulName: 'REPAIR', soulThreshold: 3, soulHeal: 3, curtainLines: 1,
       },
       {
-        stage: 2, desireName: 'OVERTURE', desire: [2, 3, 4], desireRange: 4, desireShape: 'square', routeLength: 2,
+        stage: 2, desireName: 'OVERTURE', desire: [3, 4, 6], desireRange: 4, desireShape: 'square', routeLength: 3,
         desireSteps: [
-          { amount: 2, range: 6, shape: 'rectangle', width: 1 },
-          { amount: 3, range: 4, shape: 'square' },
-          { amount: 4, range: 7, shape: 'rectangle', width: 2 },
+          { amount: 3, range: 6, shape: 'rectangle', width: 1 },
+          { amount: 4, range: 4, shape: 'square' },
+          { amount: 6, range: 7, shape: 'rectangle', width: 2 },
         ],
-        securityName: 'DEADLOCK', securityPerFlag: 2, soulName: 'REWRITE', soulThreshold: 2, soulHeal: 2, curtainLines: 2,
+        securityName: 'DEADLOCK', securityPerFlag: 2, soulName: 'REWRITE', soulThreshold: 2, soulHeal: 3, curtainLines: 2,
       },
     ],
   },
   {
     id: 'E02', name: 'DESIRE / RUSH', behavior: 'collector', pos: { x: 10, y: 7 },
-    robustness: 8, desire: [1, 2], desireRange: 2, desireShape: 'square', routeLength: 2,
+    robustness: 10, desire: [2, 2], desireRange: 3, desireShape: 'square', routeLength: 3,
     securityPerFlag: 1, soulThreshold: 3, soulHeal: 2,
   },
   {
     id: 'E03', name: 'DESIRE / PATCH', behavior: 'disruptor', pos: { x: 4, y: 7 },
-    robustness: 7, desire: [1, 1], desireRange: 2, desireShape: 'cross', routeLength: 1,
+    robustness: 9, desire: [1, 2], desireRange: 3, desireShape: 'cross', routeLength: 2,
     securityPerFlag: 1, soulThreshold: 4, soulHeal: 2,
   },
 ]

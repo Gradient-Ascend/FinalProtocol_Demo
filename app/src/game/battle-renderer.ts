@@ -332,6 +332,133 @@ export class BattleRenderer {
     ctx.globalAlpha = 1
   }
 
+  private drawActionSignature(effect: AttackEffect, progress: number, time: number): void {
+    const origin = this.center(effect.origin)
+    const target = this.center(effect.target)
+    const color = effect.source === 'player' ? 'rgba(242,209,107,0.96)' : 'rgba(255,112,112,0.96)'
+    const ctx = this.ctx
+    const cell = this.cell
+    const projectile = {
+      x: origin.x + (target.x - origin.x) * progress,
+      y: origin.y + (target.y - origin.y) * progress,
+    }
+    const dot = (pos: Coord, radius: number) => {
+      ctx.fillStyle = color
+      ctx.beginPath()
+      ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    const diamond = (pos: Coord, radius: number, width = 1.5) => {
+      this.line({ x: pos.x, y: pos.y - radius }, { x: pos.x + radius, y: pos.y }, color, width)
+      this.line({ x: pos.x + radius, y: pos.y }, { x: pos.x, y: pos.y + radius }, color, width)
+      this.line({ x: pos.x, y: pos.y + radius }, { x: pos.x - radius, y: pos.y }, color, width)
+      this.line({ x: pos.x - radius, y: pos.y }, { x: pos.x, y: pos.y - radius }, color, width)
+    }
+
+    if (effect.presetId === 'vector') {
+      if (effect.stepIndex === 0) {
+        this.line(origin, projectile, color, 1.4)
+        const r = cell * 0.36
+        const l = cell * 0.16
+        for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+          const cx = target.x + sx * r
+          const cy = target.y + sy * r
+          this.line({ x: cx - sx * l, y: cy }, { x: cx, y: cy }, color, 1.8)
+          this.line({ x: cx, y: cy - sy * l }, { x: cx, y: cy }, color, 1.8)
+        }
+      } else if (effect.stepIndex === 1) {
+        const elbow = { x: target.x, y: origin.y }
+        if (progress <= 0.5) {
+          const point = { x: origin.x + (elbow.x - origin.x) * progress * 2, y: origin.y }
+          this.line(origin, point, color, 2.2)
+          dot(point, 2.4)
+        } else {
+          const point = { x: elbow.x, y: elbow.y + (target.y - elbow.y) * (progress - 0.5) * 2 }
+          this.line(origin, elbow, color, 2.2)
+          this.line(elbow, point, color, 2.2)
+          dot(point, 2.4)
+        }
+      } else if (effect.stepIndex === 2) {
+        for (let y = effect.origin.y - effect.range; y <= effect.origin.y + effect.range; y++) {
+          for (let x = effect.origin.x - effect.range; x <= effect.origin.x + effect.range; x++) {
+            if ((x + y) % 2 !== 0 || !inAttackRange(effect.origin, { x, y }, {
+              name: '', amount: 0, area: 'nearest', shape: 'square', range: effect.range,
+            })) continue
+            const point = this.center({ x, y })
+            const size = cell * (0.08 + progress * 0.12)
+            ctx.strokeStyle = color
+            ctx.lineWidth = 1
+            ctx.strokeRect(point.x - size, point.y - size, size * 2, size * 2)
+          }
+        }
+        this.line(origin, projectile, color, 1.2, [2, 3])
+      } else {
+        this.line(origin, projectile, color, 3)
+        const r = cell * (0.15 + progress * 0.35)
+        this.line({ x: target.x - r, y: target.y - r }, { x: target.x + r, y: target.y + r }, color, 2.4)
+        this.line({ x: target.x + r, y: target.y - r }, { x: target.x - r, y: target.y + r }, color, 2.4)
+        ctx.strokeStyle = color
+        ctx.lineWidth = 1.2
+        ctx.beginPath()
+        ctx.arc(target.x, target.y, r * 1.25, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+      return
+    }
+
+    if (effect.presetId === 'cot') {
+      if (effect.stepIndex === 0) {
+        this.line(origin, projectile, color, 1.4, [2, 4])
+        for (const [index, [dx, dy]] of [[0, -1], [1, 0], [0, 1], [-1, 0]].entries()) {
+          if (Math.sin(time / 55 + index) > -0.25) dot({ x: target.x + dx * cell * 0.35, y: target.y + dy * cell * 0.35 }, 2.2)
+        }
+      } else if (effect.stepIndex === 1) {
+        this.line(origin, projectile, color, 1.8)
+        const r = cell * 0.35
+        this.line({ x: target.x - r, y: target.y }, { x: target.x + r, y: target.y }, color, 1.6)
+        this.line({ x: target.x, y: target.y - r }, { x: target.x, y: target.y + r }, color, 1.6)
+        ctx.strokeStyle = color
+        ctx.strokeRect(target.x - r * 0.45, target.y - r * 0.45, r * 0.9, r * 0.9)
+      } else if (effect.stepIndex === 2) {
+        const reach = effect.range * cell * progress
+        this.line(origin, { x: origin.x + reach, y: origin.y }, color, 2)
+        this.line(origin, { x: origin.x - reach, y: origin.y }, color, 2)
+        this.line(origin, { x: origin.x, y: origin.y + reach }, color, 2)
+        this.line(origin, { x: origin.x, y: origin.y - reach }, color, 2)
+        ctx.strokeStyle = color
+        ctx.strokeRect(target.x - cell * 0.16, target.y - cell * 0.16, cell * 0.32, cell * 0.32)
+      } else {
+        this.line(origin, projectile, color, 1.4)
+        this.line({ x: origin.x + 4, y: origin.y }, { x: projectile.x + 4, y: projectile.y }, color, 1.4)
+        diamond(target, cell * (0.18 + progress * 0.42), 2)
+        diamond(target, cell * (0.32 + progress * 0.55), 1)
+      }
+      return
+    }
+
+    if (effect.shape === 'square') {
+      this.line(origin, projectile, color, 1.6)
+      const r = cell * (0.18 + progress * 0.42)
+      ctx.strokeStyle = color
+      ctx.lineWidth = 1.7
+      ctx.strokeRect(target.x - r, target.y - r, r * 2, r * 2)
+      this.line({ x: target.x - r, y: target.y - r }, { x: target.x + r, y: target.y + r }, color, 1.4)
+    } else if (effect.shape === 'rectangle') {
+      const bands = Math.max(1, effect.width ?? 1)
+      for (let band = -bands; band <= bands; band++) {
+        const offset = band * cell * 0.25
+        this.line({ x: target.x - cell * 0.55, y: target.y + offset }, { x: target.x + cell * 0.55, y: target.y + offset }, color, band === 0 ? 2.2 : 1)
+      }
+      this.line(origin, projectile, color, 1.3, [4, 3])
+    } else {
+      this.line(origin, projectile, color, 1.5)
+      const r = cell * (0.2 + progress * 0.35)
+      this.line({ x: target.x - r, y: target.y }, { x: target.x + r, y: target.y }, color, 2)
+      this.line({ x: target.x, y: target.y - r }, { x: target.x, y: target.y + r }, color, 2)
+      diamond(target, r * 0.65, 1.2)
+    }
+  }
+
   private drawAttackEffect(time: number): void {
     const state = this.store.getSnapshot()
     const duration = state.reducedMotion ? 100 : 360
@@ -363,15 +490,7 @@ export class BattleRenderer {
         ctx.strokeRect(px + 2.5, py + 2.5, this.cell - 5, this.cell - 5)
       }
     }
-    const origin = this.center(effect.origin)
-    const target = this.center(effect.target)
-    const projectile = { x: origin.x + (target.x - origin.x) * progress, y: origin.y + (target.y - origin.y) * progress }
-    this.line(origin, projectile, `rgba(${color},0.95)`, 2.4)
-    ctx.strokeStyle = `rgba(${color},0.95)`
-    ctx.lineWidth = 1.5
-    ctx.beginPath()
-    ctx.arc(target.x, target.y, this.cell * (0.2 + progress * 0.35), 0, Math.PI * 2)
-    ctx.stroke()
+    this.drawActionSignature(effect, progress, time)
     ctx.globalAlpha = 1
   }
 

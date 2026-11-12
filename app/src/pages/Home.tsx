@@ -33,6 +33,7 @@ function Bar({ value, max, hits, onPreview, onLeave }: {
   onLeave: () => void
 }) {
   const projected = hits.length ? hits[hits.length - 1].after : value
+  const rightBefore = Math.max(...hits.map(hit => hit.before))
   return (
     <div className="stat-bar segmented-health player-sanity" aria-label={`Projected Sanity ${projected} of ${max}`}>
       <span className="health-current" style={{ width: `${Math.max(0, Math.min(100, projected / max * 100))}%` }} />
@@ -40,7 +41,7 @@ function Bar({ value, max, hits, onPreview, onLeave }: {
         <button
           type="button"
           key={`${hit.enemyId}-${hit.stepIndex}-${index}`}
-          className="health-segment incoming-segment"
+          className={`health-segment incoming-segment ${hit.before === rightBefore ? 'right-edge' : ''}`}
           style={{ left: `${hit.after / max * 100}%`, width: `${(hit.before - hit.after) / max * 100}%` }}
           onMouseEnter={() => onPreview(hit.enemyId, hit.stepIndex)}
           onMouseLeave={onLeave}
@@ -62,6 +63,7 @@ function SegmentedHealth({ enemy, hits, previewStep, onPreview, onLeave }: {
   onLeave: () => void
 }) {
   const projected = hits.length ? hits[hits.length - 1].after : enemy.robustness
+  const rightBefore = Math.max(...hits.map(hit => hit.before))
   return (
     <div className="segmented-health" aria-label={`Projected Desire ${projected} of ${enemy.maxRobustness}`}>
       <span className="health-current" style={{ width: `${projected / enemy.maxRobustness * 100}%` }} />
@@ -69,7 +71,7 @@ function SegmentedHealth({ enemy, hits, previewStep, onPreview, onLeave }: {
         <button
           type="button"
           key={hit.stepIndex}
-          className={`health-segment segment-${hit.stepIndex} ${previewStep === hit.stepIndex ? 'previewing' : ''}`}
+          className={`health-segment segment-${hit.stepIndex} ${previewStep === hit.stepIndex ? 'previewing' : ''} ${hit.before === rightBefore ? 'right-edge' : ''}`}
           style={{ left: `${hit.after / enemy.maxRobustness * 100}%`, width: `${(hit.before - hit.after) / enemy.maxRobustness * 100}%` }}
           onMouseEnter={() => onPreview(hit.stepIndex)}
           onMouseLeave={onLeave}
@@ -129,13 +131,20 @@ export default function Home() {
         actions: [...state.actions, { type: 'overload' as const }],
       }
     : plannedState
-  const incomingSequence = state.phase === 'planning' ? predictedEnemySequence(previewState) : []
+  const realtimeForecastState = state.phase === 'resolving'
+    ? { ...state, actions: state.actions.slice(0, state.resolvedMoves) }
+    : previewState
+  const incomingSequence = state.phase === 'planning' || state.phase === 'resolving'
+    ? predictedEnemySequence(realtimeForecastState)
+    : []
   const incomingDamage = incomingSequence.reduce((total, hit) => total + hit.dealt, 0)
   const sequence = usedOverload ? [] : predictedSequence(previewState)
   const singleStep = methodInspector && state.attackPreview
     ? state.attackPreview.stepIndex
     : state.overloadArmed ? null : state.attackPreview?.stepIndex ?? null
   const visibleSequence = singleStep === null ? sequence : sequence.filter(hit => hit.stepIndex === singleStep)
+  const overloadDamage = visibleSequence.reduce((total, hit) => total + hit.dealt, 0)
+  const overloadHasTargets = visibleSequence.length > 0
   const expected: Record<string, number> = {}
   for (const hit of visibleSequence) expected[hit.enemyId] = (expected[hit.enemyId] ?? 0) + hit.dealt
   const aliveEnemies = state.enemies.filter(enemy => enemy.robustness > 0)
@@ -290,8 +299,12 @@ export default function Home() {
               title={state.overloadArmed ? 'Press again to release Overload' : 'Preview Overload; press again to release'}
             >
               <Gauge size={16} />
-              <span>{state.overloadArmed ? 'CONFIRM OVERLOAD' : 'OVERLOAD'}</span>
-              <strong>{state.player.overload} / {OVERLOAD_THRESHOLD}</strong>
+              <span>{state.overloadArmed ? `CONFIRM ${BASH_PRESETS[displayActiveBash].name}` : 'OVERLOAD'}</span>
+              <strong className="overload-preview-value">
+                {state.overloadArmed
+                  ? (overloadHasTargets ? `−${overloadDamage}` : 'NO TARGET')
+                  : `${state.player.overload} / ${OVERLOAD_THRESHOLD}`}
+              </strong>
             </button>
             <div className={`method-detail ${inspector ? 'active' : ''}`} aria-live="polite" onMouseEnter={cancelMethodClear} onMouseLeave={scheduleMethodClear}>
               {inspector && (() => {

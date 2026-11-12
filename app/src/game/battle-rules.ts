@@ -96,7 +96,7 @@ export function advanceCurtains(state: BattleState): { type: 'lock' | 'unlock'; 
   }
   state.curtains = remaining
   if (!state.curtains.length && livingEnemies(state).some(enemy => enemy.bossStages?.length)) {
-    scheduleCurtains(state, state.turn + 3)
+    scheduleCurtains(state, state.turn + 2)
   }
   return events
 }
@@ -215,7 +215,7 @@ export function createInitialState(muted = false, reducedMotion = false): Battle
       effectCell: null,
       statuses: definition.bossStages ? ['DESIRE', 'SECURITY', 'SOUL', 'BREAKDOWN'] : ['DESIRE', 'SECURITY', 'SOUL'],
     })),
-    actions: [], log: [],
+    actions: [], resolvedMoves: 0, log: [],
     muted, reducedMotion, message: '', attackPreview: null, enemyAttackPreview: null, overloadArmed: false,
   }
   scheduleCurtains(state, 3)

@@ -285,7 +285,8 @@ export class BattleStore {
     const enemy = this.state.enemies.find(candidate => candidate.id === hit.enemyId)
     const step = activePreset(this.state).steps[hit.stepIndex]
     return {
-      source: 'player', origin: { ...this.state.player.pos }, target: { ...(enemy?.pos ?? this.state.player.pos) },
+      source: 'player', presetId: activePreset(this.state).id,
+      origin: { ...this.state.player.pos }, target: { ...(enemy?.pos ?? this.state.player.pos) },
       stepIndex: hit.stepIndex, shape: step.shape, range: step.range, width: step.width,
     }
   }
@@ -318,7 +319,7 @@ export class BattleStore {
     for (const [stepIndex, step] of steps.entries()) {
       if (!desireInRange(enemy.pos, this.state.player.pos, step)) continue
       this.emitEffect({
-        source: 'enemy', origin: { ...enemy.pos }, target: { ...this.state.player.pos },
+        source: 'enemy', presetId: enemy.id, origin: { ...enemy.pos }, target: { ...this.state.player.pos },
         stepIndex, shape: step.shape, range: step.range, width: step.width,
       })
       await this.wait()
@@ -424,6 +425,7 @@ export class BattleStore {
     this.state.attackPreview = null
     this.state.enemyAttackPreview = null
     this.state.phase = 'resolving'
+    this.state.resolvedMoves = 0
     this.state.message = 'Executing player route…'
     this.commit()
 
@@ -432,6 +434,7 @@ export class BattleStore {
       if (action.type !== 'move') continue
       this.state.player.pos = { ...action.to }
       this.state.playerTrail = [...this.state.playerTrail, { ...action.to }]
+      this.state.resolvedMoves++
       this.collectPlayerFlag(action.flag)
       this.state.flags[action.to.y][action.to.x] = 'blank'
       changedColumns.add(action.to.x)
@@ -461,6 +464,7 @@ export class BattleStore {
         : `CURTAIN / ${curtainLabel(event.curtain)} released.`, event.type === 'lock' ? 'bad' : 'neutral')
     }
     refillBoard(this.state, this.random, changedColumns)
+    this.state.playerTrail = [{ ...this.state.player.pos }]
     this.state.turn++
     this.state.player.block = 0
     this.state.actions = []

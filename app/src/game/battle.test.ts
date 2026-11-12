@@ -269,7 +269,7 @@ describe('Warden boss protocol', () => {
     expect(store.getSnapshot().message).toContain('sealed')
     await store.executeTurn()
     expect(store.getSnapshot().curtains).toHaveLength(1)
-    expect(store.getSnapshot().curtains[0]).toMatchObject({ fireTurn: 7, locked: false })
+    expect(store.getSnapshot().curtains[0]).toMatchObject({ fireTurn: 6, locked: false })
   })
 
   it('Breakdown swaps Desire, Security and Soul sets at half Robustness', async () => {
@@ -283,7 +283,7 @@ describe('Warden boss protocol', () => {
     const boss = store.getSnapshot().enemies[0]
     expect(boss.stage).toBe(2)
     expect(boss.desireName).toBe('OVERTURE')
-    expect(boss.desire).toEqual([2, 3, 4])
+    expect(boss.desire).toEqual([3, 4, 6])
     expect(boss.securityName).toBe('DEADLOCK')
     expect(boss.securityPerFlag).toBe(2)
     expect(boss.soulName).toBe('REWRITE')
@@ -330,18 +330,18 @@ describe('rebalanced encounter and player forecast', () => {
     state.player.block = 1
     const counters = state.player.buffs.map(buff => buff.counter)
     const hits = predictedEnemySequence(state)
-    expect(hits.map(hit => hit.dealt)).toEqual([1, 2])
+    expect(hits.map(hit => hit.dealt)).toEqual([1, 3])
     expect(hits.every(hit => hit.origin.x === 7 && hit.origin.y === 5)).toBe(true)
-    expect(hits[hits.length - 1].after).toBe(57)
+    expect(hits[hits.length - 1].after).toBe(56)
     expect(state.player.buffs.map(buff => buff.counter)).toEqual(counters)
   })
 
-  it('retains walked positions as a separate gray-trail history', async () => {
+  it('clears the gray trail when the turn completes', async () => {
     const store = readyStore()
     store.addStep(0, -1)
     store.addStep(0, -1)
     await store.executeTurn()
-    expect(store.getSnapshot().playerTrail).toEqual([{ x: 7, y: 7 }, { x: 7, y: 6 }, { x: 7, y: 5 }])
+    expect(store.getSnapshot().playerTrail).toEqual([{ x: 7, y: 5 }])
     expect(store.getSnapshot().actions).toHaveLength(0)
   })
 })
