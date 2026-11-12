@@ -1,0 +1,3888 @@
+{
+  "pageType": "content",
+  "background": {
+    "type": "gradient",
+    "gradientType": "radial",
+    "angle": 90,
+    "stops": [
+      {
+        "position": 0,
+        "color": "#1A1A1A"
+      },
+      {
+        "position": 0.58,
+        "color": "#0B0B0B"
+      },
+      {
+        "position": 1,
+        "color": "#050505"
+      }
+    ]
+  },
+  "elements": [
+    {
+      "elementId": "1_battle-001",
+      "elementType": "text",
+      "bounds": [
+        32,
+        20,
+        760,
+        32
+      ],
+      "content": {
+        "text": "01 / FINAL PROTOCOL",
+        "fontSize": 20,
+        "fontFamily": "JetBrains Mono",
+        "color": "$text",
+        "bold": true,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 1.2
+      }
+    },
+    {
+      "elementId": "1_battle-002",
+      "elementType": "text",
+      "bounds": [
+        850,
+        23,
+        398,
+        24
+      ],
+      "content": {
+        "text": "SANDBOX 01  /  TURN 04  /  PLAN",
+        "fontSize": 10,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "right",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-003",
+      "elementType": "line",
+      "bounds": [
+        32,
+        64,
+        1216,
+        1
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#41414199"
+      }
+    },
+    {
+      "elementId": "1_battle-004",
+      "elementType": "shape",
+      "bounds": [
+        20,
+        82,
+        220,
+        500
+      ],
+      "shapeName": "roundRect",
+      "fill": {
+        "type": "solid",
+        "color": "$glass"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$glassEdge"
+      },
+      "adjustments": [
+        11000
+      ],
+      "shadow": {
+        "blur": 16,
+        "color": "#00000080",
+        "offset": [
+          0,
+          8
+        ]
+      }
+    },
+    {
+      "elementId": "1_battle-005",
+      "elementType": "line",
+      "bounds": [
+        40,
+        83,
+        180,
+        1
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$glassHighlight"
+      }
+    },
+    {
+      "elementId": "1_battle-006",
+      "elementType": "shape",
+      "bounds": [
+        822,
+        82,
+        438,
+        500
+      ],
+      "shapeName": "roundRect",
+      "fill": {
+        "type": "solid",
+        "color": "$glass"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$glassEdge"
+      },
+      "adjustments": [
+        9000
+      ],
+      "shadow": {
+        "blur": 16,
+        "color": "#00000080",
+        "offset": [
+          0,
+          8
+        ]
+      }
+    },
+    {
+      "elementId": "1_battle-007",
+      "elementType": "line",
+      "bounds": [
+        842,
+        83,
+        398,
+        1
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$glassHighlight"
+      }
+    },
+    {
+      "elementId": "1_battle-008",
+      "elementType": "text",
+      "bounds": [
+        40,
+        98,
+        180,
+        20
+      ],
+      "content": {
+        "text": "OPERATOR",
+        "fontSize": 10,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 1.4
+      }
+    },
+    {
+      "elementId": "1_battle-009",
+      "elementType": "shape",
+      "bounds": [
+        44.0,
+        124.0,
+        36,
+        36
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M0,28 L0,0 L28,0 M72,0 L100,0 L100,28 M100,72 L100,100 L72,100 M28,100 L0,100 L0,72",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-010",
+      "elementType": "shape",
+      "bounds": [
+        57.68,
+        137.68,
+        8.64,
+        8.64
+      ],
+      "shapeName": "diamond",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-011",
+      "elementType": "text",
+      "bounds": [
+        94,
+        123,
+        128,
+        24
+      ],
+      "content": {
+        "text": "42 / 60",
+        "fontSize": 20,
+        "fontFamily": "JetBrains Mono",
+        "color": "$text",
+        "bold": true,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-012",
+      "elementType": "text",
+      "bounds": [
+        94,
+        149,
+        128,
+        16
+      ],
+      "content": {
+        "text": "HEALTH",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-013",
+      "elementType": "shape",
+      "bounds": [
+        40,
+        176,
+        180,
+        4
+      ],
+      "shapeName": "roundRect",
+      "fill": {
+        "type": "solid",
+        "color": "$grid"
+      },
+      "adjustments": [
+        50000
+      ]
+    },
+    {
+      "elementId": "1_battle-014",
+      "elementType": "shape",
+      "bounds": [
+        40,
+        176,
+        126,
+        4
+      ],
+      "shapeName": "roundRect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      },
+      "adjustments": [
+        50000
+      ]
+    },
+    {
+      "elementId": "1_battle-015",
+      "elementType": "line",
+      "bounds": [
+        40,
+        204,
+        180,
+        1
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#414141AA"
+      }
+    },
+    {
+      "elementId": "1_battle-016",
+      "elementType": "text",
+      "bounds": [
+        40,
+        224,
+        100,
+        18
+      ],
+      "content": {
+        "text": "ACTIONS",
+        "fontSize": 10,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-017",
+      "elementType": "text",
+      "bounds": [
+        140,
+        220,
+        80,
+        24
+      ],
+      "content": {
+        "text": "4 / 7",
+        "fontSize": 16,
+        "fontFamily": "JetBrains Mono",
+        "color": "$text",
+        "bold": false,
+        "align": [
+          "right",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-018",
+      "elementType": "text",
+      "bounds": [
+        40,
+        256,
+        100,
+        18
+      ],
+      "content": {
+        "text": "STEPS",
+        "fontSize": 10,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-019",
+      "elementType": "text",
+      "bounds": [
+        140,
+        252,
+        80,
+        24
+      ],
+      "content": {
+        "text": "3 / 4",
+        "fontSize": 16,
+        "fontFamily": "JetBrains Mono",
+        "color": "$white",
+        "bold": false,
+        "align": [
+          "right",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-020",
+      "elementType": "shape",
+      "bounds": [
+        42,
+        292,
+        23,
+        4
+      ],
+      "shapeName": "roundRect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      },
+      "adjustments": [
+        50000
+      ]
+    },
+    {
+      "elementId": "1_battle-021",
+      "elementType": "shape",
+      "bounds": [
+        74,
+        292,
+        23,
+        4
+      ],
+      "shapeName": "roundRect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      },
+      "adjustments": [
+        50000
+      ]
+    },
+    {
+      "elementId": "1_battle-022",
+      "elementType": "shape",
+      "bounds": [
+        106,
+        292,
+        23,
+        4
+      ],
+      "shapeName": "roundRect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      },
+      "adjustments": [
+        50000
+      ]
+    },
+    {
+      "elementId": "1_battle-023",
+      "elementType": "shape",
+      "bounds": [
+        138,
+        292,
+        23,
+        4
+      ],
+      "shapeName": "roundRect",
+      "fill": {
+        "type": "solid",
+        "color": "$grid"
+      },
+      "adjustments": [
+        50000
+      ]
+    },
+    {
+      "elementId": "1_battle-024",
+      "elementType": "text",
+      "bounds": [
+        40,
+        328,
+        100,
+        18
+      ],
+      "content": {
+        "text": "METHOD",
+        "fontSize": 10,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-025",
+      "elementType": "text",
+      "bounds": [
+        40,
+        352,
+        180,
+        26
+      ],
+      "content": {
+        "text": "ROW",
+        "fontSize": 18,
+        "fontFamily": "JetBrains Mono",
+        "color": "$text",
+        "bold": true,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-026",
+      "elementType": "line",
+      "bounds": [
+        40,
+        394,
+        180,
+        1
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#414141AA"
+      }
+    },
+    {
+      "elementId": "1_battle-027",
+      "elementType": "text",
+      "bounds": [
+        40,
+        416,
+        180,
+        18
+      ],
+      "content": {
+        "text": "ROUTE YIELD",
+        "fontSize": 10,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 1.2
+      }
+    },
+    {
+      "elementId": "1_battle-028",
+      "elementType": "shape",
+      "bounds": [
+        44.0,
+        450.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,8 Q55,8 58,14 L88,78 Q93,90 81,90 L19,90 Q7,90 12,78 L42,14 Q45,8 50,8 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-029",
+      "elementType": "text",
+      "bounds": [
+        84,
+        448,
+        80,
+        26
+      ],
+      "content": {
+        "text": "ATTACK",
+        "fontSize": 12,
+        "fontFamily": "JetBrains Mono",
+        "color": "$text",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-030",
+      "elementType": "text",
+      "bounds": [
+        164,
+        444,
+        56,
+        32
+      ],
+      "content": {
+        "text": "03",
+        "fontSize": 20,
+        "fontFamily": "JetBrains Mono",
+        "color": "$white",
+        "bold": true,
+        "align": [
+          "right",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-031",
+      "elementType": "text",
+      "bounds": [
+        40,
+        510,
+        180,
+        18
+      ],
+      "content": {
+        "text": "ENDPOINT",
+        "fontSize": 10,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-032",
+      "elementType": "text",
+      "bounds": [
+        40,
+        534,
+        180,
+        24
+      ],
+      "content": {
+        "text": "E5",
+        "fontSize": 18,
+        "fontFamily": "JetBrains Mono",
+        "color": "$white",
+        "bold": true,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-033",
+      "elementType": "shape",
+      "bounds": [
+        342.0,
+        91.0,
+        22,
+        22
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,8 Q55,8 58,14 L88,78 Q93,90 81,90 L19,90 Q7,90 12,78 L42,14 Q45,8 50,8 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-034",
+      "elementType": "text",
+      "bounds": [
+        337.0,
+        120,
+        32,
+        14
+      ],
+      "content": {
+        "text": "A",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-035",
+      "elementType": "shape",
+      "bounds": [
+        413.24,
+        100.24,
+        3.52,
+        3.52
+      ],
+      "shapeName": "ellipse",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "1_battle-036",
+      "elementType": "text",
+      "bounds": [
+        399.0,
+        120,
+        32,
+        14
+      ],
+      "content": {
+        "text": "B",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-037",
+      "elementType": "shape",
+      "bounds": [
+        466.0,
+        91.0,
+        22,
+        22
+      ],
+      "shapeName": "roundRect",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      },
+      "adjustments": [
+        10000
+      ]
+    },
+    {
+      "elementId": "1_battle-038",
+      "elementType": "line",
+      "bounds": [
+        470.4,
+        101,
+        13.2,
+        2
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,50 100,50",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-039",
+      "elementType": "text",
+      "bounds": [
+        461.0,
+        120,
+        32,
+        14
+      ],
+      "content": {
+        "text": "C",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-040",
+      "elementType": "shape",
+      "bounds": [
+        528.0,
+        91.0,
+        22,
+        22
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,2 Q54,38 98,50 Q54,62 50,98 Q46,62 2,50 Q46,38 50,2 Z",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-041",
+      "elementType": "text",
+      "bounds": [
+        523.0,
+        120,
+        32,
+        14
+      ],
+      "content": {
+        "text": "D",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-042",
+      "elementType": "shape",
+      "bounds": [
+        590.0,
+        91.0,
+        22,
+        22
+      ],
+      "shapeName": "ellipse",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-043",
+      "elementType": "shape",
+      "bounds": [
+        590.0,
+        91.0,
+        22,
+        22
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,0 A50,50 0 0 0 50,100 Z",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-044",
+      "elementType": "text",
+      "bounds": [
+        585.0,
+        120,
+        32,
+        14
+      ],
+      "content": {
+        "text": "E",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-045",
+      "elementType": "shape",
+      "bounds": [
+        652.0,
+        91.0,
+        22,
+        22
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,8 Q55,8 58,14 L88,78 Q93,90 81,90 L19,90 Q7,90 12,78 L42,14 Q45,8 50,8 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-046",
+      "elementType": "text",
+      "bounds": [
+        647.0,
+        120,
+        32,
+        14
+      ],
+      "content": {
+        "text": "F",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-047",
+      "elementType": "shape",
+      "bounds": [
+        723.24,
+        100.24,
+        3.52,
+        3.52
+      ],
+      "shapeName": "ellipse",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "1_battle-048",
+      "elementType": "text",
+      "bounds": [
+        709.0,
+        120,
+        32,
+        14
+      ],
+      "content": {
+        "text": "G",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-049",
+      "elementType": "text",
+      "bounds": [
+        292,
+        162,
+        20,
+        18
+      ],
+      "content": {
+        "text": "1",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-050",
+      "elementType": "shape",
+      "bounds": [
+        322,
+        140,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-051",
+      "elementType": "shape",
+      "bounds": [
+        384,
+        140,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-052",
+      "elementType": "shape",
+      "bounds": [
+        446,
+        140,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-053",
+      "elementType": "shape",
+      "bounds": [
+        508,
+        140,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-054",
+      "elementType": "shape",
+      "bounds": [
+        570,
+        140,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-055",
+      "elementType": "shape",
+      "bounds": [
+        632,
+        140,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-056",
+      "elementType": "shape",
+      "bounds": [
+        694,
+        140,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-057",
+      "elementType": "text",
+      "bounds": [
+        292,
+        224,
+        20,
+        18
+      ],
+      "content": {
+        "text": "2",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-058",
+      "elementType": "shape",
+      "bounds": [
+        322,
+        202,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-059",
+      "elementType": "shape",
+      "bounds": [
+        384,
+        202,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-060",
+      "elementType": "shape",
+      "bounds": [
+        446,
+        202,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-061",
+      "elementType": "shape",
+      "bounds": [
+        508,
+        202,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-062",
+      "elementType": "shape",
+      "bounds": [
+        570,
+        202,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-063",
+      "elementType": "shape",
+      "bounds": [
+        632,
+        202,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-064",
+      "elementType": "shape",
+      "bounds": [
+        694,
+        202,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-065",
+      "elementType": "text",
+      "bounds": [
+        292,
+        286,
+        20,
+        18
+      ],
+      "content": {
+        "text": "3",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-066",
+      "elementType": "shape",
+      "bounds": [
+        322,
+        264,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-067",
+      "elementType": "shape",
+      "bounds": [
+        384,
+        264,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-068",
+      "elementType": "shape",
+      "bounds": [
+        446,
+        264,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-069",
+      "elementType": "shape",
+      "bounds": [
+        508,
+        264,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-070",
+      "elementType": "shape",
+      "bounds": [
+        570,
+        264,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-071",
+      "elementType": "shape",
+      "bounds": [
+        632,
+        264,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-072",
+      "elementType": "shape",
+      "bounds": [
+        694,
+        264,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-073",
+      "elementType": "text",
+      "bounds": [
+        292,
+        348,
+        20,
+        18
+      ],
+      "content": {
+        "text": "4",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-074",
+      "elementType": "shape",
+      "bounds": [
+        322,
+        326,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-075",
+      "elementType": "shape",
+      "bounds": [
+        384,
+        326,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-076",
+      "elementType": "shape",
+      "bounds": [
+        446,
+        326,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-077",
+      "elementType": "shape",
+      "bounds": [
+        508,
+        326,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-078",
+      "elementType": "shape",
+      "bounds": [
+        570,
+        326,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-079",
+      "elementType": "shape",
+      "bounds": [
+        632,
+        326,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-080",
+      "elementType": "shape",
+      "bounds": [
+        694,
+        326,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-081",
+      "elementType": "text",
+      "bounds": [
+        292,
+        410,
+        20,
+        18
+      ],
+      "content": {
+        "text": "5",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-082",
+      "elementType": "shape",
+      "bounds": [
+        322,
+        388,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-083",
+      "elementType": "shape",
+      "bounds": [
+        384,
+        388,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-084",
+      "elementType": "shape",
+      "bounds": [
+        446,
+        388,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-085",
+      "elementType": "shape",
+      "bounds": [
+        508,
+        388,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-086",
+      "elementType": "shape",
+      "bounds": [
+        570,
+        388,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-087",
+      "elementType": "shape",
+      "bounds": [
+        632,
+        388,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-088",
+      "elementType": "shape",
+      "bounds": [
+        694,
+        388,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-089",
+      "elementType": "text",
+      "bounds": [
+        292,
+        472,
+        20,
+        18
+      ],
+      "content": {
+        "text": "6",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-090",
+      "elementType": "shape",
+      "bounds": [
+        322,
+        450,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-091",
+      "elementType": "shape",
+      "bounds": [
+        384,
+        450,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-092",
+      "elementType": "shape",
+      "bounds": [
+        446,
+        450,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-093",
+      "elementType": "shape",
+      "bounds": [
+        508,
+        450,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-094",
+      "elementType": "shape",
+      "bounds": [
+        570,
+        450,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-095",
+      "elementType": "shape",
+      "bounds": [
+        632,
+        450,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-096",
+      "elementType": "shape",
+      "bounds": [
+        694,
+        450,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-097",
+      "elementType": "text",
+      "bounds": [
+        292,
+        534,
+        20,
+        18
+      ],
+      "content": {
+        "text": "7",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-098",
+      "elementType": "shape",
+      "bounds": [
+        322,
+        512,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-099",
+      "elementType": "shape",
+      "bounds": [
+        384,
+        512,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-100",
+      "elementType": "shape",
+      "bounds": [
+        446,
+        512,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-101",
+      "elementType": "shape",
+      "bounds": [
+        508,
+        512,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-102",
+      "elementType": "shape",
+      "bounds": [
+        570,
+        512,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-103",
+      "elementType": "shape",
+      "bounds": [
+        632,
+        512,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-104",
+      "elementType": "shape",
+      "bounds": [
+        694,
+        512,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$cell"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-105",
+      "elementType": "shape",
+      "bounds": [
+        508,
+        140,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$wall"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-106",
+      "elementType": "line",
+      "bounds": [
+        519.16,
+        151.16,
+        39.68,
+        39.68
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,100 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#4A4A4A"
+      }
+    },
+    {
+      "elementId": "1_battle-107",
+      "elementType": "shape",
+      "bounds": [
+        508,
+        326,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$wall"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-108",
+      "elementType": "line",
+      "bounds": [
+        519.16,
+        337.16,
+        39.68,
+        39.68
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,100 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#4A4A4A"
+      }
+    },
+    {
+      "elementId": "1_battle-109",
+      "elementType": "shape",
+      "bounds": [
+        384,
+        450,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$wall"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-110",
+      "elementType": "line",
+      "bounds": [
+        395.16,
+        461.16,
+        39.68,
+        39.68
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,100 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#4A4A4A"
+      }
+    },
+    {
+      "elementId": "1_battle-111",
+      "elementType": "shape",
+      "bounds": [
+        694,
+        264,
+        62,
+        62
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$wall"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "$grid"
+      }
+    },
+    {
+      "elementId": "1_battle-112",
+      "elementType": "line",
+      "bounds": [
+        705.16,
+        275.16,
+        39.68,
+        39.68
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,100 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#4A4A4A"
+      }
+    },
+    {
+      "elementId": "1_battle-113",
+      "elementType": "line",
+      "bounds": [
+        663.0,
+        295.0,
+        1,
+        124
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,100 0,0",
+      "curve": "sharp",
+      "border": {
+        "style": "dash",
+        "width": 2,
+        "color": "$enemy"
+      },
+      "arrow": [
+        null,
+        "arrow"
+      ]
+    },
+    {
+      "elementId": "1_battle-114",
+      "elementType": "line",
+      "bounds": [
+        539.0,
+        233.0,
+        124,
+        1
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "100,0 0,0",
+      "curve": "sharp",
+      "border": {
+        "style": "dash",
+        "width": 2,
+        "color": "$enemy"
+      },
+      "arrow": [
+        null,
+        "arrow"
+      ]
+    },
+    {
+      "elementId": "1_battle-115",
+      "elementType": "line",
+      "bounds": [
+        435.0,
+        419.0,
+        146,
+        1
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 3,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-116",
+      "elementType": "shape",
+      "bounds": [
+        341.0,
+        159.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,8 Q55,8 58,14 L88,78 Q93,90 81,90 L19,90 Q7,90 12,78 L42,14 Q45,8 50,8 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-117",
+      "elementType": "shape",
+      "bounds": [
+        465.0,
+        159.0,
+        24,
+        24
+      ],
+      "shapeName": "roundRect",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      },
+      "adjustments": [
+        10000
+      ]
+    },
+    {
+      "elementId": "1_battle-118",
+      "elementType": "line",
+      "bounds": [
+        469.8,
+        170.0,
+        14.4,
+        2
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,50 100,50",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-119",
+      "elementType": "shape",
+      "bounds": [
+        589.0,
+        159.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,8 Q55,8 58,14 L88,78 Q93,90 81,90 L19,90 Q7,90 12,78 L42,14 Q45,8 50,8 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-120",
+      "elementType": "shape",
+      "bounds": [
+        651.0,
+        159.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,2 Q54,38 98,50 Q54,62 50,98 Q46,62 2,50 Q46,38 50,2 Z",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-121",
+      "elementType": "shape",
+      "bounds": [
+        341.0,
+        221.0,
+        24,
+        24
+      ],
+      "shapeName": "ellipse",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-122",
+      "elementType": "shape",
+      "bounds": [
+        341.0,
+        221.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,0 A50,50 0 0 0 50,100 Z",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-123",
+      "elementType": "shape",
+      "bounds": [
+        465.0,
+        221.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,8 Q55,8 58,14 L88,78 Q93,90 81,90 L19,90 Q7,90 12,78 L42,14 Q45,8 50,8 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-124",
+      "elementType": "shape",
+      "bounds": [
+        599.08,
+        231.08,
+        3.84,
+        3.84
+      ],
+      "shapeName": "ellipse",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "1_battle-125",
+      "elementType": "shape",
+      "bounds": [
+        713.0,
+        221.0,
+        24,
+        24
+      ],
+      "shapeName": "roundRect",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      },
+      "adjustments": [
+        10000
+      ]
+    },
+    {
+      "elementId": "1_battle-126",
+      "elementType": "line",
+      "bounds": [
+        717.8,
+        232.0,
+        14.4,
+        2
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,50 100,50",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-127",
+      "elementType": "shape",
+      "bounds": [
+        403.0,
+        283.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,2 Q54,38 98,50 Q54,62 50,98 Q46,62 2,50 Q46,38 50,2 Z",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-128",
+      "elementType": "shape",
+      "bounds": [
+        475.08,
+        293.08,
+        3.84,
+        3.84
+      ],
+      "shapeName": "ellipse",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "1_battle-129",
+      "elementType": "shape",
+      "bounds": [
+        589.0,
+        283.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,8 Q55,8 58,14 L88,78 Q93,90 81,90 L19,90 Q7,90 12,78 L42,14 Q45,8 50,8 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-130",
+      "elementType": "shape",
+      "bounds": [
+        651.0,
+        283.0,
+        24,
+        24
+      ],
+      "shapeName": "ellipse",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-131",
+      "elementType": "shape",
+      "bounds": [
+        651.0,
+        283.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,0 A50,50 0 0 0 50,100 Z",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-132",
+      "elementType": "shape",
+      "bounds": [
+        341.0,
+        345.0,
+        24,
+        24
+      ],
+      "shapeName": "roundRect",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      },
+      "adjustments": [
+        10000
+      ]
+    },
+    {
+      "elementId": "1_battle-133",
+      "elementType": "line",
+      "bounds": [
+        345.8,
+        356.0,
+        14.4,
+        2
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,50 100,50",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-134",
+      "elementType": "shape",
+      "bounds": [
+        465.0,
+        345.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,2 Q54,38 98,50 Q54,62 50,98 Q46,62 2,50 Q46,38 50,2 Z",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-135",
+      "elementType": "shape",
+      "bounds": [
+        651.0,
+        345.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,8 Q55,8 58,14 L88,78 Q93,90 81,90 L19,90 Q7,90 12,78 L42,14 Q45,8 50,8 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-136",
+      "elementType": "shape",
+      "bounds": [
+        723.08,
+        355.08,
+        3.84,
+        3.84
+      ],
+      "shapeName": "ellipse",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "1_battle-137",
+      "elementType": "shape",
+      "bounds": [
+        351.08,
+        417.08,
+        3.84,
+        3.84
+      ],
+      "shapeName": "ellipse",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "1_battle-138",
+      "elementType": "shape",
+      "bounds": [
+        465.0,
+        407.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,8 Q55,8 58,14 L88,78 Q93,90 81,90 L19,90 Q7,90 12,78 L42,14 Q45,8 50,8 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-139",
+      "elementType": "shape",
+      "bounds": [
+        527.0,
+        407.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,8 Q55,8 58,14 L88,78 Q93,90 81,90 L19,90 Q7,90 12,78 L42,14 Q45,8 50,8 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-140",
+      "elementType": "shape",
+      "bounds": [
+        589.0,
+        407.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,8 Q55,8 58,14 L88,78 Q93,90 81,90 L19,90 Q7,90 12,78 L42,14 Q45,8 50,8 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-141",
+      "elementType": "shape",
+      "bounds": [
+        527.0,
+        469.0,
+        24,
+        24
+      ],
+      "shapeName": "ellipse",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-142",
+      "elementType": "shape",
+      "bounds": [
+        527.0,
+        469.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,0 A50,50 0 0 0 50,100 Z",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-143",
+      "elementType": "shape",
+      "bounds": [
+        589.0,
+        469.0,
+        24,
+        24
+      ],
+      "shapeName": "roundRect",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      },
+      "adjustments": [
+        10000
+      ]
+    },
+    {
+      "elementId": "1_battle-144",
+      "elementType": "line",
+      "bounds": [
+        593.8,
+        480.0,
+        14.4,
+        2
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,50 100,50",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-145",
+      "elementType": "shape",
+      "bounds": [
+        651.0,
+        469.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,2 Q54,38 98,50 Q54,62 50,98 Q46,62 2,50 Q46,38 50,2 Z",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-146",
+      "elementType": "shape",
+      "bounds": [
+        341.0,
+        531.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,8 Q55,8 58,14 L88,78 Q93,90 81,90 L19,90 Q7,90 12,78 L42,14 Q45,8 50,8 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-147",
+      "elementType": "shape",
+      "bounds": [
+        475.08,
+        541.08,
+        3.84,
+        3.84
+      ],
+      "shapeName": "ellipse",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "1_battle-148",
+      "elementType": "shape",
+      "bounds": [
+        589.0,
+        531.0,
+        24,
+        24
+      ],
+      "shapeName": "ellipse",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-149",
+      "elementType": "shape",
+      "bounds": [
+        589.0,
+        531.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,0 A50,50 0 0 0 50,100 Z",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-150",
+      "elementType": "shape",
+      "bounds": [
+        713.0,
+        531.0,
+        24,
+        24
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,8 Q55,8 58,14 L88,78 Q93,90 81,90 L19,90 Q7,90 12,78 L42,14 Q45,8 50,8 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-151",
+      "elementType": "text",
+      "bounds": [
+        451,
+        392,
+        16,
+        14
+      ],
+      "content": {
+        "text": "1",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$white",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-152",
+      "elementType": "text",
+      "bounds": [
+        513,
+        392,
+        16,
+        14
+      ],
+      "content": {
+        "text": "2",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$white",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-153",
+      "elementType": "text",
+      "bounds": [
+        575,
+        392,
+        16,
+        14
+      ],
+      "content": {
+        "text": "3",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$white",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-154",
+      "elementType": "shape",
+      "bounds": [
+        396.0,
+        400.0,
+        38,
+        38
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M0,28 L0,0 L28,0 M72,0 L100,0 L100,28 M100,72 L100,100 L72,100 M28,100 L0,100 L0,72",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-155",
+      "elementType": "shape",
+      "bounds": [
+        410.44,
+        414.44,
+        9.12,
+        9.12
+      ],
+      "shapeName": "diamond",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-156",
+      "elementType": "shape",
+      "bounds": [
+        579.0,
+        397.0,
+        44,
+        44
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M0,28 L0,0 L28,0 M72,0 L100,0 L100,28 M100,72 L100,100 L72,100 M28,100 L0,100 L0,72",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "1_battle-157",
+      "elementType": "shape",
+      "bounds": [
+        644.0,
+        400.0,
+        38,
+        38
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M25,5 Q20,5 18,10 L5,45 Q4,50 8,55 L22,90 Q24,95 30,95 L75,95 Q80,95 82,90 L95,55 Q96,50 92,45 L78,10 Q76,5 70,5 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$enemy"
+      }
+    },
+    {
+      "elementId": "1_battle-158",
+      "elementType": "line",
+      "bounds": [
+        657.3,
+        413.3,
+        11.4,
+        11.4
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,100",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$enemy"
+      }
+    },
+    {
+      "elementId": "1_battle-159",
+      "elementType": "shape",
+      "bounds": [
+        646.0,
+        216.0,
+        34,
+        34
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M25,5 Q20,5 18,10 L5,45 Q4,50 8,55 L22,90 Q24,95 30,95 L75,95 Q80,95 82,90 L95,55 Q96,50 92,45 L78,10 Q76,5 70,5 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$enemy"
+      }
+    },
+    {
+      "elementId": "1_battle-160",
+      "elementType": "line",
+      "bounds": [
+        657.9,
+        227.9,
+        10.2,
+        10.2
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,100",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$enemy"
+      }
+    },
+    {
+      "elementId": "1_battle-161",
+      "elementType": "text",
+      "bounds": [
+        636,
+        392,
+        30,
+        14
+      ],
+      "content": {
+        "text": "E01",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$enemy",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-162",
+      "elementType": "text",
+      "bounds": [
+        636,
+        206,
+        30,
+        14
+      ],
+      "content": {
+        "text": "E02",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$enemy",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-163",
+      "elementType": "text",
+      "bounds": [
+        846,
+        98,
+        390,
+        20
+      ],
+      "content": {
+        "text": "ENEMY INTENT",
+        "fontSize": 10,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 1.4
+      }
+    },
+    {
+      "elementId": "1_battle-164",
+      "elementType": "text",
+      "bounds": [
+        846,
+        130,
+        60,
+        24
+      ],
+      "content": {
+        "text": "E01",
+        "fontSize": 16,
+        "fontFamily": "JetBrains Mono",
+        "color": "$white",
+        "bold": true,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-165",
+      "elementType": "text",
+      "bounds": [
+        918,
+        132,
+        160,
+        20
+      ],
+      "content": {
+        "text": "PURSUIT",
+        "fontSize": 11,
+        "fontFamily": "JetBrains Mono",
+        "color": "$text",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-166",
+      "elementType": "text",
+      "bounds": [
+        1076,
+        132,
+        160,
+        20
+      ],
+      "content": {
+        "text": "HP 18 / 18",
+        "fontSize": 11,
+        "fontFamily": "JetBrains Mono",
+        "color": "$text",
+        "bold": false,
+        "align": [
+          "right",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-167",
+      "elementType": "text",
+      "bounds": [
+        846,
+        164,
+        390,
+        22
+      ],
+      "content": {
+        "text": "F5  \u2192  F4  \u2192  F3",
+        "fontSize": 13,
+        "fontFamily": "JetBrains Mono",
+        "color": "$enemy",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-168",
+      "elementType": "line",
+      "bounds": [
+        846,
+        204,
+        390,
+        1
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#414141AA"
+      }
+    },
+    {
+      "elementId": "1_battle-169",
+      "elementType": "text",
+      "bounds": [
+        846,
+        224,
+        60,
+        22
+      ],
+      "content": {
+        "text": "E02",
+        "fontSize": 13,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": true,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-170",
+      "elementType": "text",
+      "bounds": [
+        918,
+        224,
+        318,
+        22
+      ],
+      "content": {
+        "text": "F2  \u2192  E2  \u2192  D2",
+        "fontSize": 11,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-171",
+      "elementType": "line",
+      "bounds": [
+        846,
+        270,
+        390,
+        1
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#414141AA"
+      }
+    },
+    {
+      "elementId": "1_battle-172",
+      "elementType": "text",
+      "bounds": [
+        846,
+        300,
+        390,
+        18
+      ],
+      "content": {
+        "text": "ON COMMIT",
+        "fontSize": 10,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 1.4
+      }
+    },
+    {
+      "elementId": "1_battle-173",
+      "elementType": "text",
+      "bounds": [
+        846,
+        334,
+        390,
+        34
+      ],
+      "content": {
+        "text": "3 DAMAGE",
+        "fontSize": 24,
+        "fontFamily": "JetBrains Mono",
+        "color": "$white",
+        "bold": true,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-174",
+      "elementType": "text",
+      "bounds": [
+        846,
+        376,
+        390,
+        22
+      ],
+      "content": {
+        "text": "ROW  /  E01",
+        "fontSize": 12,
+        "fontFamily": "JetBrains Mono",
+        "color": "$text",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-175",
+      "elementType": "text",
+      "bounds": [
+        846,
+        414,
+        250,
+        22
+      ],
+      "content": {
+        "text": "E01 HEALTH",
+        "fontSize": 10,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-176",
+      "elementType": "text",
+      "bounds": [
+        846,
+        440,
+        390,
+        28
+      ],
+      "content": {
+        "text": "18  \u2192  15",
+        "fontSize": 20,
+        "fontFamily": "JetBrains Mono",
+        "color": "$text",
+        "bold": true,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-177",
+      "elementType": "line",
+      "bounds": [
+        846,
+        490,
+        390,
+        1
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#414141AA"
+      }
+    },
+    {
+      "elementId": "1_battle-178",
+      "elementType": "text",
+      "bounds": [
+        846,
+        510,
+        390,
+        40
+      ],
+      "content": {
+        "text": "Everything fires from E5.",
+        "fontSize": 12,
+        "fontFamily": "Liter",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-179",
+      "elementType": "line",
+      "bounds": [
+        32,
+        622,
+        1216,
+        1
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#41414180"
+      }
+    },
+    {
+      "elementId": "1_battle-180",
+      "elementType": "text",
+      "bounds": [
+        32,
+        650,
+        100,
+        26
+      ],
+      "content": {
+        "text": "Z  UNDO",
+        "fontSize": 11,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-181",
+      "elementType": "text",
+      "bounds": [
+        142,
+        650,
+        110,
+        26
+      ],
+      "content": {
+        "text": "X  CLEAR",
+        "fontSize": 11,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "1_battle-182",
+      "elementType": "shape",
+      "bounds": [
+        1008,
+        638,
+        240,
+        46
+      ],
+      "shapeName": "roundRect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#FFFFFF"
+      },
+      "adjustments": [
+        50000
+      ],
+      "shadow": {
+        "blur": 16,
+        "color": "#00000080",
+        "offset": [
+          0,
+          6
+        ]
+      }
+    },
+    {
+      "elementId": "1_battle-183",
+      "elementType": "text",
+      "bounds": [
+        1008,
+        638,
+        240,
+        46
+      ],
+      "content": {
+        "text": "SPACE  COMMIT",
+        "fontSize": 12,
+        "fontFamily": "JetBrains Mono",
+        "color": "#080808",
+        "bold": true,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    }
+  ]
+}

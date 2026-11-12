@@ -1,0 +1,219 @@
+import { chromium } from 'playwright'
+import { createServer } from 'node:http'
+import { readFile } from 'node:fs/promises'
+import { existsSync, mkdirSync } from 'node:fs'
+import { extname, join, resolve, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const ROOT = fileURLToPath(new URL('../', import.meta.url))
+const DIST = join(ROOT, 'dist')
+const SHOTS = join(ROOT, 'verification-shots')
+mkdirSync(SHOTS, { recursive: true })
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' }
+const server = createServer(async (req, res) => {
+  try {
+    const raw = req.url === '/' ? '/index.html' : req.url.split('?')[0]
+    const file = resolve(DIST, '.' + decodeURIComponent(raw))
+    if (file !== DIST && !file.startsWith(DIST + sep)) { res.writeHead(403).end(); return }
+    const data = await readFile(file)
+    res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' })
+    res.end(data)
+  } catch { res.writeHead(404).end() }
+})
+await new Promise(resolve => server.listen(0, resolve))
+const port = server.address().port
+const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  args: ['--no-sandbox', '--disable-gpu-sandbox'],
+})
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } })
+const errors = []
+page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+page.on('pageerror', error => errors.push(String(error)))
+
+const snapshot = () => page.evaluate(() => window.__battleProbe())
+const waitPhase = phases => page.waitForFunction(
+  expected => expected.includes(window.__battleProbe()?.phase),
+  phases,
+  { timeout: 15000 },
+)
+const keyFor = (a, b) => b.x > a.x ? 'KeyD' : b.x < a.x ? 'KeyA' : b.y > a.y ? 'KeyS' : 'KeyW'
+
+function bestRoute(state, focusOverload = false) {
+  const enemies = state.enemies.filter(enemy => enemy.robustness > 0)
+  const blocked = new Set(enemies.map(enemy => `${enemy.pos.x},${enemy.pos.y}`))
+  let best = { path: [], score: -1e9 }
+  const start = state.player.pos
+  function walk(pos, path, visited) {
+    if (path.length) {
+      const counts = { bash: 0, core: 0, privilege: 0, overload: 0, blank: 0 }
+      for (const step of path) counts[state.flags[step.y][step.x]]++
+      const distance = Math.min(...enemies.map(enemy => Math.abs(enemy.pos.x - pos.x) + Math.abs(enemy.pos.y - pos.y)))
+      const releases = Math.min(counts.bash, 8 - path.length, 4)
+      const score = releases * 15 + counts.core * 5 + counts.privilege * 3 + counts.overload * (focusOverload ? 80 : 7) - distance * 1.4 + path.length * .15
+      if (score > best.score) best = { path, score }
+    }
+    if (path.length >= 6) return
+    for (const next of [{ x: pos.x + 1, y: pos.y }, { x: pos.x - 1, y: pos.y }, { x: pos.x, y: pos.y + 1 }, { x: pos.x, y: pos.y - 1 }]) {
+      const key = `${next.x},${next.y}`
+      if (next.x < 0 || next.y < 0 || next.x >= 15 || next.y >= 15 || state.walls[next.y][next.x] || blocked.has(key) || visited.has(key)) continue
+      visited.add(key)
+      walk(next, [...path, next], visited)
+      visited.delete(key)
+    }
+  }
+  walk(start, [], new Set([`${start.x},${start.y}`]))
+  return best.path
+}
+
+async function playRoute(state, focusOverload = false, triggerOverload = false) {
+  const route = bestRoute(state, focusOverload)
+  let cursor = state.player.pos
+  for (const next of route) {
+    await page.keyboard.press(keyFor(cursor, next))
+    cursor = next
+  }
+  if (triggerOverload) {
+    await page.keyboard.press('KeyO')
+    if (!(await snapshot()).overloadArmed) throw new Error('First O did not arm Overload preview')
+    await page.screenshot({ path: join(SHOTS, '08-overload.png') })
+    await page.keyboard.press('KeyO')
+    if ((await snapshot()).overloadArmed) throw new Error('Second O did not release Overload')
+  }
+  await page.getByRole('button', { name: /EXECUTE ROUTE/ }).click()
+  await waitPhase(['planning', 'victory', 'gameover'])
+}
+
+try {
+  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'networkidle' })
+  await page.waitForFunction(() => window.__GAME_READY__ === true)
+  await page.getByRole('button', { name: /BREACH SANDBOX/ }).click()
+  await waitPhase(['planning'])
+  if (await page.locator('.enemy-card').count() !== 0) throw new Error('Unaffected Geeks should be hidden before planning')
+  await page.getByRole('button', { name: 'Show CoT' }).click()
+  if (!(await page.locator('.preset-title strong').textContent())?.includes('CoT')) throw new Error('Display dot did not show CoT')
+  if ((await snapshot()).player.activeBash !== 0) throw new Error('Display dot changed the mechanical Bash preset')
+  await page.locator('.bash-viewer').dispatchEvent('wheel', { deltaY: 100 })
+  if (!(await page.locator('.preset-title strong').textContent())?.includes('VECTOR')) throw new Error('Wheel did not cycle the displayed Bash preset')
+  if ((await snapshot()).player.activeBash !== 0) throw new Error('Wheel changed the mechanical Bash preset')
+
+  await page.getByRole('button', { name: 'Open manual' }).click()
+  await page.getByRole('dialog', { name: 'Battle manual' }).waitFor()
+  await page.getByRole('button', { name: 'Close' }).click()
+  await page.getByRole('button', { name: 'Open settings' }).click()
+  await page.getByRole('button', { name: 'Toggle reduced motion' }).click()
+  await page.getByRole('button', { name: 'Toggle audio' }).click()
+  await page.getByRole('button', { name: 'Toggle audio' }).click()
+  await page.screenshot({ path: join(SHOTS, '04-settings.png') })
+  await page.getByRole('button', { name: 'Close' }).click()
+
+  await page.keyboard.press('KeyW')
+  await page.keyboard.press('KeyW')
+  if (await page.locator('.enemy-card').count() !== 1) throw new Error('Expected exactly one affected Geek')
+  const previewColor = await page.locator('.damage-preview').evaluate(element => getComputedStyle(element).color)
+  if (previewColor !== 'rgb(242, 209, 107)') throw new Error(`Damage preview is not yellow: ${previewColor}`)
+  const projected = await page.locator('.to-be').textContent()
+  if (!projected?.includes('10')) throw new Error(`Missing projected Desire value: ${projected}`)
+  if (await page.locator('.action-slot').count() !== 8) throw new Error('Expected eight smaller AP slots')
+  if (await page.locator('.action-indicator.lit').count() !== 2) throw new Error('Expected Roman steps I and II to light')
+  const coreLayout = await page.locator('.buff-list').evaluate(element => ({
+    columns: getComputedStyle(element).gridTemplateColumns.split(' ').length,
+    overflow: getComputedStyle(element).overflowY,
+  }))
+  if (coreLayout.columns !== 3 || coreLayout.overflow !== 'visible') throw new Error(`Core counters are not one three-column row: ${JSON.stringify(coreLayout)}`)
+  if (await page.locator('.buff-row').count() !== 3) throw new Error('Expected all three Core sub-blocks')
+  const playerFit = await page.locator('.player-panel').evaluate(element => ({
+    client: element.clientHeight,
+    content: element.scrollHeight,
+    overflow: getComputedStyle(element).overflowY,
+    overloadBeforeDetails: document.querySelector('.overload-button')?.nextElementSibling?.classList.contains('method-detail'),
+  }))
+  if (playerFit.content > playerFit.client + 1 || playerFit.overflow !== 'hidden') throw new Error(`Player panel does not fit without outer scrolling: ${JSON.stringify(playerFit)}`)
+  if (!playerFit.overloadBeforeDetails) throw new Error('Overload is not positioned before method details')
+  await page.locator('.preset.selected .action-indicator').nth(1).hover()
+  if (!(await page.locator('.method-detail strong').textContent())?.includes('MANHATTAN')) throw new Error('Roman indicator did not show MANHATTAN mechanics')
+  if ((await snapshot()).attackPreview?.stepIndex !== 1) throw new Error('Roman indicator did not activate map range preview')
+  if (!(await page.locator('.damage-preview').textContent())?.includes('THIS ACTION')) throw new Error('Single-action damage preview did not activate')
+  if (await page.locator('.health-segment').count() !== 2) throw new Error('Expected two segmented action effects in the HP bar')
+  await page.locator('.health-segment').nth(1).hover()
+  if (!(await page.locator('.method-detail strong').textContent())?.includes('MANHATTAN')) throw new Error('HP segment did not restore MANHATTAN preview')
+  await page.screenshot({ path: join(SHOTS, '05-battle-compact.png') })
+  await page.mouse.move(0, 0)
+  await page.getByRole('button', { name: /EXECUTE ROUTE/ }).click()
+  await waitPhase(['planning'])
+  let state = await snapshot()
+  if (state.enemies[0].robustness !== 10) throw new Error(`Opening Bash expected E01 at 10, got ${state.enemies[0].robustness}`)
+
+  let overloadUsed = false
+  for (let turn = 0; turn < 20; turn++) {
+    state = await snapshot()
+    if (state.phase !== 'planning') break
+    const triggerOverload = state.player.overload >= 5
+    if (triggerOverload) overloadUsed = true
+    await playRoute(state, false, triggerOverload)
+  }
+  state = await snapshot()
+  if (state.phase !== 'victory') throw new Error(`Autoplay did not reach victory; ended at ${state.phase} on turn ${state.turn} with Sanity ${state.player.sanity}`)
+  await page.screenshot({ path: join(SHOTS, '06-victory.png') })
+
+  await page.keyboard.press('KeyR')
+  await waitPhase(['planning'])
+  for (let turn = 0; turn < 20; turn++) {
+    state = await snapshot()
+    if (state.phase !== 'planning') break
+    if (state.player.overload >= 5) {
+      overloadUsed = true
+      await playRoute(state, true, true)
+      break
+    }
+    await playRoute(state, true)
+  }
+  if (!overloadUsed) throw new Error('Overload was not triggered during the resource-collection run')
+
+  state = await snapshot()
+  if (state.phase === 'planning') {
+    await page.getByRole('button', { name: 'Open settings' }).click()
+    await page.getByRole('button', { name: /RESTART BATTLE/ }).click()
+  } else {
+    await page.keyboard.press('KeyR')
+  }
+  await waitPhase(['planning'])
+  for (let turn = 0; turn < 80; turn++) {
+    state = await snapshot()
+    if (state.phase === 'gameover') break
+    await page.getByRole('button', { name: /EXECUTE ROUTE/ }).click()
+    await waitPhase(['planning', 'gameover'])
+  }
+  state = await snapshot()
+  if (state.phase !== 'gameover') throw new Error(`Idle play ended at ${state.phase}, turn ${state.turn}, Sanity ${state.player.sanity}, enemy HP ${state.enemies.map(enemy => enemy.robustness).join('/')}`)
+  await page.screenshot({ path: join(SHOTS, '07-eliminated.png') })
+  await page.keyboard.press('KeyR')
+  await waitPhase(['planning'])
+
+  await page.setViewportSize({ width: 1024, height: 768 })
+  await page.waitForTimeout(200)
+  const canvasBox = await page.locator('#game-canvas').boundingBox()
+  if (!canvasBox || canvasBox.width < 300 || canvasBox.height < 400) throw new Error('Board did not resize correctly')
+  await page.screenshot({ path: join(SHOTS, '09-resized.png') })
+  const performance = await page.evaluate(async () => {
+    const samples = []
+    let previous = window.performance.now()
+    for (let i = 0; i < 60; i++) {
+      const now = await new Promise(resolve => requestAnimationFrame(resolve))
+      samples.push(now - previous)
+      previous = now
+    }
+    const averageMs = samples.reduce((sum, value) => sum + value, 0) / samples.length
+    return { averageMs: Number(averageMs.toFixed(2)), fps: Number((1000 / averageMs).toFixed(1)), warps: 225 }
+  })
+
+  if (errors.length) throw new Error(`Browser errors: ${errors.join(' | ')}`)
+  console.log(JSON.stringify({
+    result: 'PASS', openingDamage: 2, victory: true, elimination: true,
+    overloadTriggeredInBrowser: overloadUsed, menus: true, settings: true,
+    restart: true, resized: true, performance, consoleErrors: 0,
+  }, null, 2))
+} finally {
+  await browser.close()
+  server.close()
+}

@@ -1,0 +1,30 @@
+[
+  {
+    "game": "Duskers",
+    "app_id": 254320,
+    "store_page": "https://store.steampowered.com/app/254320/",
+    "image_url": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/254320/ss_fd7b606082fc64b9ac575635204a7ee5307cac72.1920x1080.jpg?t=1776751920",
+    "local_file": "duskers.jpg"
+  },
+  {
+    "game": "Cogmind",
+    "app_id": 722730,
+    "store_page": "https://store.steampowered.com/app/722730/",
+    "image_url": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/722730/ss_5e7507ebbc8bfb6efe90924cce4f633ab07cc02b.1920x1080.jpg?t=1767235574",
+    "local_file": "cogmind.jpg"
+  },
+  {
+    "game": "Into the Breach",
+    "app_id": 590380,
+    "store_page": "https://store.steampowered.com/app/590380/",
+    "image_url": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/590380/ss_6113590509c195f98fa64cd738df534762e0c358.1920x1080.jpg?t=1755610784",
+    "local_file": "into_the_breach.jpg"
+  },
+  {
+    "game": "Hacknet",
+    "app_id": 365450,
+    "store_page": "https://store.steampowered.com/app/365450/",
+    "image_url": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/365450/ss_182ebf5aa570fc0ad0d1d974d43137e858ddeb54.1920x1080.jpg?t=1758156718",
+    "local_file": "hacknet.jpg"
+  }
+]

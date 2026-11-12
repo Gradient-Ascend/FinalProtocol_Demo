@@ -1,0 +1,4322 @@
+{
+  "pageType": "content",
+  "background": {
+    "type": "gradient",
+    "gradientType": "radial",
+    "angle": 90,
+    "stops": [
+      {
+        "position": 0,
+        "color": "#1A1A1A"
+      },
+      {
+        "position": 0.58,
+        "color": "#0B0B0B"
+      },
+      {
+        "position": 1,
+        "color": "#050505"
+      }
+    ]
+  },
+  "elements": [
+    {
+      "elementId": "2_components-001",
+      "elementType": "text",
+      "bounds": [
+        32,
+        20,
+        760,
+        32
+      ],
+      "content": {
+        "text": "02 / TWO RENDERING MODES",
+        "fontSize": 20,
+        "fontFamily": "JetBrains Mono",
+        "color": "$text",
+        "bold": true,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 1.2
+      }
+    },
+    {
+      "elementId": "2_components-002",
+      "elementType": "text",
+      "bounds": [
+        850,
+        23,
+        398,
+        24
+      ],
+      "content": {
+        "text": "ONE MONOCHROME SYSTEM",
+        "fontSize": 10,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "right",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-003",
+      "elementType": "line",
+      "bounds": [
+        32,
+        64,
+        1216,
+        1
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#41414199"
+      }
+    },
+    {
+      "elementId": "2_components-004",
+      "elementType": "text",
+      "bounds": [
+        42,
+        90,
+        520,
+        22
+      ],
+      "content": {
+        "text": "OUT OF BATTLE / PIXEL",
+        "fontSize": 11,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 1.2
+      }
+    },
+    {
+      "elementId": "2_components-005",
+      "elementType": "text",
+      "bounds": [
+        688,
+        90,
+        520,
+        22
+      ],
+      "content": {
+        "text": "IN BATTLE / SMOOTH",
+        "fontSize": 11,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 1.2
+      }
+    },
+    {
+      "elementId": "2_components-006",
+      "elementType": "line",
+      "bounds": [
+        640,
+        88,
+        1,
+        500
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 0,100",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#41414199"
+      }
+    },
+    {
+      "elementId": "2_components-007",
+      "elementType": "shape",
+      "bounds": [
+        89.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-008",
+      "elementType": "shape",
+      "bounds": [
+        84.5,
+        166.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-009",
+      "elementType": "shape",
+      "bounds": [
+        89.5,
+        166.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-010",
+      "elementType": "shape",
+      "bounds": [
+        94.5,
+        166.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-011",
+      "elementType": "shape",
+      "bounds": [
+        84.5,
+        171.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-012",
+      "elementType": "shape",
+      "bounds": [
+        89.5,
+        171.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-013",
+      "elementType": "shape",
+      "bounds": [
+        94.5,
+        171.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-014",
+      "elementType": "shape",
+      "bounds": [
+        79.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-015",
+      "elementType": "shape",
+      "bounds": [
+        84.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-016",
+      "elementType": "shape",
+      "bounds": [
+        89.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-017",
+      "elementType": "shape",
+      "bounds": [
+        94.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-018",
+      "elementType": "shape",
+      "bounds": [
+        99.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-019",
+      "elementType": "shape",
+      "bounds": [
+        79.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-020",
+      "elementType": "shape",
+      "bounds": [
+        84.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-021",
+      "elementType": "shape",
+      "bounds": [
+        89.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-022",
+      "elementType": "shape",
+      "bounds": [
+        94.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-023",
+      "elementType": "shape",
+      "bounds": [
+        99.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-024",
+      "elementType": "shape",
+      "bounds": [
+        74.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-025",
+      "elementType": "shape",
+      "bounds": [
+        79.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-026",
+      "elementType": "shape",
+      "bounds": [
+        84.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-027",
+      "elementType": "shape",
+      "bounds": [
+        89.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-028",
+      "elementType": "shape",
+      "bounds": [
+        94.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-029",
+      "elementType": "shape",
+      "bounds": [
+        99.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-030",
+      "elementType": "shape",
+      "bounds": [
+        104.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-031",
+      "elementType": "shape",
+      "bounds": [
+        74.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-032",
+      "elementType": "shape",
+      "bounds": [
+        79.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-033",
+      "elementType": "shape",
+      "bounds": [
+        84.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-034",
+      "elementType": "shape",
+      "bounds": [
+        89.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-035",
+      "elementType": "shape",
+      "bounds": [
+        94.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-036",
+      "elementType": "shape",
+      "bounds": [
+        99.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-037",
+      "elementType": "shape",
+      "bounds": [
+        104.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-038",
+      "elementType": "shape",
+      "bounds": [
+        69.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-039",
+      "elementType": "shape",
+      "bounds": [
+        74.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-040",
+      "elementType": "shape",
+      "bounds": [
+        79.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-041",
+      "elementType": "shape",
+      "bounds": [
+        84.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-042",
+      "elementType": "shape",
+      "bounds": [
+        89.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-043",
+      "elementType": "shape",
+      "bounds": [
+        94.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-044",
+      "elementType": "shape",
+      "bounds": [
+        99.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-045",
+      "elementType": "shape",
+      "bounds": [
+        104.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-046",
+      "elementType": "shape",
+      "bounds": [
+        109.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-047",
+      "elementType": "shape",
+      "bounds": [
+        69.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-048",
+      "elementType": "shape",
+      "bounds": [
+        74.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-049",
+      "elementType": "shape",
+      "bounds": [
+        79.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-050",
+      "elementType": "shape",
+      "bounds": [
+        84.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-051",
+      "elementType": "shape",
+      "bounds": [
+        89.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-052",
+      "elementType": "shape",
+      "bounds": [
+        94.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-053",
+      "elementType": "shape",
+      "bounds": [
+        99.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-054",
+      "elementType": "shape",
+      "bounds": [
+        104.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-055",
+      "elementType": "shape",
+      "bounds": [
+        109.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-056",
+      "elementType": "shape",
+      "bounds": [
+        690.0,
+        156.0,
+        56,
+        56
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,8 Q55,8 58,14 L88,78 Q93,90 81,90 L19,90 Q7,90 12,78 L42,14 Q45,8 50,8 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-057",
+      "elementType": "text",
+      "bounds": [
+        40,
+        246,
+        104,
+        20
+      ],
+      "content": {
+        "text": "ATTACK",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-058",
+      "elementType": "text",
+      "bounds": [
+        666,
+        246,
+        104,
+        20
+      ],
+      "content": {
+        "text": "ATTACK",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-059",
+      "elementType": "shape",
+      "bounds": [
+        179.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-060",
+      "elementType": "shape",
+      "bounds": [
+        184.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-061",
+      "elementType": "shape",
+      "bounds": [
+        189.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-062",
+      "elementType": "shape",
+      "bounds": [
+        194.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-063",
+      "elementType": "shape",
+      "bounds": [
+        199.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-064",
+      "elementType": "shape",
+      "bounds": [
+        204.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-065",
+      "elementType": "shape",
+      "bounds": [
+        209.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-066",
+      "elementType": "shape",
+      "bounds": [
+        214.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-067",
+      "elementType": "shape",
+      "bounds": [
+        219.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-068",
+      "elementType": "shape",
+      "bounds": [
+        179.5,
+        166.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-069",
+      "elementType": "shape",
+      "bounds": [
+        219.5,
+        166.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-070",
+      "elementType": "shape",
+      "bounds": [
+        179.5,
+        171.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-071",
+      "elementType": "shape",
+      "bounds": [
+        219.5,
+        171.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-072",
+      "elementType": "shape",
+      "bounds": [
+        179.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-073",
+      "elementType": "shape",
+      "bounds": [
+        219.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-074",
+      "elementType": "shape",
+      "bounds": [
+        179.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-075",
+      "elementType": "shape",
+      "bounds": [
+        189.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-076",
+      "elementType": "shape",
+      "bounds": [
+        194.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-077",
+      "elementType": "shape",
+      "bounds": [
+        199.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-078",
+      "elementType": "shape",
+      "bounds": [
+        204.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-079",
+      "elementType": "shape",
+      "bounds": [
+        209.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-080",
+      "elementType": "shape",
+      "bounds": [
+        219.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-081",
+      "elementType": "shape",
+      "bounds": [
+        179.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-082",
+      "elementType": "shape",
+      "bounds": [
+        219.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-083",
+      "elementType": "shape",
+      "bounds": [
+        179.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-084",
+      "elementType": "shape",
+      "bounds": [
+        219.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-085",
+      "elementType": "shape",
+      "bounds": [
+        179.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-086",
+      "elementType": "shape",
+      "bounds": [
+        219.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-087",
+      "elementType": "shape",
+      "bounds": [
+        179.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-088",
+      "elementType": "shape",
+      "bounds": [
+        184.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-089",
+      "elementType": "shape",
+      "bounds": [
+        189.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-090",
+      "elementType": "shape",
+      "bounds": [
+        194.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-091",
+      "elementType": "shape",
+      "bounds": [
+        199.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-092",
+      "elementType": "shape",
+      "bounds": [
+        204.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-093",
+      "elementType": "shape",
+      "bounds": [
+        209.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-094",
+      "elementType": "shape",
+      "bounds": [
+        214.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-095",
+      "elementType": "shape",
+      "bounds": [
+        219.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-096",
+      "elementType": "shape",
+      "bounds": [
+        800.0,
+        156.0,
+        56,
+        56
+      ],
+      "shapeName": "roundRect",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      },
+      "adjustments": [
+        10000
+      ]
+    },
+    {
+      "elementId": "2_components-097",
+      "elementType": "line",
+      "bounds": [
+        811.2,
+        183,
+        33.6,
+        2
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,50 100,50",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-098",
+      "elementType": "text",
+      "bounds": [
+        150,
+        246,
+        104,
+        20
+      ],
+      "content": {
+        "text": "DEFENSE",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-099",
+      "elementType": "text",
+      "bounds": [
+        776,
+        246,
+        104,
+        20
+      ],
+      "content": {
+        "text": "DEFENSE",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-100",
+      "elementType": "shape",
+      "bounds": [
+        309.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-101",
+      "elementType": "shape",
+      "bounds": [
+        304.5,
+        166.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-102",
+      "elementType": "shape",
+      "bounds": [
+        309.5,
+        166.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-103",
+      "elementType": "shape",
+      "bounds": [
+        314.5,
+        166.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-104",
+      "elementType": "shape",
+      "bounds": [
+        304.5,
+        171.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-105",
+      "elementType": "shape",
+      "bounds": [
+        309.5,
+        171.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-106",
+      "elementType": "shape",
+      "bounds": [
+        314.5,
+        171.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-107",
+      "elementType": "shape",
+      "bounds": [
+        299.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-108",
+      "elementType": "shape",
+      "bounds": [
+        304.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-109",
+      "elementType": "shape",
+      "bounds": [
+        309.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-110",
+      "elementType": "shape",
+      "bounds": [
+        314.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-111",
+      "elementType": "shape",
+      "bounds": [
+        319.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-112",
+      "elementType": "shape",
+      "bounds": [
+        289.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-113",
+      "elementType": "shape",
+      "bounds": [
+        294.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-114",
+      "elementType": "shape",
+      "bounds": [
+        299.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-115",
+      "elementType": "shape",
+      "bounds": [
+        304.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-116",
+      "elementType": "shape",
+      "bounds": [
+        309.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-117",
+      "elementType": "shape",
+      "bounds": [
+        314.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-118",
+      "elementType": "shape",
+      "bounds": [
+        319.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-119",
+      "elementType": "shape",
+      "bounds": [
+        324.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-120",
+      "elementType": "shape",
+      "bounds": [
+        329.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-121",
+      "elementType": "shape",
+      "bounds": [
+        299.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-122",
+      "elementType": "shape",
+      "bounds": [
+        304.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-123",
+      "elementType": "shape",
+      "bounds": [
+        309.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-124",
+      "elementType": "shape",
+      "bounds": [
+        314.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-125",
+      "elementType": "shape",
+      "bounds": [
+        319.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-126",
+      "elementType": "shape",
+      "bounds": [
+        304.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-127",
+      "elementType": "shape",
+      "bounds": [
+        309.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-128",
+      "elementType": "shape",
+      "bounds": [
+        314.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-129",
+      "elementType": "shape",
+      "bounds": [
+        304.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-130",
+      "elementType": "shape",
+      "bounds": [
+        309.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-131",
+      "elementType": "shape",
+      "bounds": [
+        314.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-132",
+      "elementType": "shape",
+      "bounds": [
+        309.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-133",
+      "elementType": "shape",
+      "bounds": [
+        910.0,
+        156.0,
+        56,
+        56
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,2 Q54,38 98,50 Q54,62 50,98 Q46,62 2,50 Q46,38 50,2 Z",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-134",
+      "elementType": "text",
+      "bounds": [
+        260,
+        246,
+        104,
+        20
+      ],
+      "content": {
+        "text": "STAR",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-135",
+      "elementType": "text",
+      "bounds": [
+        886,
+        246,
+        104,
+        20
+      ],
+      "content": {
+        "text": "STAR",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-136",
+      "elementType": "shape",
+      "bounds": [
+        409.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-137",
+      "elementType": "shape",
+      "bounds": [
+        414.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-138",
+      "elementType": "shape",
+      "bounds": [
+        419.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-139",
+      "elementType": "shape",
+      "bounds": [
+        424.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-140",
+      "elementType": "shape",
+      "bounds": [
+        429.5,
+        161.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-141",
+      "elementType": "shape",
+      "bounds": [
+        404.5,
+        166.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-142",
+      "elementType": "shape",
+      "bounds": [
+        409.5,
+        166.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-143",
+      "elementType": "shape",
+      "bounds": [
+        414.5,
+        166.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-144",
+      "elementType": "shape",
+      "bounds": [
+        419.5,
+        166.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-145",
+      "elementType": "shape",
+      "bounds": [
+        424.5,
+        166.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-146",
+      "elementType": "shape",
+      "bounds": [
+        399.5,
+        171.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-147",
+      "elementType": "shape",
+      "bounds": [
+        404.5,
+        171.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-148",
+      "elementType": "shape",
+      "bounds": [
+        409.5,
+        171.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-149",
+      "elementType": "shape",
+      "bounds": [
+        414.5,
+        171.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-150",
+      "elementType": "shape",
+      "bounds": [
+        419.5,
+        171.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-151",
+      "elementType": "shape",
+      "bounds": [
+        399.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-152",
+      "elementType": "shape",
+      "bounds": [
+        404.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-153",
+      "elementType": "shape",
+      "bounds": [
+        409.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-154",
+      "elementType": "shape",
+      "bounds": [
+        414.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-155",
+      "elementType": "shape",
+      "bounds": [
+        419.5,
+        176.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-156",
+      "elementType": "shape",
+      "bounds": [
+        399.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-157",
+      "elementType": "shape",
+      "bounds": [
+        404.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-158",
+      "elementType": "shape",
+      "bounds": [
+        409.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-159",
+      "elementType": "shape",
+      "bounds": [
+        414.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-160",
+      "elementType": "shape",
+      "bounds": [
+        419.5,
+        181.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-161",
+      "elementType": "shape",
+      "bounds": [
+        399.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-162",
+      "elementType": "shape",
+      "bounds": [
+        404.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-163",
+      "elementType": "shape",
+      "bounds": [
+        409.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-164",
+      "elementType": "shape",
+      "bounds": [
+        414.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-165",
+      "elementType": "shape",
+      "bounds": [
+        419.5,
+        186.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-166",
+      "elementType": "shape",
+      "bounds": [
+        399.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-167",
+      "elementType": "shape",
+      "bounds": [
+        404.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-168",
+      "elementType": "shape",
+      "bounds": [
+        409.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-169",
+      "elementType": "shape",
+      "bounds": [
+        414.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-170",
+      "elementType": "shape",
+      "bounds": [
+        419.5,
+        191.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-171",
+      "elementType": "shape",
+      "bounds": [
+        404.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-172",
+      "elementType": "shape",
+      "bounds": [
+        409.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-173",
+      "elementType": "shape",
+      "bounds": [
+        414.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-174",
+      "elementType": "shape",
+      "bounds": [
+        419.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-175",
+      "elementType": "shape",
+      "bounds": [
+        424.5,
+        196.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-176",
+      "elementType": "shape",
+      "bounds": [
+        409.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-177",
+      "elementType": "shape",
+      "bounds": [
+        414.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-178",
+      "elementType": "shape",
+      "bounds": [
+        419.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-179",
+      "elementType": "shape",
+      "bounds": [
+        424.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-180",
+      "elementType": "shape",
+      "bounds": [
+        429.5,
+        201.5,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-181",
+      "elementType": "shape",
+      "bounds": [
+        1020.0,
+        156.0,
+        56,
+        56
+      ],
+      "shapeName": "ellipse",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-182",
+      "elementType": "shape",
+      "bounds": [
+        1020.0,
+        156.0,
+        56,
+        56
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M50,0 A50,50 0 0 0 50,100 Z",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-183",
+      "elementType": "text",
+      "bounds": [
+        370,
+        246,
+        104,
+        20
+      ],
+      "content": {
+        "text": "SHADOW",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-184",
+      "elementType": "text",
+      "bounds": [
+        996,
+        246,
+        104,
+        20
+      ],
+      "content": {
+        "text": "SHADOW",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-185",
+      "elementType": "shape",
+      "bounds": [
+        527.0,
+        179.0,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-186",
+      "elementType": "shape",
+      "bounds": [
+        532.0,
+        179.0,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-187",
+      "elementType": "shape",
+      "bounds": [
+        527.0,
+        184.0,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-188",
+      "elementType": "shape",
+      "bounds": [
+        532.0,
+        184.0,
+        5,
+        5
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-189",
+      "elementType": "shape",
+      "bounds": [
+        1153.52,
+        179.52,
+        8.96,
+        8.96
+      ],
+      "shapeName": "ellipse",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "2_components-190",
+      "elementType": "text",
+      "bounds": [
+        480,
+        246,
+        104,
+        20
+      ],
+      "content": {
+        "text": "BLANK",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-191",
+      "elementType": "text",
+      "bounds": [
+        1106,
+        246,
+        104,
+        20
+      ],
+      "content": {
+        "text": "BLANK",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-192",
+      "elementType": "line",
+      "bounds": [
+        32,
+        302,
+        1216,
+        1
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#41414199"
+      }
+    },
+    {
+      "elementId": "2_components-193",
+      "elementType": "text",
+      "bounds": [
+        42,
+        330,
+        520,
+        22
+      ],
+      "content": {
+        "text": "PIXEL MARKERS",
+        "fontSize": 10,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 1.2
+      }
+    },
+    {
+      "elementId": "2_components-194",
+      "elementType": "text",
+      "bounds": [
+        688,
+        330,
+        520,
+        22
+      ],
+      "content": {
+        "text": "SMOOTH MARKERS",
+        "fontSize": 10,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 1.2
+      }
+    },
+    {
+      "elementId": "2_components-195",
+      "elementType": "shape",
+      "bounds": [
+        154.0,
+        410.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-196",
+      "elementType": "shape",
+      "bounds": [
+        163.0,
+        410.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-197",
+      "elementType": "shape",
+      "bounds": [
+        208.0,
+        410.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-198",
+      "elementType": "shape",
+      "bounds": [
+        217.0,
+        410.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-199",
+      "elementType": "shape",
+      "bounds": [
+        154.0,
+        419.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-200",
+      "elementType": "shape",
+      "bounds": [
+        217.0,
+        419.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-201",
+      "elementType": "shape",
+      "bounds": [
+        172.0,
+        437.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-202",
+      "elementType": "shape",
+      "bounds": [
+        181.0,
+        437.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-203",
+      "elementType": "shape",
+      "bounds": [
+        190.0,
+        437.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-204",
+      "elementType": "shape",
+      "bounds": [
+        199.0,
+        437.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-205",
+      "elementType": "shape",
+      "bounds": [
+        172.0,
+        446.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-206",
+      "elementType": "shape",
+      "bounds": [
+        181.0,
+        446.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-207",
+      "elementType": "shape",
+      "bounds": [
+        190.0,
+        446.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-208",
+      "elementType": "shape",
+      "bounds": [
+        199.0,
+        446.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-209",
+      "elementType": "shape",
+      "bounds": [
+        154.0,
+        464.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-210",
+      "elementType": "shape",
+      "bounds": [
+        217.0,
+        464.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-211",
+      "elementType": "shape",
+      "bounds": [
+        154.0,
+        473.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-212",
+      "elementType": "shape",
+      "bounds": [
+        163.0,
+        473.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-213",
+      "elementType": "shape",
+      "bounds": [
+        208.0,
+        473.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-214",
+      "elementType": "shape",
+      "bounds": [
+        217.0,
+        473.0,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-215",
+      "elementType": "shape",
+      "bounds": [
+        469.0,
+        405.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-216",
+      "elementType": "shape",
+      "bounds": [
+        478.0,
+        405.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-217",
+      "elementType": "shape",
+      "bounds": [
+        487.0,
+        405.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-218",
+      "elementType": "shape",
+      "bounds": [
+        496.0,
+        405.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-219",
+      "elementType": "shape",
+      "bounds": [
+        505.0,
+        405.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-220",
+      "elementType": "shape",
+      "bounds": [
+        514.0,
+        405.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-221",
+      "elementType": "shape",
+      "bounds": [
+        460.0,
+        414.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-222",
+      "elementType": "shape",
+      "bounds": [
+        469.0,
+        414.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-223",
+      "elementType": "shape",
+      "bounds": [
+        514.0,
+        414.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-224",
+      "elementType": "shape",
+      "bounds": [
+        523.0,
+        414.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-225",
+      "elementType": "shape",
+      "bounds": [
+        460.0,
+        423.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-226",
+      "elementType": "shape",
+      "bounds": [
+        487.0,
+        423.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-227",
+      "elementType": "shape",
+      "bounds": [
+        496.0,
+        423.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-228",
+      "elementType": "shape",
+      "bounds": [
+        523.0,
+        423.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-229",
+      "elementType": "shape",
+      "bounds": [
+        460.0,
+        432.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-230",
+      "elementType": "shape",
+      "bounds": [
+        496.0,
+        432.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-231",
+      "elementType": "shape",
+      "bounds": [
+        469.0,
+        441.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-232",
+      "elementType": "shape",
+      "bounds": [
+        505.0,
+        441.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-233",
+      "elementType": "shape",
+      "bounds": [
+        478.0,
+        450.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-234",
+      "elementType": "shape",
+      "bounds": [
+        514.0,
+        450.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-235",
+      "elementType": "shape",
+      "bounds": [
+        487.0,
+        459.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-236",
+      "elementType": "shape",
+      "bounds": [
+        523.0,
+        459.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-237",
+      "elementType": "shape",
+      "bounds": [
+        460.0,
+        468.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-238",
+      "elementType": "shape",
+      "bounds": [
+        469.0,
+        468.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-239",
+      "elementType": "shape",
+      "bounds": [
+        514.0,
+        468.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-240",
+      "elementType": "shape",
+      "bounds": [
+        523.0,
+        468.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-241",
+      "elementType": "shape",
+      "bounds": [
+        469.0,
+        477.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-242",
+      "elementType": "shape",
+      "bounds": [
+        478.0,
+        477.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-243",
+      "elementType": "shape",
+      "bounds": [
+        487.0,
+        477.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-244",
+      "elementType": "shape",
+      "bounds": [
+        496.0,
+        477.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-245",
+      "elementType": "shape",
+      "bounds": [
+        505.0,
+        477.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-246",
+      "elementType": "shape",
+      "bounds": [
+        514.0,
+        477.5,
+        9,
+        9
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-247",
+      "elementType": "shape",
+      "bounds": [
+        758.0,
+        402.0,
+        88,
+        88
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M0,28 L0,0 L28,0 M72,0 L100,0 L100,28 M100,72 L100,100 L72,100 M28,100 L0,100 L0,72",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-248",
+      "elementType": "shape",
+      "bounds": [
+        791.44,
+        435.44,
+        21.12,
+        21.12
+      ],
+      "shapeName": "diamond",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "2_components-249",
+      "elementType": "shape",
+      "bounds": [
+        1064.0,
+        402.0,
+        88,
+        88
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M25,5 Q20,5 18,10 L5,45 Q4,50 8,55 L22,90 Q24,95 30,95 L75,95 Q80,95 82,90 L95,55 Q96,50 92,45 L78,10 Q76,5 70,5 Z",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$enemy"
+      }
+    },
+    {
+      "elementId": "2_components-250",
+      "elementType": "line",
+      "bounds": [
+        1094.8,
+        432.8,
+        26.4,
+        26.4
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,100",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$enemy"
+      }
+    },
+    {
+      "elementId": "2_components-251",
+      "elementType": "text",
+      "bounds": [
+        90,
+        526,
+        200,
+        24
+      ],
+      "content": {
+        "text": "PLAYER",
+        "fontSize": 12,
+        "fontFamily": "JetBrains Mono",
+        "color": "$white",
+        "bold": true,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-252",
+      "elementType": "text",
+      "bounds": [
+        396,
+        526,
+        200,
+        24
+      ],
+      "content": {
+        "text": "ENEMY",
+        "fontSize": 12,
+        "fontFamily": "JetBrains Mono",
+        "color": "$white",
+        "bold": true,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-253",
+      "elementType": "text",
+      "bounds": [
+        702,
+        526,
+        200,
+        24
+      ],
+      "content": {
+        "text": "PLAYER",
+        "fontSize": 12,
+        "fontFamily": "JetBrains Mono",
+        "color": "$white",
+        "bold": true,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-254",
+      "elementType": "text",
+      "bounds": [
+        1008,
+        526,
+        200,
+        24
+      ],
+      "content": {
+        "text": "ENEMY",
+        "fontSize": 12,
+        "fontFamily": "JetBrains Mono",
+        "color": "$white",
+        "bold": true,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-255",
+      "elementType": "line",
+      "bounds": [
+        32,
+        584,
+        1216,
+        1
+      ],
+      "viewBox": [
+        100,
+        100
+      ],
+      "points": "0,0 100,0",
+      "curve": "sharp",
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#41414199"
+      }
+    },
+    {
+      "elementId": "2_components-256",
+      "elementType": "text",
+      "bounds": [
+        32,
+        616,
+        180,
+        20
+      ],
+      "content": {
+        "text": "GRAYSCALE",
+        "fontSize": 9,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 1.2
+      }
+    },
+    {
+      "elementId": "2_components-257",
+      "elementType": "shape",
+      "bounds": [
+        252,
+        616,
+        54,
+        14
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#060606"
+      },
+      "border": {
+        "style": "solid",
+        "width": 1,
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "2_components-258",
+      "elementType": "text",
+      "bounds": [
+        318,
+        610,
+        100,
+        24
+      ],
+      "content": {
+        "text": "BLACK",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-259",
+      "elementType": "shape",
+      "bounds": [
+        440,
+        616,
+        54,
+        14
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#242424"
+      }
+    },
+    {
+      "elementId": "2_components-260",
+      "elementType": "text",
+      "bounds": [
+        506,
+        610,
+        100,
+        24
+      ],
+      "content": {
+        "text": "DARK",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-261",
+      "elementType": "shape",
+      "bounds": [
+        628,
+        616,
+        54,
+        14
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#666666"
+      }
+    },
+    {
+      "elementId": "2_components-262",
+      "elementType": "text",
+      "bounds": [
+        694,
+        610,
+        100,
+        24
+      ],
+      "content": {
+        "text": "MID",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-263",
+      "elementType": "shape",
+      "bounds": [
+        816,
+        616,
+        54,
+        14
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#AAAAAA"
+      }
+    },
+    {
+      "elementId": "2_components-264",
+      "elementType": "text",
+      "bounds": [
+        882,
+        610,
+        100,
+        24
+      ],
+      "content": {
+        "text": "LIGHT",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "2_components-265",
+      "elementType": "shape",
+      "bounds": [
+        1004,
+        616,
+        54,
+        14
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#F5F5F5"
+      }
+    },
+    {
+      "elementId": "2_components-266",
+      "elementType": "text",
+      "bounds": [
+        1070,
+        610,
+        100,
+        24
+      ],
+      "content": {
+        "text": "WHITE",
+        "fontSize": 8,
+        "fontFamily": "JetBrains Mono",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    }
+  ]
+}

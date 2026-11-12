@@ -1,0 +1,5943 @@
+{
+  "pageType": "content",
+  "background": {
+    "type": "solid",
+    "color": "$bg"
+  },
+  "elements": [
+    {
+      "elementId": "3_reward-001",
+      "elementType": "shape",
+      "bounds": [
+        930,
+        82,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-002",
+      "elementType": "shape",
+      "bounds": [
+        1002,
+        82,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-003",
+      "elementType": "shape",
+      "bounds": [
+        1074,
+        82,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-004",
+      "elementType": "shape",
+      "bounds": [
+        1146,
+        82,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-005",
+      "elementType": "shape",
+      "bounds": [
+        948,
+        96,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-006",
+      "elementType": "shape",
+      "bounds": [
+        1020,
+        96,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-007",
+      "elementType": "shape",
+      "bounds": [
+        1092,
+        96,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-008",
+      "elementType": "shape",
+      "bounds": [
+        1164,
+        96,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-009",
+      "elementType": "shape",
+      "bounds": [
+        966,
+        110,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-010",
+      "elementType": "shape",
+      "bounds": [
+        1038,
+        110,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-011",
+      "elementType": "shape",
+      "bounds": [
+        1110,
+        110,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-012",
+      "elementType": "shape",
+      "bounds": [
+        984,
+        124,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-013",
+      "elementType": "shape",
+      "bounds": [
+        1056,
+        124,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-014",
+      "elementType": "shape",
+      "bounds": [
+        1128,
+        124,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-015",
+      "elementType": "shape",
+      "bounds": [
+        930,
+        138,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-016",
+      "elementType": "shape",
+      "bounds": [
+        1002,
+        138,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-017",
+      "elementType": "shape",
+      "bounds": [
+        1074,
+        138,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-018",
+      "elementType": "shape",
+      "bounds": [
+        1146,
+        138,
+        3,
+        3
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#FFFFFF14"
+      }
+    },
+    {
+      "elementId": "3_reward-019",
+      "elementType": "text",
+      "bounds": [
+        32,
+        18,
+        760,
+        36
+      ],
+      "content": {
+        "text": "03 / PROTOCOL AVAILABLE",
+        "fontSize": 28,
+        "fontFamily": "Jersey15",
+        "color": "$white",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-020",
+      "elementType": "text",
+      "bounds": [
+        850,
+        24,
+        398,
+        26
+      ],
+      "content": {
+        "text": "BATTLE 03 CLEARED",
+        "fontSize": 16,
+        "fontFamily": "Jersey15",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "right",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-021",
+      "elementType": "shape",
+      "bounds": [
+        32,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-022",
+      "elementType": "shape",
+      "bounds": [
+        48,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-023",
+      "elementType": "shape",
+      "bounds": [
+        64,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-024",
+      "elementType": "shape",
+      "bounds": [
+        80,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-025",
+      "elementType": "shape",
+      "bounds": [
+        96,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-026",
+      "elementType": "shape",
+      "bounds": [
+        112,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-027",
+      "elementType": "shape",
+      "bounds": [
+        128,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-028",
+      "elementType": "shape",
+      "bounds": [
+        144,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-029",
+      "elementType": "shape",
+      "bounds": [
+        160,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-030",
+      "elementType": "shape",
+      "bounds": [
+        176,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-031",
+      "elementType": "shape",
+      "bounds": [
+        192,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-032",
+      "elementType": "shape",
+      "bounds": [
+        208,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-033",
+      "elementType": "shape",
+      "bounds": [
+        224,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-034",
+      "elementType": "shape",
+      "bounds": [
+        240,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-035",
+      "elementType": "shape",
+      "bounds": [
+        256,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-036",
+      "elementType": "shape",
+      "bounds": [
+        272,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-037",
+      "elementType": "shape",
+      "bounds": [
+        288,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-038",
+      "elementType": "shape",
+      "bounds": [
+        304,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-039",
+      "elementType": "shape",
+      "bounds": [
+        320,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-040",
+      "elementType": "shape",
+      "bounds": [
+        336,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-041",
+      "elementType": "shape",
+      "bounds": [
+        352,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-042",
+      "elementType": "shape",
+      "bounds": [
+        368,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-043",
+      "elementType": "shape",
+      "bounds": [
+        384,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-044",
+      "elementType": "shape",
+      "bounds": [
+        400,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-045",
+      "elementType": "shape",
+      "bounds": [
+        416,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-046",
+      "elementType": "shape",
+      "bounds": [
+        432,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-047",
+      "elementType": "shape",
+      "bounds": [
+        448,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-048",
+      "elementType": "shape",
+      "bounds": [
+        464,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-049",
+      "elementType": "shape",
+      "bounds": [
+        480,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-050",
+      "elementType": "shape",
+      "bounds": [
+        496,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-051",
+      "elementType": "shape",
+      "bounds": [
+        512,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-052",
+      "elementType": "shape",
+      "bounds": [
+        528,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-053",
+      "elementType": "shape",
+      "bounds": [
+        544,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-054",
+      "elementType": "shape",
+      "bounds": [
+        560,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-055",
+      "elementType": "shape",
+      "bounds": [
+        576,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-056",
+      "elementType": "shape",
+      "bounds": [
+        592,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-057",
+      "elementType": "shape",
+      "bounds": [
+        608,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-058",
+      "elementType": "shape",
+      "bounds": [
+        624,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-059",
+      "elementType": "shape",
+      "bounds": [
+        640,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-060",
+      "elementType": "shape",
+      "bounds": [
+        656,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-061",
+      "elementType": "shape",
+      "bounds": [
+        672,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-062",
+      "elementType": "shape",
+      "bounds": [
+        688,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-063",
+      "elementType": "shape",
+      "bounds": [
+        704,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-064",
+      "elementType": "shape",
+      "bounds": [
+        720,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-065",
+      "elementType": "shape",
+      "bounds": [
+        736,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-066",
+      "elementType": "shape",
+      "bounds": [
+        752,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-067",
+      "elementType": "shape",
+      "bounds": [
+        768,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-068",
+      "elementType": "shape",
+      "bounds": [
+        784,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-069",
+      "elementType": "shape",
+      "bounds": [
+        800,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-070",
+      "elementType": "shape",
+      "bounds": [
+        816,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-071",
+      "elementType": "shape",
+      "bounds": [
+        832,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-072",
+      "elementType": "shape",
+      "bounds": [
+        848,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-073",
+      "elementType": "shape",
+      "bounds": [
+        864,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-074",
+      "elementType": "shape",
+      "bounds": [
+        880,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-075",
+      "elementType": "shape",
+      "bounds": [
+        896,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-076",
+      "elementType": "shape",
+      "bounds": [
+        912,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-077",
+      "elementType": "shape",
+      "bounds": [
+        928,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-078",
+      "elementType": "shape",
+      "bounds": [
+        944,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-079",
+      "elementType": "shape",
+      "bounds": [
+        960,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-080",
+      "elementType": "shape",
+      "bounds": [
+        976,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-081",
+      "elementType": "shape",
+      "bounds": [
+        992,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-082",
+      "elementType": "shape",
+      "bounds": [
+        1008,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-083",
+      "elementType": "shape",
+      "bounds": [
+        1024,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-084",
+      "elementType": "shape",
+      "bounds": [
+        1040,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-085",
+      "elementType": "shape",
+      "bounds": [
+        1056,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-086",
+      "elementType": "shape",
+      "bounds": [
+        1072,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-087",
+      "elementType": "shape",
+      "bounds": [
+        1088,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-088",
+      "elementType": "shape",
+      "bounds": [
+        1104,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-089",
+      "elementType": "shape",
+      "bounds": [
+        1120,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-090",
+      "elementType": "shape",
+      "bounds": [
+        1136,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-091",
+      "elementType": "shape",
+      "bounds": [
+        1152,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-092",
+      "elementType": "shape",
+      "bounds": [
+        1168,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-093",
+      "elementType": "shape",
+      "bounds": [
+        1184,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-094",
+      "elementType": "shape",
+      "bounds": [
+        1200,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-095",
+      "elementType": "shape",
+      "bounds": [
+        1216,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-096",
+      "elementType": "shape",
+      "bounds": [
+        1232,
+        66,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-097",
+      "elementType": "text",
+      "bounds": [
+        32,
+        92,
+        700,
+        34
+      ],
+      "content": {
+        "text": "CHOOSE ONE TO INSTALL",
+        "fontSize": 22,
+        "fontFamily": "Jersey15",
+        "color": "$white",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-098",
+      "elementType": "text",
+      "bounds": [
+        1100,
+        96,
+        148,
+        24
+      ],
+      "content": {
+        "text": "HP 42/60",
+        "fontSize": 16,
+        "fontFamily": "Jersey15",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "right",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-099",
+      "elementType": "shape",
+      "bounds": [
+        52,
+        156,
+        352,
+        408
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M8,0 L92,0 L92,3 L97,3 L97,8 L100,8 L100,92 L97,92 L97,97 L92,97 L92,100 L8,100 L8,97 L3,97 L3,92 L0,92 L0,8 L3,8 L3,3 L8,3 Z",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      },
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-100",
+      "elementType": "text",
+      "bounds": [
+        76,
+        182,
+        304,
+        26
+      ],
+      "content": {
+        "text": "01 / ATTACK",
+        "fontSize": 17,
+        "fontFamily": "Jersey15",
+        "color": "#080808",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-101",
+      "elementType": "shape",
+      "bounds": [
+        107.0,
+        237.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-102",
+      "elementType": "shape",
+      "bounds": [
+        101.0,
+        243.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-103",
+      "elementType": "shape",
+      "bounds": [
+        107.0,
+        243.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-104",
+      "elementType": "shape",
+      "bounds": [
+        113.0,
+        243.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-105",
+      "elementType": "shape",
+      "bounds": [
+        101.0,
+        249.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-106",
+      "elementType": "shape",
+      "bounds": [
+        107.0,
+        249.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-107",
+      "elementType": "shape",
+      "bounds": [
+        113.0,
+        249.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-108",
+      "elementType": "shape",
+      "bounds": [
+        95.0,
+        255.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-109",
+      "elementType": "shape",
+      "bounds": [
+        101.0,
+        255.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-110",
+      "elementType": "shape",
+      "bounds": [
+        107.0,
+        255.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-111",
+      "elementType": "shape",
+      "bounds": [
+        113.0,
+        255.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-112",
+      "elementType": "shape",
+      "bounds": [
+        119.0,
+        255.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-113",
+      "elementType": "shape",
+      "bounds": [
+        95.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-114",
+      "elementType": "shape",
+      "bounds": [
+        101.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-115",
+      "elementType": "shape",
+      "bounds": [
+        107.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-116",
+      "elementType": "shape",
+      "bounds": [
+        113.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-117",
+      "elementType": "shape",
+      "bounds": [
+        119.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-118",
+      "elementType": "shape",
+      "bounds": [
+        89.0,
+        267.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-119",
+      "elementType": "shape",
+      "bounds": [
+        95.0,
+        267.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-120",
+      "elementType": "shape",
+      "bounds": [
+        101.0,
+        267.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-121",
+      "elementType": "shape",
+      "bounds": [
+        107.0,
+        267.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-122",
+      "elementType": "shape",
+      "bounds": [
+        113.0,
+        267.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-123",
+      "elementType": "shape",
+      "bounds": [
+        119.0,
+        267.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-124",
+      "elementType": "shape",
+      "bounds": [
+        125.0,
+        267.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-125",
+      "elementType": "shape",
+      "bounds": [
+        89.0,
+        273.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-126",
+      "elementType": "shape",
+      "bounds": [
+        95.0,
+        273.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-127",
+      "elementType": "shape",
+      "bounds": [
+        101.0,
+        273.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-128",
+      "elementType": "shape",
+      "bounds": [
+        107.0,
+        273.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-129",
+      "elementType": "shape",
+      "bounds": [
+        113.0,
+        273.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-130",
+      "elementType": "shape",
+      "bounds": [
+        119.0,
+        273.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-131",
+      "elementType": "shape",
+      "bounds": [
+        125.0,
+        273.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-132",
+      "elementType": "shape",
+      "bounds": [
+        83.0,
+        279.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-133",
+      "elementType": "shape",
+      "bounds": [
+        89.0,
+        279.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-134",
+      "elementType": "shape",
+      "bounds": [
+        95.0,
+        279.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-135",
+      "elementType": "shape",
+      "bounds": [
+        101.0,
+        279.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-136",
+      "elementType": "shape",
+      "bounds": [
+        107.0,
+        279.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-137",
+      "elementType": "shape",
+      "bounds": [
+        113.0,
+        279.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-138",
+      "elementType": "shape",
+      "bounds": [
+        119.0,
+        279.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-139",
+      "elementType": "shape",
+      "bounds": [
+        125.0,
+        279.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-140",
+      "elementType": "shape",
+      "bounds": [
+        131.0,
+        279.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-141",
+      "elementType": "shape",
+      "bounds": [
+        83.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-142",
+      "elementType": "shape",
+      "bounds": [
+        89.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-143",
+      "elementType": "shape",
+      "bounds": [
+        95.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-144",
+      "elementType": "shape",
+      "bounds": [
+        101.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-145",
+      "elementType": "shape",
+      "bounds": [
+        107.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-146",
+      "elementType": "shape",
+      "bounds": [
+        113.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-147",
+      "elementType": "shape",
+      "bounds": [
+        119.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-148",
+      "elementType": "shape",
+      "bounds": [
+        125.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-149",
+      "elementType": "shape",
+      "bounds": [
+        131.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-150",
+      "elementType": "text",
+      "bounds": [
+        156,
+        238,
+        224,
+        48
+      ],
+      "content": {
+        "text": "PIERCE",
+        "fontSize": 32,
+        "fontFamily": "Jersey15",
+        "color": "#080808",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-151",
+      "elementType": "text",
+      "bounds": [
+        76,
+        324,
+        304,
+        76
+      ],
+      "content": {
+        "text": "Attack the first enemy\nin your row.",
+        "fontSize": 15,
+        "fontFamily": "JetBrains Mono",
+        "color": "#080808",
+        "bold": false,
+        "align": [
+          "left",
+          "top"
+        ],
+        "wrap": true,
+        "lineHeight": 1.35,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-152",
+      "elementType": "shape",
+      "bounds": [
+        76,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-153",
+      "elementType": "shape",
+      "bounds": [
+        90,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-154",
+      "elementType": "shape",
+      "bounds": [
+        104,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-155",
+      "elementType": "shape",
+      "bounds": [
+        118,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-156",
+      "elementType": "shape",
+      "bounds": [
+        132,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-157",
+      "elementType": "shape",
+      "bounds": [
+        146,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-158",
+      "elementType": "shape",
+      "bounds": [
+        160,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-159",
+      "elementType": "shape",
+      "bounds": [
+        174,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-160",
+      "elementType": "shape",
+      "bounds": [
+        188,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-161",
+      "elementType": "shape",
+      "bounds": [
+        202,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-162",
+      "elementType": "shape",
+      "bounds": [
+        216,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-163",
+      "elementType": "shape",
+      "bounds": [
+        230,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-164",
+      "elementType": "shape",
+      "bounds": [
+        244,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-165",
+      "elementType": "shape",
+      "bounds": [
+        258,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-166",
+      "elementType": "shape",
+      "bounds": [
+        272,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-167",
+      "elementType": "shape",
+      "bounds": [
+        286,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-168",
+      "elementType": "shape",
+      "bounds": [
+        300,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-169",
+      "elementType": "shape",
+      "bounds": [
+        314,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-170",
+      "elementType": "shape",
+      "bounds": [
+        328,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-171",
+      "elementType": "shape",
+      "bounds": [
+        342,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-172",
+      "elementType": "shape",
+      "bounds": [
+        356,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-173",
+      "elementType": "shape",
+      "bounds": [
+        370,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#444444"
+      }
+    },
+    {
+      "elementId": "3_reward-174",
+      "elementType": "text",
+      "bounds": [
+        76,
+        450,
+        304,
+        26
+      ],
+      "content": {
+        "text": "REPLACES: ROW",
+        "fontSize": 16,
+        "fontFamily": "Jersey15",
+        "color": "#444444",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-175",
+      "elementType": "shape",
+      "bounds": [
+        76,
+        504,
+        140,
+        32
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#080808"
+      }
+    },
+    {
+      "elementId": "3_reward-176",
+      "elementType": "text",
+      "bounds": [
+        76,
+        504,
+        140,
+        32
+      ],
+      "content": {
+        "text": "> SELECTED <",
+        "fontSize": 16,
+        "fontFamily": "Jersey15",
+        "color": "$white",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-177",
+      "elementType": "shape",
+      "bounds": [
+        464,
+        156,
+        352,
+        408
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M8,0 L92,0 L92,3 L97,3 L97,8 L100,8 L100,92 L97,92 L97,97 L92,97 L92,100 L8,100 L8,97 L3,97 L3,92 L0,92 L0,8 L3,8 L3,3 L8,3 Z",
+      "fill": {
+        "type": "solid",
+        "color": "#090909"
+      },
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "#666666"
+      }
+    },
+    {
+      "elementId": "3_reward-178",
+      "elementType": "text",
+      "bounds": [
+        488,
+        182,
+        304,
+        26
+      ],
+      "content": {
+        "text": "02 / DEFENSE",
+        "fontSize": 17,
+        "fontFamily": "Jersey15",
+        "color": "$white",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-179",
+      "elementType": "shape",
+      "bounds": [
+        495.0,
+        237.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-180",
+      "elementType": "shape",
+      "bounds": [
+        501.0,
+        237.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-181",
+      "elementType": "shape",
+      "bounds": [
+        507.0,
+        237.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-182",
+      "elementType": "shape",
+      "bounds": [
+        513.0,
+        237.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-183",
+      "elementType": "shape",
+      "bounds": [
+        519.0,
+        237.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-184",
+      "elementType": "shape",
+      "bounds": [
+        525.0,
+        237.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-185",
+      "elementType": "shape",
+      "bounds": [
+        531.0,
+        237.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-186",
+      "elementType": "shape",
+      "bounds": [
+        537.0,
+        237.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-187",
+      "elementType": "shape",
+      "bounds": [
+        543.0,
+        237.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-188",
+      "elementType": "shape",
+      "bounds": [
+        495.0,
+        243.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-189",
+      "elementType": "shape",
+      "bounds": [
+        543.0,
+        243.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-190",
+      "elementType": "shape",
+      "bounds": [
+        495.0,
+        249.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-191",
+      "elementType": "shape",
+      "bounds": [
+        543.0,
+        249.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-192",
+      "elementType": "shape",
+      "bounds": [
+        495.0,
+        255.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-193",
+      "elementType": "shape",
+      "bounds": [
+        543.0,
+        255.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-194",
+      "elementType": "shape",
+      "bounds": [
+        495.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-195",
+      "elementType": "shape",
+      "bounds": [
+        507.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-196",
+      "elementType": "shape",
+      "bounds": [
+        513.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-197",
+      "elementType": "shape",
+      "bounds": [
+        519.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-198",
+      "elementType": "shape",
+      "bounds": [
+        525.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-199",
+      "elementType": "shape",
+      "bounds": [
+        531.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-200",
+      "elementType": "shape",
+      "bounds": [
+        543.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-201",
+      "elementType": "shape",
+      "bounds": [
+        495.0,
+        267.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-202",
+      "elementType": "shape",
+      "bounds": [
+        543.0,
+        267.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-203",
+      "elementType": "shape",
+      "bounds": [
+        495.0,
+        273.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-204",
+      "elementType": "shape",
+      "bounds": [
+        543.0,
+        273.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-205",
+      "elementType": "shape",
+      "bounds": [
+        495.0,
+        279.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-206",
+      "elementType": "shape",
+      "bounds": [
+        543.0,
+        279.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-207",
+      "elementType": "shape",
+      "bounds": [
+        495.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-208",
+      "elementType": "shape",
+      "bounds": [
+        501.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-209",
+      "elementType": "shape",
+      "bounds": [
+        507.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-210",
+      "elementType": "shape",
+      "bounds": [
+        513.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-211",
+      "elementType": "shape",
+      "bounds": [
+        519.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-212",
+      "elementType": "shape",
+      "bounds": [
+        525.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-213",
+      "elementType": "shape",
+      "bounds": [
+        531.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-214",
+      "elementType": "shape",
+      "bounds": [
+        537.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-215",
+      "elementType": "shape",
+      "bounds": [
+        543.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-216",
+      "elementType": "text",
+      "bounds": [
+        568,
+        238,
+        224,
+        48
+      ],
+      "content": {
+        "text": "SHELL",
+        "fontSize": 32,
+        "fontFamily": "Jersey15",
+        "color": "$white",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-217",
+      "elementType": "text",
+      "bounds": [
+        488,
+        324,
+        304,
+        76
+      ],
+      "content": {
+        "text": "Gain 2 Block for each\nDefense tile collected.",
+        "fontSize": 15,
+        "fontFamily": "JetBrains Mono",
+        "color": "$white",
+        "bold": false,
+        "align": [
+          "left",
+          "top"
+        ],
+        "wrap": true,
+        "lineHeight": 1.35,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-218",
+      "elementType": "shape",
+      "bounds": [
+        488,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-219",
+      "elementType": "shape",
+      "bounds": [
+        502,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-220",
+      "elementType": "shape",
+      "bounds": [
+        516,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-221",
+      "elementType": "shape",
+      "bounds": [
+        530,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-222",
+      "elementType": "shape",
+      "bounds": [
+        544,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-223",
+      "elementType": "shape",
+      "bounds": [
+        558,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-224",
+      "elementType": "shape",
+      "bounds": [
+        572,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-225",
+      "elementType": "shape",
+      "bounds": [
+        586,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-226",
+      "elementType": "shape",
+      "bounds": [
+        600,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-227",
+      "elementType": "shape",
+      "bounds": [
+        614,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-228",
+      "elementType": "shape",
+      "bounds": [
+        628,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-229",
+      "elementType": "shape",
+      "bounds": [
+        642,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-230",
+      "elementType": "shape",
+      "bounds": [
+        656,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-231",
+      "elementType": "shape",
+      "bounds": [
+        670,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-232",
+      "elementType": "shape",
+      "bounds": [
+        684,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-233",
+      "elementType": "shape",
+      "bounds": [
+        698,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-234",
+      "elementType": "shape",
+      "bounds": [
+        712,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-235",
+      "elementType": "shape",
+      "bounds": [
+        726,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-236",
+      "elementType": "shape",
+      "bounds": [
+        740,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-237",
+      "elementType": "shape",
+      "bounds": [
+        754,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-238",
+      "elementType": "shape",
+      "bounds": [
+        768,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-239",
+      "elementType": "shape",
+      "bounds": [
+        782,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-240",
+      "elementType": "text",
+      "bounds": [
+        488,
+        450,
+        304,
+        26
+      ],
+      "content": {
+        "text": "NEW PROTOCOL",
+        "fontSize": 16,
+        "fontFamily": "Jersey15",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-241",
+      "elementType": "text",
+      "bounds": [
+        488,
+        504,
+        304,
+        32
+      ],
+      "content": {
+        "text": "> INSPECT",
+        "fontSize": 16,
+        "fontFamily": "Jersey15",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-242",
+      "elementType": "shape",
+      "bounds": [
+        876,
+        156,
+        352,
+        408
+      ],
+      "shapeName": "custom",
+      "viewBox": [
+        100,
+        100
+      ],
+      "path": "M8,0 L92,0 L92,3 L97,3 L97,8 L100,8 L100,92 L97,92 L97,97 L92,97 L92,100 L8,100 L8,97 L3,97 L3,92 L0,92 L0,8 L3,8 L3,3 L8,3 Z",
+      "fill": {
+        "type": "solid",
+        "color": "#090909"
+      },
+      "border": {
+        "style": "solid",
+        "width": 2,
+        "color": "#666666"
+      }
+    },
+    {
+      "elementId": "3_reward-243",
+      "elementType": "text",
+      "bounds": [
+        900,
+        182,
+        304,
+        26
+      ],
+      "content": {
+        "text": "03 / STAR",
+        "fontSize": 17,
+        "fontFamily": "Jersey15",
+        "color": "$white",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-244",
+      "elementType": "shape",
+      "bounds": [
+        931.0,
+        237.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-245",
+      "elementType": "shape",
+      "bounds": [
+        925.0,
+        243.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-246",
+      "elementType": "shape",
+      "bounds": [
+        931.0,
+        243.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-247",
+      "elementType": "shape",
+      "bounds": [
+        937.0,
+        243.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-248",
+      "elementType": "shape",
+      "bounds": [
+        925.0,
+        249.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-249",
+      "elementType": "shape",
+      "bounds": [
+        931.0,
+        249.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-250",
+      "elementType": "shape",
+      "bounds": [
+        937.0,
+        249.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-251",
+      "elementType": "shape",
+      "bounds": [
+        919.0,
+        255.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-252",
+      "elementType": "shape",
+      "bounds": [
+        925.0,
+        255.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-253",
+      "elementType": "shape",
+      "bounds": [
+        931.0,
+        255.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-254",
+      "elementType": "shape",
+      "bounds": [
+        937.0,
+        255.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-255",
+      "elementType": "shape",
+      "bounds": [
+        943.0,
+        255.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-256",
+      "elementType": "shape",
+      "bounds": [
+        907.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-257",
+      "elementType": "shape",
+      "bounds": [
+        913.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-258",
+      "elementType": "shape",
+      "bounds": [
+        919.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-259",
+      "elementType": "shape",
+      "bounds": [
+        925.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-260",
+      "elementType": "shape",
+      "bounds": [
+        931.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-261",
+      "elementType": "shape",
+      "bounds": [
+        937.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-262",
+      "elementType": "shape",
+      "bounds": [
+        943.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-263",
+      "elementType": "shape",
+      "bounds": [
+        949.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-264",
+      "elementType": "shape",
+      "bounds": [
+        955.0,
+        261.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-265",
+      "elementType": "shape",
+      "bounds": [
+        919.0,
+        267.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-266",
+      "elementType": "shape",
+      "bounds": [
+        925.0,
+        267.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-267",
+      "elementType": "shape",
+      "bounds": [
+        931.0,
+        267.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-268",
+      "elementType": "shape",
+      "bounds": [
+        937.0,
+        267.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-269",
+      "elementType": "shape",
+      "bounds": [
+        943.0,
+        267.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-270",
+      "elementType": "shape",
+      "bounds": [
+        925.0,
+        273.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-271",
+      "elementType": "shape",
+      "bounds": [
+        931.0,
+        273.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-272",
+      "elementType": "shape",
+      "bounds": [
+        937.0,
+        273.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-273",
+      "elementType": "shape",
+      "bounds": [
+        925.0,
+        279.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-274",
+      "elementType": "shape",
+      "bounds": [
+        931.0,
+        279.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-275",
+      "elementType": "shape",
+      "bounds": [
+        937.0,
+        279.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-276",
+      "elementType": "shape",
+      "bounds": [
+        931.0,
+        285.0,
+        6,
+        6
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-277",
+      "elementType": "text",
+      "bounds": [
+        980,
+        238,
+        224,
+        48
+      ],
+      "content": {
+        "text": "ECHO",
+        "fontSize": 32,
+        "fontFamily": "Jersey15",
+        "color": "$white",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-278",
+      "elementType": "text",
+      "bounds": [
+        900,
+        324,
+        304,
+        76
+      ],
+      "content": {
+        "text": "Every 3 Star tiles:\ndeal 2 damage to all enemies.",
+        "fontSize": 15,
+        "fontFamily": "JetBrains Mono",
+        "color": "$white",
+        "bold": false,
+        "align": [
+          "left",
+          "top"
+        ],
+        "wrap": true,
+        "lineHeight": 1.35,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-279",
+      "elementType": "shape",
+      "bounds": [
+        900,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-280",
+      "elementType": "shape",
+      "bounds": [
+        914,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-281",
+      "elementType": "shape",
+      "bounds": [
+        928,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-282",
+      "elementType": "shape",
+      "bounds": [
+        942,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-283",
+      "elementType": "shape",
+      "bounds": [
+        956,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-284",
+      "elementType": "shape",
+      "bounds": [
+        970,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-285",
+      "elementType": "shape",
+      "bounds": [
+        984,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-286",
+      "elementType": "shape",
+      "bounds": [
+        998,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-287",
+      "elementType": "shape",
+      "bounds": [
+        1012,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-288",
+      "elementType": "shape",
+      "bounds": [
+        1026,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-289",
+      "elementType": "shape",
+      "bounds": [
+        1040,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-290",
+      "elementType": "shape",
+      "bounds": [
+        1054,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-291",
+      "elementType": "shape",
+      "bounds": [
+        1068,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-292",
+      "elementType": "shape",
+      "bounds": [
+        1082,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-293",
+      "elementType": "shape",
+      "bounds": [
+        1096,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-294",
+      "elementType": "shape",
+      "bounds": [
+        1110,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-295",
+      "elementType": "shape",
+      "bounds": [
+        1124,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-296",
+      "elementType": "shape",
+      "bounds": [
+        1138,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-297",
+      "elementType": "shape",
+      "bounds": [
+        1152,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-298",
+      "elementType": "shape",
+      "bounds": [
+        1166,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-299",
+      "elementType": "shape",
+      "bounds": [
+        1180,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-300",
+      "elementType": "shape",
+      "bounds": [
+        1194,
+        430,
+        7,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$muted"
+      }
+    },
+    {
+      "elementId": "3_reward-301",
+      "elementType": "text",
+      "bounds": [
+        900,
+        450,
+        304,
+        26
+      ],
+      "content": {
+        "text": "TRIGGER: 0/3",
+        "fontSize": 16,
+        "fontFamily": "Jersey15",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-302",
+      "elementType": "text",
+      "bounds": [
+        900,
+        504,
+        304,
+        32
+      ],
+      "content": {
+        "text": "> INSPECT",
+        "fontSize": 16,
+        "fontFamily": "Jersey15",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-303",
+      "elementType": "shape",
+      "bounds": [
+        32,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-304",
+      "elementType": "shape",
+      "bounds": [
+        48,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-305",
+      "elementType": "shape",
+      "bounds": [
+        64,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-306",
+      "elementType": "shape",
+      "bounds": [
+        80,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-307",
+      "elementType": "shape",
+      "bounds": [
+        96,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-308",
+      "elementType": "shape",
+      "bounds": [
+        112,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-309",
+      "elementType": "shape",
+      "bounds": [
+        128,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-310",
+      "elementType": "shape",
+      "bounds": [
+        144,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-311",
+      "elementType": "shape",
+      "bounds": [
+        160,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-312",
+      "elementType": "shape",
+      "bounds": [
+        176,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-313",
+      "elementType": "shape",
+      "bounds": [
+        192,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-314",
+      "elementType": "shape",
+      "bounds": [
+        208,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-315",
+      "elementType": "shape",
+      "bounds": [
+        224,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-316",
+      "elementType": "shape",
+      "bounds": [
+        240,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-317",
+      "elementType": "shape",
+      "bounds": [
+        256,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-318",
+      "elementType": "shape",
+      "bounds": [
+        272,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-319",
+      "elementType": "shape",
+      "bounds": [
+        288,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-320",
+      "elementType": "shape",
+      "bounds": [
+        304,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-321",
+      "elementType": "shape",
+      "bounds": [
+        320,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-322",
+      "elementType": "shape",
+      "bounds": [
+        336,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-323",
+      "elementType": "shape",
+      "bounds": [
+        352,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-324",
+      "elementType": "shape",
+      "bounds": [
+        368,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-325",
+      "elementType": "shape",
+      "bounds": [
+        384,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-326",
+      "elementType": "shape",
+      "bounds": [
+        400,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-327",
+      "elementType": "shape",
+      "bounds": [
+        416,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-328",
+      "elementType": "shape",
+      "bounds": [
+        432,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-329",
+      "elementType": "shape",
+      "bounds": [
+        448,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-330",
+      "elementType": "shape",
+      "bounds": [
+        464,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-331",
+      "elementType": "shape",
+      "bounds": [
+        480,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-332",
+      "elementType": "shape",
+      "bounds": [
+        496,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-333",
+      "elementType": "shape",
+      "bounds": [
+        512,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-334",
+      "elementType": "shape",
+      "bounds": [
+        528,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-335",
+      "elementType": "shape",
+      "bounds": [
+        544,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-336",
+      "elementType": "shape",
+      "bounds": [
+        560,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-337",
+      "elementType": "shape",
+      "bounds": [
+        576,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-338",
+      "elementType": "shape",
+      "bounds": [
+        592,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-339",
+      "elementType": "shape",
+      "bounds": [
+        608,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-340",
+      "elementType": "shape",
+      "bounds": [
+        624,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-341",
+      "elementType": "shape",
+      "bounds": [
+        640,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-342",
+      "elementType": "shape",
+      "bounds": [
+        656,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-343",
+      "elementType": "shape",
+      "bounds": [
+        672,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-344",
+      "elementType": "shape",
+      "bounds": [
+        688,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-345",
+      "elementType": "shape",
+      "bounds": [
+        704,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-346",
+      "elementType": "shape",
+      "bounds": [
+        720,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-347",
+      "elementType": "shape",
+      "bounds": [
+        736,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-348",
+      "elementType": "shape",
+      "bounds": [
+        752,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-349",
+      "elementType": "shape",
+      "bounds": [
+        768,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-350",
+      "elementType": "shape",
+      "bounds": [
+        784,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-351",
+      "elementType": "shape",
+      "bounds": [
+        800,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-352",
+      "elementType": "shape",
+      "bounds": [
+        816,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-353",
+      "elementType": "shape",
+      "bounds": [
+        832,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-354",
+      "elementType": "shape",
+      "bounds": [
+        848,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-355",
+      "elementType": "shape",
+      "bounds": [
+        864,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-356",
+      "elementType": "shape",
+      "bounds": [
+        880,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-357",
+      "elementType": "shape",
+      "bounds": [
+        896,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-358",
+      "elementType": "shape",
+      "bounds": [
+        912,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-359",
+      "elementType": "shape",
+      "bounds": [
+        928,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-360",
+      "elementType": "shape",
+      "bounds": [
+        944,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-361",
+      "elementType": "shape",
+      "bounds": [
+        960,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-362",
+      "elementType": "shape",
+      "bounds": [
+        976,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-363",
+      "elementType": "shape",
+      "bounds": [
+        992,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-364",
+      "elementType": "shape",
+      "bounds": [
+        1008,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-365",
+      "elementType": "shape",
+      "bounds": [
+        1024,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-366",
+      "elementType": "shape",
+      "bounds": [
+        1040,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-367",
+      "elementType": "shape",
+      "bounds": [
+        1056,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-368",
+      "elementType": "shape",
+      "bounds": [
+        1072,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-369",
+      "elementType": "shape",
+      "bounds": [
+        1088,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-370",
+      "elementType": "shape",
+      "bounds": [
+        1104,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-371",
+      "elementType": "shape",
+      "bounds": [
+        1120,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-372",
+      "elementType": "shape",
+      "bounds": [
+        1136,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-373",
+      "elementType": "shape",
+      "bounds": [
+        1152,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-374",
+      "elementType": "shape",
+      "bounds": [
+        1168,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-375",
+      "elementType": "shape",
+      "bounds": [
+        1184,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-376",
+      "elementType": "shape",
+      "bounds": [
+        1200,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-377",
+      "elementType": "shape",
+      "bounds": [
+        1216,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-378",
+      "elementType": "shape",
+      "bounds": [
+        1232,
+        614,
+        8,
+        2
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "#555555"
+      }
+    },
+    {
+      "elementId": "3_reward-379",
+      "elementType": "text",
+      "bounds": [
+        32,
+        644,
+        400,
+        30
+      ],
+      "content": {
+        "text": "<- -> INSPECT",
+        "fontSize": 17,
+        "fontFamily": "Jersey15",
+        "color": "$muted",
+        "bold": false,
+        "align": [
+          "left",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    },
+    {
+      "elementId": "3_reward-380",
+      "elementType": "shape",
+      "bounds": [
+        1008,
+        636,
+        240,
+        46
+      ],
+      "shapeName": "rect",
+      "fill": {
+        "type": "solid",
+        "color": "$white"
+      }
+    },
+    {
+      "elementId": "3_reward-381",
+      "elementType": "text",
+      "bounds": [
+        1008,
+        636,
+        240,
+        46
+      ],
+      "content": {
+        "text": "SPACE INSTALL",
+        "fontSize": 20,
+        "fontFamily": "Jersey15",
+        "color": "#080808",
+        "bold": false,
+        "align": [
+          "center",
+          "middle"
+        ],
+        "wrap": false,
+        "lineHeight": 1.2,
+        "letterSpacing": 0
+      }
+    }
+  ]
+}

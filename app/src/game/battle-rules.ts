@@ -1,0 +1,172 @@
+import { BASH_PRESETS, BOARD_SIZE, EXPLICIT_FLAGS, FLAG_WEIGHTS, WALLS } from './battle-config'
+import { inAttackRange, releaseCount, stepDamage } from './attack-methods'
+import type { AttackPreset, BattleState, Coord, EnemyState, FlagKind } from './battle-types'
+
+export function mulberry32(seed: number): () => number {
+  return () => {
+    let t = seed += 0x6D2B79F5
+    t = Math.imul(t ^ t >>> 15, t | 1)
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61)
+    return ((t ^ t >>> 14) >>> 0) / 4294967296
+  }
+}
+
+export function coordKey(pos: Coord): string {
+  return `0x${pos.x.toString(16).toUpperCase()}${pos.y.toString(16).toUpperCase()}`
+}
+
+export function sameCoord(a: Coord, b: Coord): boolean {
+  return a.x === b.x && a.y === b.y
+}
+
+export function manhattan(a: Coord, b: Coord): number {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
+}
+
+export function inside(pos: Coord): boolean {
+  return pos.x >= 0 && pos.y >= 0 && pos.x < BOARD_SIZE && pos.y < BOARD_SIZE
+}
+
+export function randomFlag(random: () => number): FlagKind {
+  let roll = random() * 100
+  for (const [kind, weight] of FLAG_WEIGHTS) {
+    roll -= weight
+    if (roll <= 0) return kind
+  }
+  return 'blank'
+}
+
+export function livingEnemies(state: BattleState): EnemyState[] {
+  return state.enemies.filter(enemy => enemy.robustness > 0)
+}
+
+export function isOccupied(state: BattleState, pos: Coord): boolean {
+  return sameCoord(state.player.pos, pos) || livingEnemies(state).some(enemy => sameCoord(enemy.pos, pos))
+}
+
+export function canEnter(state: BattleState, from: Coord, to: Coord): boolean {
+  return inside(to) && manhattan(from, to) === 1 && !state.walls[to.y][to.x] && !isOccupied(state, to)
+}
+
+export function predictedDamage(state: BattleState, presetIndex = state.player.activeBash, stepsOverride?: number): Record<string, number> {
+  const preset = BASH_PRESETS[presetIndex]
+  const steps = stepsOverride ?? releaseCount(state)
+  const hp = Object.fromEntries(livingEnemies(state).map(enemy => [enemy.id, enemy.robustness]))
+  const shields = Object.fromEntries(livingEnemies(state).map(enemy => [enemy.id, enemy.block]))
+  const result: Record<string, number> = {}
+  let focus = state.player.focusReady ? 2 : 0
+  for (const [stepIndex, step] of preset.steps.slice(0, steps).entries()) {
+    const candidates = livingEnemies(state).filter(enemy => (hp[enemy.id] ?? 0) > 0 && inAttackRange(state.player.pos, enemy.pos, step))
+    const targets = step.area === 'all'
+      ? candidates
+      : candidates.sort((a, b) => manhattan(state.player.pos, a.pos) - manhattan(state.player.pos, b.pos) || a.id.localeCompare(b.id)).slice(0, 1)
+    for (const target of targets) {
+      const damage = stepDamage(step, state, target, stepIndex) + focus
+      focus = 0
+      const absorbed = Math.min(Math.max(0, shields[target.id] - (step.pierce ?? 0)), damage)
+      shields[target.id] -= absorbed
+      hp[target.id] = Math.max(0, hp[target.id] - (damage - absorbed))
+      result[target.id] = (result[target.id] ?? 0) + damage
+    }
+  }
+  return result
+}
+
+export function enemyRoutes(state: BattleState): void {
+  const reserved = new Set(livingEnemies(state).map(enemy => `${enemy.pos.x},${enemy.pos.y}`))
+  for (const enemy of livingEnemies(state)) {
+    enemy.route = []
+    let cursor = { ...enemy.pos }
+    reserved.delete(`${cursor.x},${cursor.y}`)
+    for (let step = 0; step < 2; step++) {
+      const options = [
+        { x: cursor.x + 1, y: cursor.y }, { x: cursor.x - 1, y: cursor.y },
+        { x: cursor.x, y: cursor.y + 1 }, { x: cursor.x, y: cursor.y - 1 },
+      ].filter(pos => inside(pos) && !state.walls[pos.y][pos.x] && !reserved.has(`${pos.x},${pos.y}`) && !sameCoord(pos, state.player.pos))
+      options.sort((a, b) => {
+        const distance = manhattan(a, state.player.pos) - manhattan(b, state.player.pos)
+        if (distance) return distance
+        const flagA = state.flags[a.y][a.x]
+        const flagB = state.flags[b.y][b.x]
+        const score = (flag: FlagKind) => flag === 'bash' ? 0 : flag === 'core' ? 1 : flag === 'privilege' ? 2 : 3
+        return score(flagA) - score(flagB) || a.y - b.y || a.x - b.x
+      })
+      const next = options[0]
+      if (!next || manhattan(next, state.player.pos) >= manhattan(cursor, state.player.pos)) break
+      enemy.route.push(next)
+      reserved.add(`${next.x},${next.y}`)
+      cursor = next
+    }
+    // Adjacent hostiles still spend an operation collecting their current Warp;
+    // otherwise they would stall forever with an empty route and zero Bash steps.
+    if (!enemy.route.length && state.flags[cursor.y][cursor.x] !== 'blank') {
+      enemy.route.push({ ...cursor })
+    }
+    reserved.add(`${cursor.x},${cursor.y}`)
+  }
+}
+
+export function createInitialState(muted = false, reducedMotion = false): BattleState {
+  const random = mulberry32(0xF1A6)
+  const flags = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => randomFlag(random)))
+  const walls = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => false))
+  for (const [x, y] of WALLS) walls[y][x] = true
+  for (const [key, flag] of Object.entries(EXPLICIT_FLAGS)) {
+    const [x, y] = key.split(',').map(Number)
+    flags[y][x] = flag
+  }
+  const state: BattleState = {
+    phase: 'title', resumePhase: null, turn: 1, boardSize: BOARD_SIZE,
+    flags, walls,
+    player: {
+      pos: { x: 7, y: 7 }, sanity: 60, maxSanity: 60, block: 0, overload: 0,
+      activeBash: 0, focusReady: false,
+      buffs: [
+        { id: 'repair', name: 'REPAIR', counter: 0, threshold: 3, description: '+4 Sanity' },
+        { id: 'focus', name: 'FOCUS', counter: 0, threshold: 2, description: '+2 next Bash' },
+        { id: 'firewall', name: 'FIREWALL', counter: 0, threshold: 4, description: '+4 Block' },
+      ],
+    },
+    enemies: [
+      {
+        id: 'E01', name: 'DESIRE / TRACE', pos: { x: 7, y: 4 }, robustness: 12, maxRobustness: 12,
+        block: 0, desire: [2, 2, 3], securityPerFlag: 1, soulCounter: 0, soulThreshold: 3,
+        soulHeal: 3, route: [], statuses: ['DESIRE', 'SECURITY', 'SOUL'],
+      },
+      {
+        id: 'E02', name: 'DESIRE / RUSH', pos: { x: 10, y: 7 }, robustness: 10, maxRobustness: 10,
+        block: 0, desire: [2, 3], securityPerFlag: 1, soulCounter: 0, soulThreshold: 3,
+        soulHeal: 2, route: [], statuses: ['DESIRE', 'SECURITY', 'SOUL'],
+      },
+    ],
+    actions: [], log: [{ id: 1, text: 'BLACKWALL_01 containment route exposed.', tone: 'neutral' }],
+    muted, reducedMotion, message: '', attackPreview: null, overloadArmed: false,
+  }
+  enemyRoutes(state)
+  return state
+}
+
+export function refillBoard(state: BattleState, random: () => number): void {
+  for (let x = 0; x < BOARD_SIZE; x++) {
+    let bottom = BOARD_SIZE - 1
+    while (bottom >= 0) {
+      if (state.walls[bottom][x]) { bottom--; continue }
+      let top = bottom
+      while (top >= 0 && !state.walls[top][x]) top--
+      const remaining: FlagKind[] = []
+      for (let y = bottom; y > top; y--) {
+        const flag = state.flags[y][x]
+        if (flag !== 'blank') remaining.push(flag)
+      }
+      let index = 0
+      for (let y = bottom; y > top; y--) {
+        state.flags[y][x] = index < remaining.length ? remaining[index++] : randomFlag(random)
+      }
+      bottom = top - 1
+    }
+  }
+}
+
+export function activePreset(state: BattleState): AttackPreset {
+  return BASH_PRESETS[state.player.activeBash]
+}
