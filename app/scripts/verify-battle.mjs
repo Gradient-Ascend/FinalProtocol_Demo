@@ -113,6 +113,15 @@ try {
   await page.screenshot({ path: join(SHOTS, '04-settings.png') })
   await page.getByRole('button', { name: 'Close' }).click()
 
+  if (await page.locator('.incoming-preview').count() !== 1) throw new Error('Missing incoming Sanity damage preview')
+  await page.locator('.player-sanity .incoming-segment').first().hover()
+  if (!(await snapshot()).enemyAttackPreview) throw new Error('Incoming segment did not expose enemy attack range')
+  await page.mouse.move(0, 0)
+  await page.evaluate(() => {
+    window.__attackEffects = []
+    window.addEventListener('battle-attack-effect', event => window.__attackEffects.push(event.detail))
+  })
+
   await page.keyboard.press('KeyW')
   await page.keyboard.press('KeyW')
   if (await page.locator('.enemy-card').count() !== 1) throw new Error('Expected exactly one affected Geek')
@@ -140,8 +149,13 @@ try {
   if (!(await page.locator('.method-detail strong').textContent())?.includes('MANHATTAN')) throw new Error('Roman indicator did not show MANHATTAN mechanics')
   if ((await snapshot()).attackPreview?.stepIndex !== 1) throw new Error('Roman indicator did not activate map range preview')
   if (!(await page.locator('.damage-preview').textContent())?.includes('THIS ACTION')) throw new Error('Single-action damage preview did not activate')
-  if (await page.locator('.health-segment').count() !== 1) throw new Error('Expected only the hovered action segment in the HP bar')
-  await page.locator('.health-segment').nth(0).hover()
+  if (await page.locator('.enemy-card .health-segment').count() !== 1) throw new Error('Expected only the hovered action segment in the HP bar')
+  const segmentThickness = await page.locator('.enemy-card .health-segment').first().evaluate(element => ({
+    segment: element.getBoundingClientRect().height,
+    bar: element.parentElement.getBoundingClientRect().height,
+  }))
+  if (Math.abs(segmentThickness.segment - segmentThickness.bar) > 0.1) throw new Error(`Preview segment thickness differs from HP bar: ${JSON.stringify(segmentThickness)}`)
+  await page.locator('.enemy-card .health-segment').nth(0).hover()
   if (!(await page.locator('.method-detail strong').textContent())?.includes('MANHATTAN')) throw new Error('HP segment did not restore MANHATTAN preview')
   await page.screenshot({ path: join(SHOTS, '05-battle-compact.png') })
   await page.mouse.move(0, 0)
@@ -149,6 +163,11 @@ try {
   await waitPhase(['planning'])
   let state = await snapshot()
   if (state.enemies[0].robustness !== 34) throw new Error(`Opening Bash expected B01 at 34, got ${state.enemies[0].robustness}`)
+  if (state.playerTrail.length !== 3) throw new Error('Walked route was not retained in the gray-trail history')
+  const openingEffects = await page.evaluate(() => window.__attackEffects)
+  if (openingEffects.length < 2 || openingEffects[0].source !== 'player' || openingEffects[1].source !== 'player') {
+    throw new Error(`Player attacks were not emitted sequentially: ${JSON.stringify(openingEffects)}`)
+  }
 
   let overloadUsed = false
   let stageTwoSeen = false
@@ -173,6 +192,8 @@ try {
   if (state.phase !== 'victory') throw new Error(`Autoplay did not reach victory; ended at ${state.phase} on turn ${state.turn} with Sanity ${state.player.sanity}`)
   if (!stageTwoSeen) throw new Error('Warden Breakdown was not reached during the boss playthrough')
   if (!curtainLockSeen) throw new Error('No active Curtain lock was observed during the boss playthrough')
+  const effectSources = await page.evaluate(() => [...new Set(window.__attackEffects.map(effect => effect.source))])
+  if (!effectSources.includes('enemy')) throw new Error('No enemy attack effect was emitted during the boss playthrough')
   await page.screenshot({ path: join(SHOTS, '06-victory.png') })
 
   await page.keyboard.press('KeyR')

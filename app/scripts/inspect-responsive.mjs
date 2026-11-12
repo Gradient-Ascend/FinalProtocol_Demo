@@ -30,6 +30,23 @@ const cases = [
   { name: 'tablet-landscape', width: 1024, height: 768 },
 ]
 const results = []
+
+function warpPoint(metrics, pos) {
+  const width = metrics.board.width
+  const height = metrics.board.height
+  const cell = Math.max(12, Math.floor(Math.min((width - 80) / 15, (height - 92) / 15)))
+  const boardPx = cell * 15
+  return {
+    x: metrics.board.x + Math.round((width - boardPx) / 2 + 10) + (pos.x + 0.5) * cell,
+    y: metrics.board.y + Math.round((height - boardPx) / 2 + 20) + (pos.y + 0.5) * cell,
+  }
+}
+
+async function assertRouteLength(page, expected, label) {
+  const actual = await page.evaluate(() => window.__battleProbe()?.actions.length)
+  if (actual !== expected) throw new Error(`${label}: expected ${expected} route actions, got ${actual}`)
+}
+
 try {
   for (const item of cases) {
     const context = await browser.newContext({
@@ -45,6 +62,10 @@ try {
     await page.waitForFunction(() => window.__GAME_READY__ === true)
     await page.getByRole('button', { name: /BREACH SANDBOX/ }).click()
     await page.waitForTimeout(250)
+    await page.evaluate(() => {
+      window.__panCount = 0
+      window.addEventListener('map-pan-changed', () => { window.__panCount++ })
+    })
     const metrics = await page.evaluate(() => {
       const box = selector => {
         const element = document.querySelector(selector)
@@ -78,15 +99,37 @@ try {
     if (metrics.actionIndicator.height < 44 || metrics.overload.height < 44 || metrics.topIcon.width < 44 || metrics.viewDot.width < 28) {
       throw new Error(`${item.name}: touch target is too small ${JSON.stringify(metrics)}`)
     }
+    const fullscreenButton = page.getByRole('button', { name: 'Enter fullscreen' })
+    if (await fullscreenButton.count() !== 1 || !(await fullscreenButton.isVisible())) throw new Error(`${item.name}: fullscreen button is not visible`)
+    if (await fullscreenButton.isDisabled()) throw new Error(`${item.name}: fullscreen should be available in the test browser`)
+    await fullscreenButton.click()
+    await page.waitForFunction(() => Boolean(document.fullscreenElement))
+    await page.getByRole('button', { name: 'Exit fullscreen' }).click()
+    await page.waitForFunction(() => !document.fullscreenElement)
+
+    const centerX = metrics.board.x + metrics.board.width / 2
+    const centerY = metrics.board.y + metrics.board.height / 2
     if (item.name === 'phone-landscape') {
-      const centerX = metrics.board.x + metrics.board.width / 2
-      const centerY = metrics.board.y + metrics.board.height / 2
       const cdp = await context.newCDPSession(page)
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: centerX - 45, y: centerY }, { x: centerX + 45, y: centerY }] })
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: centerX - 90, y: centerY }, { x: centerX + 90, y: centerY }] })
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
       await page.waitForFunction(() => Number(document.querySelector('.zoom-value')?.textContent?.replace('%', '')) > 100)
       await page.keyboard.press('Control+0')
+
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: centerX, y: centerY }] })
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: centerX + 65, y: centerY + 30 }] })
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+      await page.waitForFunction(() => window.__panCount > 0)
+      await page.waitForTimeout(60)
+      await assertRouteLength(page, 0, 'One-finger drag must not click a Warp')
+      await page.keyboard.press('Control+0')
+      const tap = warpPoint(metrics, { x: 7, y: 6 })
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: tap.x, y: tap.y }] })
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+      await page.waitForFunction(() => window.__battleProbe()?.actions.length === 1)
+      await page.keyboard.press('Backspace')
+
       const scroll = await page.locator('.player-panel').evaluate(element => {
         element.scrollTop = 80
         return { top: element.scrollTop, max: element.scrollHeight - element.clientHeight, overflow: getComputedStyle(element).overflowY }
@@ -94,13 +137,26 @@ try {
       if (scroll.max > 0 && scroll.top === 0) throw new Error('Operator panel does not scroll independently')
       if (scroll.overflow !== 'auto') throw new Error(`Operator panel is not scrollable: ${scroll.overflow}`)
     } else {
-      await page.mouse.move(metrics.board.x + metrics.board.width / 2, metrics.board.y + metrics.board.height / 2)
+      await page.mouse.move(centerX, centerY)
       await page.mouse.wheel(0, -220)
       await page.waitForFunction(() => Number(document.querySelector('.zoom-value')?.textContent?.replace('%', '')) > 100)
       await page.keyboard.press('Control+0')
       await page.keyboard.press('Control+Minus')
       await page.waitForFunction(() => Number(document.querySelector('.zoom-value')?.textContent?.replace('%', '')) < 100)
       await page.keyboard.press('Control+0')
+
+      await page.mouse.move(centerX, centerY)
+      await page.mouse.down()
+      await page.mouse.move(centerX + 70, centerY + 35, { steps: 6 })
+      await page.mouse.up()
+      await page.waitForFunction(() => window.__panCount > 0)
+      await page.waitForTimeout(60)
+      await assertRouteLength(page, 0, 'Mouse drag must not click a Warp')
+      await page.keyboard.press('Control+0')
+      const click = warpPoint(metrics, { x: 7, y: 6 })
+      await page.mouse.click(click.x, click.y)
+      await page.waitForFunction(() => window.__battleProbe()?.actions.length === 1)
+      await page.keyboard.press('Backspace')
     }
     await page.locator('.preset.selected .action-indicator').nth(1).click()
     await page.waitForFunction(() => window.__battleProbe()?.attackPreview?.stepIndex === 1)
@@ -114,8 +170,12 @@ try {
     }
     await page.locator('.player-panel').evaluate(element => { element.scrollTop = 0 })
     await page.locator('.enemy-panel').evaluate(element => { element.scrollTop = 0 })
+    const mapView = await page.evaluate(() => window.__mapProbe())
+    if (mapView.zoom !== 1 || mapView.x < 0 || mapView.y < 0) throw new Error(`${item.name}: map was not reset after dragging ${JSON.stringify(mapView)}`)
+    await page.evaluate(() => window.scrollTo(0, 0))
     await page.screenshot({ path: join(SHOTS, `${item.name}.png`), fullPage: true })
-    results.push({ ...item, ...metrics, consoleErrors: errors })
+    await page.locator('.board-area').screenshot({ path: join(SHOTS, `${item.name}-board.png`) })
+    results.push({ ...item, ...metrics, mapView, dragPanVerified: true, clickTapVerified: true, consoleErrors: errors })
     await context.close()
   }
   console.log(JSON.stringify(results, null, 2))

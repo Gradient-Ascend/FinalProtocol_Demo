@@ -1,10 +1,14 @@
 import { MAX_ACTIONS, OVERLOAD_THRESHOLD, STEP_MS } from './battle-config'
 import { predictedSequence, releaseCount } from './attack-methods'
+import { desireInRange, desireStepsFor } from './enemy-attack-methods'
 import {
   activePreset, advanceCurtains, coordKey, createInitialState, curtainLabel, enemyRoutes,
   isWarpLocked, livingEnemies, manhattan, mulberry32, refillBoard, sameCoord,
 } from './battle-rules'
-import type { AttackPreview, BattleAction, BattleState, Coord, EnemyState, FlagKind, Phase } from './battle-types'
+import type {
+  AttackEffect, AttackPreview, BattleAction, BattleState, Coord, EnemyAttackPreview,
+  EnemyState, FlagKind, Phase,
+} from './battle-types'
 import { storage } from './storage'
 
 type Listener = () => void
@@ -41,6 +45,12 @@ export class BattleStore {
   private wait(): Promise<void> {
     const delay = this.state.reducedMotion ? 15 : STEP_MS
     return new Promise(resolve => setTimeout(resolve, delay))
+  }
+
+  private emitEffect(effect: AttackEffect): void {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent<AttackEffect>('battle-attack-effect', { detail: effect }))
+    }
   }
 
   start(): void {
@@ -157,6 +167,14 @@ export class BattleStore {
   setAttackPreview(preview: AttackPreview | null): void {
     if (this.state.phase !== 'planning') return
     this.state.attackPreview = preview
+    this.state.enemyAttackPreview = null
+    this.commit()
+  }
+
+  setEnemyAttackPreview(preview: EnemyAttackPreview | null): void {
+    if (this.state.phase !== 'planning') return
+    this.state.enemyAttackPreview = preview
+    this.state.attackPreview = null
     this.commit()
   }
 
@@ -164,6 +182,7 @@ export class BattleStore {
     if (!this.state.overloadArmed) return
     this.state.overloadArmed = false
     this.state.attackPreview = null
+    this.state.enemyAttackPreview = null
     this.state.message = 'Overload preview cancelled.'
     this.commit()
   }
@@ -179,6 +198,7 @@ export class BattleStore {
     }
     this.state.overloadArmed = true
     this.state.attackPreview = { presetIndex: 1 - this.state.player.activeBash, stepIndex: 0 }
+    this.state.enemyAttackPreview = null
     this.state.message = `${activePreset({ ...this.state, player: { ...this.state.player, activeBash: 1 - this.state.player.activeBash } }).name} Overload preview. Press O again to fire.`
     this.sfx('ui')
     this.commit()
@@ -200,6 +220,7 @@ export class BattleStore {
     }
     this.state.overloadArmed = false
     this.state.attackPreview = null
+    this.state.enemyAttackPreview = null
     this.state.actions = [...this.state.actions, { type: 'overload' }]
     this.state.player.overload = 0
     this.state.player.activeBash = 1 - this.state.player.activeBash
@@ -207,7 +228,7 @@ export class BattleStore {
     this.log(`OVERLOAD switched to ${activePreset(this.state).name}; ${releases} immediate Bash steps.`, 'good')
     this.state.message = releases ? `${activePreset(this.state).name} fired immediately.` : 'No Bash points available for immediate release.'
     this.sfx('explosion')
-    this.firePlayerAttack(releases)
+    this.firePlayerAttackImmediate(releases)
     enemyRoutes(this.state)
     this.checkOutcome()
     this.commit()
@@ -248,42 +269,72 @@ export class BattleStore {
     }
   }
 
-  private firePlayerAttack(steps: number): void {
+  private applyPlayerHit(presetName: string, hit: ReturnType<typeof predictedSequence>[number]): void {
+    const enemy = this.state.enemies.find(candidate => candidate.id === hit.enemyId)
+    if (!enemy) return
+    enemy.block = Math.max(0, enemy.block - hit.absorbed)
+    enemy.robustness = hit.after
+    if (hit.focus) this.state.player.focusReady = false
+    const step = activePreset(this.state).steps[hit.stepIndex]
+    const shieldText = hit.absorbed ? ` / ${hit.absorbed} blocked` : ''
+    this.log(`${presetName} / ${step.name} → ${enemy.id} / ${hit.dealt} Desire damage${shieldText}.`, 'good')
+    this.sfx('hit')
+  }
+
+  private playerEffect(hit: ReturnType<typeof predictedSequence>[number]): AttackEffect {
+    const enemy = this.state.enemies.find(candidate => candidate.id === hit.enemyId)
+    const step = activePreset(this.state).steps[hit.stepIndex]
+    return {
+      source: 'player', origin: { ...this.state.player.pos }, target: { ...(enemy?.pos ?? this.state.player.pos) },
+      stepIndex: hit.stepIndex, shape: step.shape, range: step.range, width: step.width,
+    }
+  }
+
+  private firePlayerAttackImmediate(steps: number): void {
     if (!steps) return
     const preset = activePreset(this.state)
     const hits = predictedSequence(this.state, this.state.player.activeBash, steps)
     for (const hit of hits) {
-      const enemy = this.state.enemies.find(candidate => candidate.id === hit.enemyId)
-      if (!enemy) continue
-      enemy.block = Math.max(0, enemy.block - hit.absorbed)
-      enemy.robustness = hit.after
-      if (hit.focus) this.state.player.focusReady = false
-      const step = preset.steps[hit.stepIndex]
-      const shieldText = hit.absorbed ? ` / ${hit.absorbed} blocked` : ''
-      this.log(`${preset.name} / ${step.name} → ${enemy.id} / ${hit.dealt} Desire damage${shieldText}.`, 'good')
-      this.sfx('hit')
+      this.emitEffect(this.playerEffect(hit))
+      this.applyPlayerHit(preset.name, hit)
     }
   }
 
-  private enemyAttack(enemy: EnemyState, bashCount: number): void {
-    const dx = Math.abs(enemy.pos.x - this.state.player.pos.x)
-    const dy = Math.abs(enemy.pos.y - this.state.player.pos.y)
-    const inRange = enemy.desireShape === 'square'
-      ? Math.max(dx, dy) <= enemy.desireRange && dx + dy > 0
-      : (dx === 0) !== (dy === 0) && dx + dy <= enemy.desireRange
-    for (const amount of enemy.desire.slice(0, bashCount)) {
-      if (!inRange) continue
-      const absorbed = Math.min(this.state.player.block, amount)
+  private async firePlayerAttack(steps: number): Promise<void> {
+    if (!steps) return
+    const preset = activePreset(this.state)
+    const hits = predictedSequence(this.state, this.state.player.activeBash, steps)
+    for (const hit of hits) {
+      this.emitEffect(this.playerEffect(hit))
+      await this.wait()
+      this.applyPlayerHit(preset.name, hit)
+      this.commit()
+      await this.wait()
+    }
+  }
+
+  private async enemyAttack(enemy: EnemyState, bashCount: number): Promise<void> {
+    const steps = desireStepsFor(enemy).slice(0, bashCount)
+    for (const [stepIndex, step] of steps.entries()) {
+      if (!desireInRange(enemy.pos, this.state.player.pos, step)) continue
+      this.emitEffect({
+        source: 'enemy', origin: { ...enemy.pos }, target: { ...this.state.player.pos },
+        stepIndex, shape: step.shape, range: step.range, width: step.width,
+      })
+      await this.wait()
+      const absorbed = Math.min(this.state.player.block, step.amount)
       this.state.player.block -= absorbed
-      const dealt = amount - absorbed
+      const dealt = step.amount - absorbed
       this.state.player.sanity = Math.max(0, this.state.player.sanity - dealt)
       this.log(`${enemy.id} / ${enemy.desireName ?? 'DESIRE'} → ${dealt} Sanity damage.`, 'bad')
       this.sfx('hit')
+      this.commit()
+      await this.wait()
       if (this.state.player.sanity <= 0) return
     }
   }
 
-  private resolveEnemy(enemy: EnemyState, changedColumns: Set<number>): void {
+  private async resolveEnemy(enemy: EnemyState, changedColumns: Set<number>): Promise<void> {
     enemy.block = 0
     const counts: Record<FlagKind, number> = { bash: 0, privilege: 0, core: 0, overload: 0, blank: 0 }
     for (const pos of enemy.route) {
@@ -293,6 +344,8 @@ export class BattleStore {
       counts[flag]++
       this.state.flags[pos.y][pos.x] = 'blank'
       changedColumns.add(pos.x)
+      this.commit()
+      await this.wait()
     }
     enemy.block += counts.privilege * enemy.securityPerFlag
     enemy.soulCounter += counts.core
@@ -310,7 +363,7 @@ export class BattleStore {
       }
       enemy.effectCell = null
     }
-    this.enemyAttack(enemy, counts.bash)
+    await this.enemyAttack(enemy, counts.bash)
   }
 
   private checkBreakdown(): boolean {
@@ -323,6 +376,7 @@ export class BattleStore {
       enemy.stage = next.stage
       enemy.desireName = next.desireName
       enemy.desire = [...next.desire]
+      enemy.desireSteps = next.desireSteps?.map(step => ({ ...step }))
       enemy.desireRange = next.desireRange
       enemy.desireShape = next.desireShape
       enemy.routeLength = next.routeLength
@@ -368,6 +422,7 @@ export class BattleStore {
     const usedOverload = this.state.actions.some(action => action.type === 'overload')
     this.state.overloadArmed = false
     this.state.attackPreview = null
+    this.state.enemyAttackPreview = null
     this.state.phase = 'resolving'
     this.state.message = 'Executing player route…'
     this.commit()
@@ -376,6 +431,7 @@ export class BattleStore {
       if (id !== this.runId) return
       if (action.type !== 'move') continue
       this.state.player.pos = { ...action.to }
+      this.state.playerTrail = [...this.state.playerTrail, { ...action.to }]
       this.collectPlayerFlag(action.flag)
       this.state.flags[action.to.y][action.to.x] = 'blank'
       changedColumns.add(action.to.x)
@@ -384,7 +440,7 @@ export class BattleStore {
     }
 
     this.resolvePlayerResources()
-    if (!usedOverload) this.firePlayerAttack(releaseCount(this.state))
+    if (!usedOverload) await this.firePlayerAttack(releaseCount(this.state))
     this.commit()
     await this.wait()
     if (this.checkOutcome()) { this.commit(); return }
@@ -393,7 +449,7 @@ export class BattleStore {
     this.commit()
     for (const enemy of livingEnemies(this.state)) {
       if (id !== this.runId) return
-      this.resolveEnemy(enemy, changedColumns)
+      await this.resolveEnemy(enemy, changedColumns)
       this.commit()
       await this.wait()
       if (this.checkOutcome()) { this.commit(); return }

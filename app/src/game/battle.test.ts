@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { BattleStore } from './battle-store'
 import { coordKey, createInitialState, enemyRoutes, refillBoard, scheduleCurtains } from './battle-rules'
 import { attackRoll, inAttackRange, predictedDamage, predictedSequence, releaseCount, stepDamage } from './attack-methods'
-import { BASH_PRESETS } from './battle-config'
+import { desireInRange, predictedEnemySequence } from './enemy-attack-methods'
+import { BASH_PRESETS, FLAG_WEIGHTS } from './battle-config'
 
 function readyStore(): BattleStore {
   const store = new BattleStore()
@@ -18,14 +19,15 @@ describe('battle rules', () => {
     expect(coordKey({ x: 14, y: 14 })).toBe('0xEE')
   })
 
-  it('creates one Warden with a public two-turn Curtain forecast', () => {
+  it('creates one Warden and two Geeks with public routes and a two-turn Curtain forecast', () => {
     const state = createInitialState()
     expect(state.flags).toHaveLength(15)
     expect(state.incoming).toHaveLength(15)
-    expect(state.enemies).toHaveLength(1)
+    expect(state.enemies).toHaveLength(3)
     expect(state.enemies[0].name).toBe('WARDEN / CURTAIN')
     expect(state.enemies[0].stage).toBe(1)
-    expect(state.enemies[0].route.length).toBeGreaterThan(0)
+    expect(state.enemies.map(enemy => enemy.id)).toEqual(['B01', 'E02', 'E03'])
+    expect(state.enemies.every(enemy => enemy.route.length > 0)).toBe(true)
     expect(state.curtains).toEqual([{ axis: 'column', index: 7, fireTurn: 3, locked: false, unlockTurn: null }])
   })
 
@@ -103,6 +105,7 @@ describe('turn resolution', () => {
     const state = store.getSnapshot()
     state.enemies[0].robustness = 1
     state.enemies[0].block = 0
+    for (const enemy of state.enemies.slice(1)) enemy.robustness = 0
     store.addStep(0, -1)
     await store.executeTurn()
     expect(store.getSnapshot().phase).toBe('victory')
@@ -297,5 +300,48 @@ describe('Warden boss protocol', () => {
     expect(state.curtains).toHaveLength(2)
     expect(new Set(state.curtains.map(curtain => curtain.axis))).toEqual(new Set(['column', 'row']))
     expect(state.curtains.every(curtain => curtain.fireTurn === 6 && !curtain.locked)).toBe(true)
+  })
+})
+
+
+describe('rebalanced encounter and player forecast', () => {
+  it('allocates half of generated Warps to Blank while preserving a complete weight table', () => {
+    expect(FLAG_WEIGHTS.find(([kind]) => kind === 'blank')?.[1]).toBe(50)
+    expect(FLAG_WEIGHTS.reduce((total, [, weight]) => total + weight, 0)).toBe(100)
+  })
+
+  it('gives the Warden broad rectangular coverage without changing square attacks', () => {
+    const rectangle = { amount: 2, range: 6, shape: 'rectangle' as const, width: 1 }
+    const square = { amount: 2, range: 3, shape: 'square' as const }
+    expect(desireInRange({ x: 7, y: 4 }, { x: 1, y: 5 }, rectangle)).toBe(true)
+    expect(desireInRange({ x: 7, y: 4 }, { x: 1, y: 6 }, rectangle)).toBe(false)
+    expect(desireInRange({ x: 7, y: 4 }, { x: 4, y: 7 }, square)).toBe(true)
+    expect(desireInRange({ x: 7, y: 4 }, { x: 3, y: 7 }, square)).toBe(false)
+  })
+
+  it('predicts each incoming Desire step with route positions and Block', () => {
+    const state = createInitialState()
+    for (const enemy of state.enemies.slice(1)) enemy.robustness = 0
+    const boss = state.enemies[0]
+    boss.pos = { x: 7, y: 6 }
+    boss.route = [{ x: 7, y: 6 }, { x: 7, y: 5 }]
+    state.flags[6][7] = 'bash'
+    state.flags[5][7] = 'bash'
+    state.player.block = 1
+    const counters = state.player.buffs.map(buff => buff.counter)
+    const hits = predictedEnemySequence(state)
+    expect(hits.map(hit => hit.dealt)).toEqual([1, 2])
+    expect(hits.every(hit => hit.origin.x === 7 && hit.origin.y === 5)).toBe(true)
+    expect(hits[hits.length - 1].after).toBe(57)
+    expect(state.player.buffs.map(buff => buff.counter)).toEqual(counters)
+  })
+
+  it('retains walked positions as a separate gray-trail history', async () => {
+    const store = readyStore()
+    store.addStep(0, -1)
+    store.addStep(0, -1)
+    await store.executeTurn()
+    expect(store.getSnapshot().playerTrail).toEqual([{ x: 7, y: 7 }, { x: 7, y: 6 }, { x: 7, y: 5 }])
+    expect(store.getSnapshot().actions).toHaveLength(0)
   })
 })

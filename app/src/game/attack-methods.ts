@@ -7,6 +7,7 @@ export function inAttackRange(origin: Coord, target: Coord, step: AttackStep): b
   const dy = Math.abs(origin.y - target.y)
   if (dx === 0 && dy === 0) return false
   if (step.shape === 'square') return Math.max(dx, dy) <= step.range
+  if (step.shape === 'rectangle') return Math.max(dx, dy) <= step.range && Math.min(dx, dy) <= (step.width ?? 1)
   return (dx === 0) !== (dy === 0) && dx + dy <= step.range
 }
 

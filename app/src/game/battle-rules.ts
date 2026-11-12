@@ -196,11 +196,17 @@ export function createInitialState(muted = false, reducedMotion = false): Battle
         { id: 'firewall', name: 'FIREWALL', counter: 0, threshold: 4, description: '+4 Block' },
       ],
     },
+    playerTrail: [{ x: 7, y: 7 }],
     enemies: ENEMY_DEFINITIONS.map(definition => ({
       ...definition,
       pos: { ...definition.pos },
       desire: [...definition.desire],
-      bossStages: definition.bossStages?.map(stage => ({ ...stage, desire: [...stage.desire] })),
+      desireSteps: definition.desireSteps?.map(step => ({ ...step })),
+      bossStages: definition.bossStages?.map(stage => ({
+        ...stage,
+        desire: [...stage.desire],
+        desireSteps: stage.desireSteps?.map(step => ({ ...step })),
+      })),
       maxRobustness: definition.robustness,
       block: 0,
       soulCounter: 0,
@@ -209,8 +215,8 @@ export function createInitialState(muted = false, reducedMotion = false): Battle
       effectCell: null,
       statuses: definition.bossStages ? ['DESIRE', 'SECURITY', 'SOUL', 'BREAKDOWN'] : ['DESIRE', 'SECURITY', 'SOUL'],
     })),
-    actions: [], log: [{ id: 1, text: 'WARDEN curtain protocol exposed.', tone: 'neutral' }],
-    muted, reducedMotion, message: '', attackPreview: null, overloadArmed: false,
+    actions: [], log: [],
+    muted, reducedMotion, message: '', attackPreview: null, enemyAttackPreview: null, overloadArmed: false,
   }
   scheduleCurtains(state, 3)
   enemyRoutes(state)

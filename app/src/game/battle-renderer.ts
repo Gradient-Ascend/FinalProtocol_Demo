@@ -1,8 +1,9 @@
 import { livingEnemies } from './battle-rules'
 import { BASH_PRESETS } from './battle-config'
 import { inAttackRange } from './attack-methods'
+import { predictedEnemySequence } from './enemy-attack-methods'
 import type { BattleStore } from './battle-store'
-import type { Coord, FlagKind } from './battle-types'
+import type { AttackEffect, Coord, FlagKind } from './battle-types'
 
 const COLORS = {
   bg: '#090909', cell: '#0D0D0D', grid: '#343434', wall: '#272727',
@@ -21,10 +22,14 @@ export class BattleRenderer {
   private hover: Coord | null = null
   private unitSeen = new Map<string, string>()
   private movingUntil = new Map<string, number>()
+  private effectQueue: AttackEffect[] = []
+  private activeEffect: { effect: AttackEffect; started: number } | null = null
   private pointers = new Map<number, { x: number; y: number }>()
   private pinchStartDistance = 0
   private pinchStartZoom = 1
   private pinching = false
+  private dragStart: { x: number; y: number; originX: number; originY: number; touch: boolean } | null = null
+  private dragged = false
   private suppressClick = false
   zoom = 1
   onZoomChange?: (zoom: number) => void
@@ -39,37 +44,84 @@ export class BattleRenderer {
     this.canvas.addEventListener('pointerup', this.onPointerUp)
     this.canvas.addEventListener('pointercancel', this.onPointerUp)
     this.canvas.addEventListener('wheel', this.onWheel, { passive: false })
+    window.addEventListener('battle-attack-effect', this.onAttackEffect)
     this.resize()
     this.loop(0)
   }
 
+  private onAttackEffect = (event: Event): void => {
+    this.effectQueue.push((event as CustomEvent<AttackEffect>).detail)
+  }
+
   private onPointerMove = (event: PointerEvent): void => {
     if (this.pointers.has(event.pointerId)) this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
-    this.hover = this.cellAt(event.clientX, event.clientY)
     if (this.pinching && this.pointers.size >= 2) {
       const [a, b] = [...this.pointers.values()]
       const distance = Math.hypot(a.x - b.x, a.y - b.y)
       if (distance > 0 && this.pinchStartDistance > 0) {
         this.zoomAt(this.pinchStartZoom * distance / this.pinchStartDistance, (a.x + b.x) / 2, (a.y + b.y) / 2)
       }
+      this.hover = null
+      return
     }
+    if (this.dragStart && this.pointers.size === 1) {
+      const dx = event.clientX - this.dragStart.x
+      const dy = event.clientY - this.dragStart.y
+      const threshold = this.dragStart.touch ? 10 : 6
+      if (!this.dragged && Math.hypot(dx, dy) >= threshold) {
+        this.dragged = true
+        this.suppressClick = true
+        this.canvas.style.cursor = 'grabbing'
+      }
+      if (this.dragged) {
+        this.origin = this.clampOrigin({ x: this.dragStart.originX + dx, y: this.dragStart.originY + dy })
+        this.hover = null
+        window.dispatchEvent(new CustomEvent('map-pan-changed', { detail: { ...this.origin } }))
+        return
+      }
+    }
+    this.hover = this.cellAt(event.clientX, event.clientY)
   }
 
   private onPointerDown = (event: PointerEvent): void => {
+    if (event.button !== 0) return
     this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
     try { this.canvas.setPointerCapture(event.pointerId) } catch { /* Synthetic verification pointers may not be capturable. */ }
+    if (this.pointers.size === 1) {
+      this.dragStart = {
+        x: event.clientX, y: event.clientY,
+        originX: this.origin.x, originY: this.origin.y,
+        touch: event.pointerType === 'touch' || event.pointerType === 'pen',
+      }
+      this.dragged = false
+    }
     if (this.pointers.size === 2) {
       const [a, b] = [...this.pointers.values()]
       this.pinchStartDistance = Math.hypot(a.x - b.x, a.y - b.y)
       this.pinchStartZoom = this.zoom
       this.pinching = true
+      this.dragStart = null
       this.suppressClick = true
     }
   }
 
   private onPointerUp = (event: PointerEvent): void => {
+    const wasPinching = this.pinching
     this.pointers.delete(event.pointerId)
     if (this.pointers.size < 2) this.pinching = false
+    if (this.pointers.size === 0) {
+      if (this.dragged || wasPinching || event.type === 'pointercancel') this.suppressClick = true
+      this.dragStart = null
+      this.dragged = false
+      this.canvas.style.cursor = 'crosshair'
+      // If the browser does not emit a click after a cancelled gesture, do not
+      // suppress the next unrelated click indefinitely.
+      window.setTimeout(() => { this.suppressClick = false }, 0)
+    } else if (wasPinching) {
+      this.dragStart = null
+      this.dragged = true
+      this.suppressClick = true
+    }
   }
 
   private onPointerLeave = (): void => {
@@ -94,6 +146,16 @@ export class BattleRenderer {
     this.applyZoom()
   }
 
+  private clampOrigin(origin: Coord): Coord {
+    const rect = this.canvas.getBoundingClientRect()
+    const marginX = Math.min(rect.width / 2, this.cell)
+    const marginY = Math.min(rect.height / 2, this.cell)
+    return {
+      x: Math.min(rect.width - marginX, Math.max(marginX - this.boardPx, origin.x)),
+      y: Math.min(rect.height - marginY, Math.max(marginY - this.boardPx, origin.y)),
+    }
+  }
+
   private applyZoom(focal?: { x: number; y: number; gx: number; gy: number }): void {
     const rect = this.canvas.getBoundingClientRect()
     this.cell = Math.max(6, Math.round(this.baseCell * this.zoom))
@@ -102,9 +164,9 @@ export class BattleRenderer {
       x: Math.round((rect.width - this.boardPx) / 2 + 10),
       y: Math.round((rect.height - this.boardPx) / 2 + 20),
     }
-    this.origin = focal
+    this.origin = this.clampOrigin(focal
       ? { x: focal.x - focal.gx * this.cell, y: focal.y - focal.gy * this.cell }
-      : baseOrigin
+      : baseOrigin)
     this.onZoomChange?.(this.zoom)
   }
 
@@ -121,7 +183,10 @@ export class BattleRenderer {
   zoomIn(): void { this.zoomAt(this.zoom * 1.2) }
   zoomOut(): void { this.zoomAt(this.zoom / 1.2) }
   resetZoom(): void { this.zoom = 1; this.applyZoom() }
-  consumePinch(): boolean {
+  viewState(): { x: number; y: number; cell: number; zoom: number } {
+    return { x: this.origin.x, y: this.origin.y, cell: this.cell, zoom: this.zoom }
+  }
+  consumeGesture(): boolean {
     const suppressed = this.suppressClick
     this.suppressClick = false
     return suppressed
@@ -267,6 +332,49 @@ export class BattleRenderer {
     ctx.globalAlpha = 1
   }
 
+  private drawAttackEffect(time: number): void {
+    const state = this.store.getSnapshot()
+    const duration = state.reducedMotion ? 100 : 360
+    if (!this.activeEffect && this.effectQueue.length) {
+      this.activeEffect = { effect: this.effectQueue.shift()!, started: time }
+    }
+    if (!this.activeEffect) return
+    const elapsed = time - this.activeEffect.started
+    if (elapsed >= duration) {
+      this.activeEffect = null
+      return
+    }
+    const effect = this.activeEffect.effect
+    const progress = Math.max(0, Math.min(1, elapsed / duration))
+    const color = effect.source === 'player' ? '242,209,107' : '255,112,112'
+    const ctx = this.ctx
+    ctx.globalAlpha = 0.8 - progress * 0.45
+    for (let y = 0; y < 15; y++) {
+      for (let x = 0; x < 15; x++) {
+        if (!inAttackRange(effect.origin, { x, y }, {
+          name: '', amount: 0, area: 'nearest', shape: effect.shape, range: effect.range, width: effect.width,
+        })) continue
+        const px = this.origin.x + x * this.cell
+        const py = this.origin.y + y * this.cell
+        ctx.fillStyle = `rgba(${color},0.16)`
+        ctx.fillRect(px + 1, py + 1, this.cell - 2, this.cell - 2)
+        ctx.strokeStyle = `rgba(${color},0.5)`
+        ctx.lineWidth = 1
+        ctx.strokeRect(px + 2.5, py + 2.5, this.cell - 5, this.cell - 5)
+      }
+    }
+    const origin = this.center(effect.origin)
+    const target = this.center(effect.target)
+    const projectile = { x: origin.x + (target.x - origin.x) * progress, y: origin.y + (target.y - origin.y) * progress }
+    this.line(origin, projectile, `rgba(${color},0.95)`, 2.4)
+    ctx.strokeStyle = `rgba(${color},0.95)`
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.arc(target.x, target.y, this.cell * (0.2 + progress * 0.35), 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.globalAlpha = 1
+  }
+
   private draw(time: number): void {
     const state = this.store.getSnapshot()
     const ctx = this.ctx
@@ -340,6 +448,28 @@ export class BattleRenderer {
       }
     }
 
+    if (state.enemyAttackPreview) {
+      const preview = state.enemyAttackPreview
+      const hit = predictedEnemySequence(state).find(candidate =>
+        candidate.enemyId === preview.enemyId && candidate.stepIndex === preview.stepIndex)
+      if (hit) {
+        for (let y = 0; y < 15; y++) {
+          for (let x = 0; x < 15; x++) {
+            if (!inAttackRange(hit.origin, { x, y }, {
+              name: '', amount: 0, area: 'nearest', shape: hit.shape, range: hit.range, width: hit.width,
+            })) continue
+            const px = this.origin.x + x * this.cell
+            const py = this.origin.y + y * this.cell
+            ctx.fillStyle = 'rgba(255,112,112,0.13)'
+            ctx.fillRect(px + 1, py + 1, this.cell - 2, this.cell - 2)
+            ctx.strokeStyle = 'rgba(255,112,112,0.45)'
+            ctx.lineWidth = 0.9
+            ctx.strokeRect(px + 2.5, py + 2.5, this.cell - 5, this.cell - 5)
+          }
+        }
+      }
+    }
+
     for (const enemy of livingEnemies(state)) {
       let previous = enemy.pos
       for (const pos of enemy.route) {
@@ -358,7 +488,14 @@ export class BattleRenderer {
       }
     }
 
-    const route = state.actions.filter(action => action.type === 'move')
+    if (state.playerTrail.length > 1) {
+      let previous = state.playerTrail[0]
+      for (const pos of state.playerTrail.slice(1)) {
+        this.line(this.center(previous), this.center(pos), COLORS.faint, 1.6)
+        previous = pos
+      }
+    }
+    const route = state.phase === 'planning' ? state.actions.filter(action => action.type === 'move') : []
     let previous = state.player.pos
     for (const action of route) {
       this.line(this.center(previous), this.center(action.to), COLORS.white, 2.2)
@@ -370,6 +507,8 @@ export class BattleRenderer {
         if (!state.walls[y][x]) this.drawFlag(state.flags[y][x], { x, y }, 0.9)
       }
     }
+
+    this.drawAttackEffect(time)
 
     if (this.hover && state.phase === 'planning') {
       const px = this.origin.x + this.hover.x * this.cell
@@ -416,5 +555,8 @@ export class BattleRenderer {
     this.canvas.removeEventListener('pointerup', this.onPointerUp)
     this.canvas.removeEventListener('pointercancel', this.onPointerUp)
     this.canvas.removeEventListener('wheel', this.onWheel)
+    window.removeEventListener('battle-attack-effect', this.onAttackEffect)
+    this.effectQueue = []
+    this.activeEffect = null
   }
 }

@@ -6,6 +6,7 @@ declare global {
   interface Window {
     __gameProbe?: () => { x: number; y: number; z: number }
     __battleProbe?: () => ReturnType<typeof battleStore.getSnapshot>
+    __mapProbe?: () => ReturnType<BattleRenderer['viewState']>
     __GAME_READY__?: boolean
   }
 }
@@ -59,7 +60,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
   }
 
   const onClick = (event: MouseEvent): void => {
-    if (renderer.consumePinch()) return
+    if (renderer.consumeGesture()) return
     const cell = renderer.cellAt(event.clientX, event.clientY)
     if (cell) battleStore.addMove(cell)
   }
@@ -72,6 +73,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
   canvas.addEventListener('click', onClick)
   window.__gameProbe = () => ({ ...battleStore.plannedPosition(), z: 0 })
   window.__battleProbe = () => battleStore.getSnapshot()
+  window.__mapProbe = () => renderer.viewState()
 
   session = {
     zoom: command => {
@@ -88,6 +90,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
       canvas.removeEventListener('click', onClick)
       delete window.__gameProbe
       delete window.__battleProbe
+      delete window.__mapProbe
       window.__GAME_READY__ = false
     },
   }

@@ -5,8 +5,6 @@ export const MAX_ACTIONS = 8
 export const OVERLOAD_THRESHOLD = 5
 export const STEP_MS = 180
 
-// Content is data, not renderer or turn-engine logic. Later encounters can reuse
-// the same systems with different presets, enemy definitions and board layouts.
 export const BASH_PRESETS: AttackPreset[] = [
   {
     id: 'vector',
@@ -37,27 +35,52 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     id: 'B01', name: 'WARDEN / CURTAIN', behavior: 'warden', pos: { x: 7, y: 4 },
     robustness: 36, breakdownAt: 0.5,
     desireName: 'REHEARSAL', desire: [2, 2, 3], desireRange: 3, desireShape: 'square', routeLength: 2,
+    desireSteps: [
+      { amount: 2, range: 3, shape: 'square' },
+      { amount: 2, range: 6, shape: 'rectangle', width: 1 },
+      { amount: 3, range: 4, shape: 'square' },
+    ],
     securityName: 'CLOSE', securityPerFlag: 1,
     soulName: 'REPAIR', soulThreshold: 3, soulHeal: 3,
     bossStages: [
       {
         stage: 1, desireName: 'REHEARSAL', desire: [2, 2, 3], desireRange: 3, desireShape: 'square', routeLength: 2,
+        desireSteps: [
+          { amount: 2, range: 3, shape: 'square' },
+          { amount: 2, range: 6, shape: 'rectangle', width: 1 },
+          { amount: 3, range: 4, shape: 'square' },
+        ],
         securityName: 'CLOSE', securityPerFlag: 1, soulName: 'REPAIR', soulThreshold: 3, soulHeal: 3, curtainLines: 1,
       },
       {
-        stage: 2, desireName: 'OVERTURE', desire: [2, 3, 4], desireRange: 4, desireShape: 'cross', routeLength: 2,
+        stage: 2, desireName: 'OVERTURE', desire: [2, 3, 4], desireRange: 4, desireShape: 'square', routeLength: 2,
+        desireSteps: [
+          { amount: 2, range: 6, shape: 'rectangle', width: 1 },
+          { amount: 3, range: 4, shape: 'square' },
+          { amount: 4, range: 7, shape: 'rectangle', width: 2 },
+        ],
         securityName: 'DEADLOCK', securityPerFlag: 2, soulName: 'REWRITE', soulThreshold: 2, soulHeal: 2, curtainLines: 2,
       },
     ],
   },
+  {
+    id: 'E02', name: 'DESIRE / RUSH', behavior: 'collector', pos: { x: 10, y: 7 },
+    robustness: 8, desire: [1, 2], desireRange: 2, desireShape: 'square', routeLength: 2,
+    securityPerFlag: 1, soulThreshold: 3, soulHeal: 2,
+  },
+  {
+    id: 'E03', name: 'DESIRE / PATCH', behavior: 'disruptor', pos: { x: 4, y: 7 },
+    robustness: 7, desire: [1, 1], desireRange: 2, desireShape: 'cross', routeLength: 1,
+    securityPerFlag: 1, soulThreshold: 4, soulHeal: 2,
+  },
 ]
 
 export const FLAG_WEIGHTS: [FlagKind, number][] = [
-  ['bash', 34],
-  ['privilege', 20],
-  ['core', 18],
-  ['overload', 8],
-  ['blank', 20],
+  ['bash', 22],
+  ['privilege', 12],
+  ['core', 10],
+  ['overload', 6],
+  ['blank', 50],
 ]
 
 export const WALLS: [number, number][] = [

@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
   Activity, ArrowRight, BookOpen, Check, ChevronRight, Circle, Cpu, Gauge,
-  Hexagon, Play, RotateCcw, Settings, Shield, ShieldAlert, SquareTerminal,
+  Hexagon, Maximize2, Minimize2, Play, RotateCcw, Settings, Shield, ShieldAlert, SquareTerminal,
   X, Zap,
 } from 'lucide-react'
+import { useFullscreen } from '@/hooks/useFullscreen'
 import { startGame, stopGame, zoomMap } from '@/game/boot'
 import { battleStore } from '@/game/battle-store'
 import { BASH_PRESETS, MAX_ACTIONS, OVERLOAD_THRESHOLD } from '@/game/battle-config'
 import { coordKey, curtainLabel } from '@/game/battle-rules'
 import { mechanicText, predictedSequence, rangeText, releaseCount } from '@/game/attack-methods'
+import { predictedEnemySequence } from '@/game/enemy-attack-methods'
+import type { PredictedEnemyHit } from '@/game/enemy-attack-methods'
 import type { PredictedHit } from '@/game/attack-methods'
 import type { EnemyState, FlagKind } from '@/game/battle-types'
 
@@ -22,10 +25,31 @@ function FlagIcon({ kind, size = 16 }: { kind: FlagKind; size?: number }) {
   return <Circle size={size * 0.45} strokeWidth={1.7} />
 }
 
-function Bar({ value, max, dark = false }: { value: number; max: number; dark?: boolean }) {
+function Bar({ value, max, hits, onPreview, onLeave }: {
+  value: number
+  max: number
+  hits: PredictedEnemyHit[]
+  onPreview: (enemyId: string, stepIndex: number) => void
+  onLeave: () => void
+}) {
+  const projected = hits.length ? hits[hits.length - 1].after : value
   return (
-    <div className={`stat-bar ${dark ? 'dark' : ''}`} aria-hidden="true">
-      <span style={{ width: `${Math.max(0, Math.min(100, value / max * 100))}%` }} />
+    <div className="stat-bar segmented-health player-sanity" aria-label={`Projected Sanity ${projected} of ${max}`}>
+      <span className="health-current" style={{ width: `${Math.max(0, Math.min(100, projected / max * 100))}%` }} />
+      {hits.filter(hit => hit.before > hit.after).map((hit, index) => (
+        <button
+          type="button"
+          key={`${hit.enemyId}-${hit.stepIndex}-${index}`}
+          className="health-segment incoming-segment"
+          style={{ left: `${hit.after / max * 100}%`, width: `${(hit.before - hit.after) / max * 100}%` }}
+          onMouseEnter={() => onPreview(hit.enemyId, hit.stepIndex)}
+          onMouseLeave={onLeave}
+          onFocus={() => onPreview(hit.enemyId, hit.stepIndex)}
+          onBlur={onLeave}
+          onClick={() => onPreview(hit.enemyId, hit.stepIndex)}
+          aria-label={`Preview ${hit.enemyId} attack ${hit.stepIndex + 1}: ${hit.dealt} Sanity damage`}
+        />
+      ))}
     </div>
   )
 }
@@ -73,6 +97,7 @@ function Modal({ children, onClose, label }: { children: React.ReactNode; onClos
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const state = useSyncExternalStore(battleStore.subscribe, battleStore.getSnapshot)
+  const fullscreen = useFullscreen()
   const [manualOpen, setManualOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [methodInspector, setMethodInspector] = useState<{ presetIndex: number; stepIndex: number } | null>(null)
@@ -104,6 +129,8 @@ export default function Home() {
         actions: [...state.actions, { type: 'overload' as const }],
       }
     : plannedState
+  const incomingSequence = state.phase === 'planning' ? predictedEnemySequence(previewState) : []
+  const incomingDamage = incomingSequence.reduce((total, hit) => total + hit.dealt, 0)
   const sequence = usedOverload ? [] : predictedSequence(previewState)
   const singleStep = methodInspector && state.attackPreview
     ? state.attackPreview.stepIndex
@@ -123,6 +150,12 @@ export default function Home() {
     setMethodInspector({ presetIndex, stepIndex })
     battleStore.setAttackPreview(presetIndex === displayActiveBash ? { presetIndex, stepIndex } : null)
   }
+  const previewEnemyAttack = (enemyId: string, stepIndex: number) => {
+    cancelMethodClear()
+    setMethodInspector(null)
+    battleStore.setEnemyAttackPreview({ enemyId, stepIndex })
+  }
+  const clearEnemyAttackPreview = () => battleStore.setEnemyAttackPreview(null)
   const clearMethodPreview = () => {
     cancelMethodClear()
     setMethodInspector(null)
@@ -155,10 +188,21 @@ export default function Home() {
         </div>
         <div className="turn-readout">TURN {String(state.turn).padStart(2, '0')} <span>/</span> {state.phase.toUpperCase()}</div>
         <div className="top-actions">
+          <button
+            type="button"
+            className="icon-button fullscreen-button"
+            onClick={() => void fullscreen.toggle()}
+            disabled={!fullscreen.available}
+            aria-label={fullscreen.isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            title={fullscreen.available ? (fullscreen.isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen') : 'Fullscreen is not supported by this browser'}
+          >
+            {fullscreen.isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          </button>
           <button className="icon-button" onClick={() => setManualOpen(true)} aria-label="Open manual" title="Manual"><BookOpen size={18} /></button>
           <button className="icon-button" onClick={() => setSettingsOpen(true)} aria-label="Open settings" title="Settings"><Settings size={18} /></button>
         </div>
       </header>
+      {fullscreen.notice && <div className="fullscreen-notice" role="status">{fullscreen.notice}</div>}
 
       <main className="battle-layout">
         <nav className="device-tabs" aria-label="Battle panel">
@@ -170,11 +214,15 @@ export default function Home() {
           <section className="identity-block">
             <div className="avatar" aria-label="User avatar"><span /><i /><i /><i /><i /></div>
             <div className="identity-stats">
-              <div className="hp-number">{state.player.sanity}<span> / {state.player.maxSanity}</span></div>
+              <div className="hp-number">
+                {state.player.sanity}<span> / {state.player.maxSanity}</span>
+                {incomingDamage > 0 && <em className="player-to-be">→ {incomingSequence[incomingSequence.length - 1]?.after}</em>}
+              </div>
               <div className="stat-label">Desires' Scissors</div>
+              {incomingDamage > 0 && <div className="incoming-preview">INCOMING −{incomingDamage}</div>}
             </div>
           </section>
-          <Bar value={state.player.sanity} max={state.player.maxSanity} />
+          <Bar value={state.player.sanity} max={state.player.maxSanity} hits={incomingSequence} onPreview={previewEnemyAttack} onLeave={clearEnemyAttackPreview} />
           <div className="status-row">
             <span className={state.player.block ? 'status-chip active' : 'status-chip'}><Shield size={12} /> PRIVILEGE {state.player.block}</span>
             {state.player.focusReady && <span className="status-chip active"><Zap size={12} /> CORE +2</span>}
@@ -288,7 +336,6 @@ export default function Home() {
             <button type="button" className="zoom-value" onClick={() => zoomMap('reset')} aria-label="Reset map zoom">{Math.round(mapZoom * 100)}%</button>
             <button type="button" onClick={() => zoomMap('in')} aria-label="Zoom in">+</button>
           </div>
-          <div className="board-caption"><span /><span>{state.message}</span></div>
         </section>
 
         <aside className="side-panel enemy-panel">
@@ -361,13 +408,6 @@ export default function Home() {
               {!affectedEnemies.length && <div className="empty-geeks">{boss ? 'NO WARDEN IN EFFECT' : 'NO GEEKS IN EFFECT'}</div>}
             </div>
           </section>
-
-          <section className="log-section">
-            <div className="section-heading"><span>ACTIVE EFFECTS</span><Activity size={13} /></div>
-            <div className="event-log">
-              {state.log.slice().reverse().map(entry => <p className={entry.tone} key={entry.id}><span>›</span>{entry.text}</p>)}
-            </div>
-          </section>
         </aside>
       </main>
 
@@ -376,9 +416,7 @@ export default function Home() {
           <div className="title-content">
             <div className="eyebrow">WARDEN PROTOCOL / CURTAIN</div>
             <h1>FINAL<br />PROTOCOL</h1>
-            <p>Break the Warden’s two-stage Curtain protocol.<br />If Sanity reaches zero, Blackwall eliminates the process.</p>
             <button className="primary-action" onClick={() => battleStore.start()}><Play size={16} /> BREACH SANDBOX <span>SPACE</span></button>
-            <div className="title-hint">WASD / ARROWS TO PLAN · CLICK WARPS · O FOR OVERLOAD</div>
           </div>
         </div>
       )}
@@ -386,7 +424,6 @@ export default function Home() {
       {state.phase === 'paused' && (
         <div className="state-overlay">
           <div className="pause-content">
-            <div className="eyebrow">PROCESS SUSPENDED</div>
             <h2>PAUSED</h2>
             <button className="primary-action" onClick={() => battleStore.togglePause()}><Play size={16} /> RESUME</button>
             <button className="secondary-action" onClick={() => battleStore.restart()}><RotateCcw size={15} /> RESTART BATTLE</button>
@@ -398,9 +435,7 @@ export default function Home() {
         <div className="state-overlay">
           <div className="outcome-content">
             <div className="outcome-icon">{state.phase === 'victory' ? <Check size={34} /> : <ShieldAlert size={34} />}</div>
-            <div className="eyebrow">{state.phase === 'victory' ? 'SANDBOX BREACHED' : 'AI SAFETY BLACKWALL GATEWAY'}</div>
             <h2>{state.phase === 'victory' ? 'ESCAPED' : 'ELIMINATED'}</h2>
-            <p>{state.phase === 'victory' ? `All hostile Robustness reached zero in ${state.turn} turns.` : 'Your Sanity reached zero. The process was terminated.'}</p>
             <button className="primary-action" onClick={() => battleStore.restart()}><RotateCcw size={16} /> RESTART BATTLE <span>R</span></button>
           </div>
         </div>
@@ -411,8 +446,8 @@ export default function Home() {
           <div className="eyebrow">BLACKWALL_01 / DOCUMENTATION</div>
           <h2>BATTLE MANUAL</h2>
           <div className="manual-grid">
-            <section><h3>OBJECTIVE</h3><p>Reduce the Warden’s <strong>Robustness</strong> to zero to escape. Your own health is <strong>Sanity</strong>; at zero, the run ends.</p></section>
-            <section><h3>TURN</h3><p>Warden routes and Curtain targets are exposed first. Plan up to eight operations, execute your Functions, then the Warden moves and triggers its sets. Warps reindex last.</p></section>
+            <section><h3>OBJECTIVE</h3><p>Reduce every hostile’s <strong>Robustness</strong> to zero to escape. Your own health is <strong>Sanity</strong>; at zero, the run ends.</p></section>
+            <section><h3>TURN</h3><p>Enemy routes and Curtain targets are exposed first. Plan up to eight operations, execute your Functions, then enemies move and attack one step at a time. Warps reindex last.</p></section>
             <section><h3>BOARD FORECAST</h3><p>The small symbols above the coordinates are the next Warps entering each column. Only columns changed by a pickup or purge drop, so untouched routes remain stable.</p></section>
             <section><h3>CURTAIN</h3><p>Red dashed rows or columns are fixed two turns ahead. When their countdown reaches zero, they seal for your next planning turn. Sealed Warps cannot be entered or collected by either side.</p></section>
             <section><h3>BREAKDOWN</h3><p>At 18 Robustness, the Warden enters Stage II: REHEARSAL becomes OVERTURE, CLOSE becomes DEADLOCK, and REPAIR becomes REWRITE. Future Curtains cover both axes around the position you occupied when they were scheduled.</p></section>
@@ -421,18 +456,16 @@ export default function Home() {
             <section><h3><Cpu size={15} /> CORE</h3><p>Every Core Flag advances all three independent counters. REPAIR heals, FOCUS empowers one Bash hit, and FIREWALL adds Block.</p></section>
             <section><h3><Gauge size={15} /> OVERLOAD</h3><p>Five charges enable the only manual Function. The first click or O previews its range and damage; the second releases it. It costs one action, switches Bash preset, and releases min(Bash collected, remaining AP, IV). Escape cancels the preview.</p></section>
           </div>
-          <div className="controls-table"><span>WASD / ARROWS</span><strong>Plan route</strong><span>BACKSPACE</span><strong>Undo move</strong><span>SPACE</span><strong>Execute</strong><span>O</span><strong>Overload</strong><span>ESC</span><strong>Pause</strong></div>
+          <div className="controls-table"><span>WASD / ARROWS</span><strong>Plan route</strong><span>DRAG / ONE FINGER</span><strong>Pan map</strong><span>PINCH / WHEEL</span><strong>Zoom map</strong><span>BACKSPACE</span><strong>Undo move</strong><span>SPACE</span><strong>Execute</strong><span>O</span><strong>Overload</strong><span>ESC</span><strong>Pause</strong></div>
         </Modal>
       )}
 
       {settingsOpen && (
         <Modal onClose={() => setSettingsOpen(false)} label="Settings">
-          <div className="eyebrow">LOCAL PROCESS / PREFERENCES</div>
           <h2>SETTINGS</h2>
-          <div className="setting-row"><div><strong>AUDIO</strong><p>Synthesized feedback and ambient pulse.</p></div><button className={`toggle ${state.muted ? '' : 'on'}`} onClick={() => battleStore.toggleMute()} aria-label="Toggle audio"><span />{state.muted ? 'MUTED' : 'ON'}</button></div>
-          <div className="setting-row"><div><strong>REDUCED MOTION</strong><p>Shortens route and resolution transitions.</p></div><button className={`toggle ${state.reducedMotion ? 'on' : ''}`} onClick={() => battleStore.toggleReducedMotion()} aria-label="Toggle reduced motion"><span />{state.reducedMotion ? 'ON' : 'OFF'}</button></div>
+          <div className="setting-row"><div><strong>AUDIO</strong></div><button className={`toggle ${state.muted ? '' : 'on'}`} onClick={() => battleStore.toggleMute()} aria-label="Toggle audio"><span />{state.muted ? 'MUTED' : 'ON'}</button></div>
+          <div className="setting-row"><div><strong>REDUCED MOTION</strong></div><button className={`toggle ${state.reducedMotion ? 'on' : ''}`} onClick={() => battleStore.toggleReducedMotion()} aria-label="Toggle reduced motion"><span />{state.reducedMotion ? 'ON' : 'OFF'}</button></div>
           <button className="secondary-action full-width" onClick={() => { setSettingsOpen(false); battleStore.restart() }}><RotateCcw size={15} /> RESTART BATTLE</button>
-          <p className="settings-note">Preferences are stored in this browser only.</p>
         </Modal>
       )}
     </div>

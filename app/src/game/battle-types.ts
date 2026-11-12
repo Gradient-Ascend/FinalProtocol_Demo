@@ -2,7 +2,7 @@ export type Coord = { x: number; y: number }
 export type FlagKind = 'bash' | 'privilege' | 'core' | 'overload' | 'blank'
 export type Phase = 'title' | 'planning' | 'resolving' | 'paused' | 'victory' | 'gameover'
 export type Area = 'nearest' | 'all'
-export type AttackShape = 'square' | 'cross'
+export type AttackShape = 'square' | 'cross' | 'rectangle'
 export type AttackMode = 'fixed' | 'manhattan' | 'random'
 export type EnemyBehavior = 'hunter' | 'collector' | 'disruptor' | 'warden'
 
@@ -12,6 +12,7 @@ export type AttackStep = {
   range: number
   area: Area
   shape: AttackShape
+  width?: number
   mode?: AttackMode
   pierce?: number
 }
@@ -47,10 +48,18 @@ export type PlayerState = {
   buffs: CoreBuff[]
 }
 
+export type DesireStep = {
+  amount: number
+  range: number
+  shape: AttackShape
+  width?: number
+}
+
 export type BossStageDefinition = {
   stage: number
   desireName: string
   desire: number[]
+  desireSteps?: DesireStep[]
   desireRange: number
   desireShape: AttackShape
   routeLength: number
@@ -69,6 +78,7 @@ export type EnemyDefinition = {
   pos: Coord
   robustness: number
   desire: number[]
+  desireSteps?: DesireStep[]
   desireRange: number
   desireShape: AttackShape
   routeLength: number
@@ -100,6 +110,21 @@ export type Curtain = {
   unlockTurn: number | null
 }
 
+export type EnemyAttackPreview = {
+  enemyId: string
+  stepIndex: number
+}
+
+export type AttackEffect = {
+  source: 'player' | 'enemy'
+  origin: Coord
+  target: Coord
+  stepIndex: number
+  shape: AttackShape
+  range: number
+  width?: number
+}
+
 export type BattleAction =
   | { type: 'move'; to: Coord; flag: FlagKind }
   | { type: 'overload' }
@@ -121,6 +146,7 @@ export type BattleState = {
   curtains: Curtain[]
   curtainCycle: number
   player: PlayerState
+  playerTrail: Coord[]
   enemies: EnemyState[]
   actions: BattleAction[]
   log: LogEntry[]
@@ -128,5 +154,6 @@ export type BattleState = {
   reducedMotion: boolean
   message: string
   attackPreview: AttackPreview | null
+  enemyAttackPreview: EnemyAttackPreview | null
   overloadArmed: boolean
 }
