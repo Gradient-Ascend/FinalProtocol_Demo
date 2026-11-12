@@ -1,6 +1,6 @@
 import { MAX_ACTIONS, OVERLOAD_THRESHOLD, PLAYER_FUNCTIONS, STEP_MS } from './battle-config'
 import { predictedSequence, releaseCount } from './attack-methods'
-import { desireInRange, desireReleaseCount, desireStepsFor } from './enemy-attack-methods'
+import { desireInRange, desireReleaseCount, desireStepsFor, predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from './enemy-attack-methods'
 import {
   activePreset, advanceCurtains, coordKey, createInitialState, curtainLabel, enemyRoutes,
   isWarpLocked, livingEnemies, manhattan, mulberry32, refillBoard, sameCoord,
@@ -310,6 +310,7 @@ export class BattleStore {
       this.emitEffect(this.playerEffect(hit))
       await this.wait()
       this.applyPlayerHit(preset.name, hit)
+      this.state.playerAttackResolved = true
       this.commit()
       await this.wait()
     }
@@ -351,10 +352,18 @@ export class BattleStore {
     }
     enemy.block += counts.privilege * enemy.securityPerFlag
     enemy.soulCounter += counts.core
+    let recovery = 0
     if (enemy.soulCounter >= enemy.soulThreshold) {
       enemy.soulCounter = 0
+      const before = enemy.robustness
       enemy.robustness = Math.min(enemy.maxRobustness, enemy.robustness + enemy.soulHeal)
-      this.log(`${enemy.id} / ${enemy.soulName ?? 'SOUL'} restored ${enemy.soulHeal} Robustness.`, 'bad')
+      recovery = enemy.robustness - before
+      this.log(`${enemy.id} / ${enemy.soulName ?? 'SOUL'} restored ${recovery} Robustness.`, 'bad')
+    }
+    this.state.enemyResourcePreviews[enemy.id] = {
+      securityGain: counts.privilege * enemy.securityPerFlag,
+      recovery,
+      soulCounterAfter: enemy.soulCounter,
     }
     if (enemy.effectCell) {
       const { x, y } = enemy.effectCell
@@ -421,6 +430,9 @@ export class BattleStore {
     if (this.state.phase !== 'planning') return
     const id = ++this.runId
     const changedColumns = new Set<number>()
+    this.state.enemyPhaseIndex = 0
+    this.state.playerAttackResolved = false
+    this.state.enemyResourcePreviews = {}
     this.state.overloadArmed = false
     this.state.attackPreview = null
     this.state.enemyAttackPreview = null
@@ -453,6 +465,7 @@ export class BattleStore {
     for (const enemy of livingEnemies(this.state)) {
       if (id !== this.runId) return
       await this.resolveEnemy(enemy, changedColumns)
+      this.state.enemyPhaseIndex++
       this.commit()
       await this.wait()
       if (this.checkOutcome()) { this.commit(); return }
@@ -470,6 +483,9 @@ export class BattleStore {
     this.state.actions = []
     this.state.message = 'Warps reindexed. Warden intent exposed.'
     enemyRoutes(this.state)
+    this.state.enemyPhaseIndex = 0
+    this.state.playerAttackResolved = false
+    this.state.enemyResourcePreviews = {}
     this.state.phase = 'planning'
     this.log(`Turn ${this.state.turn} ready.`)
     this.commit()

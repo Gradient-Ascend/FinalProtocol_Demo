@@ -1,6 +1,7 @@
 import { BASH_PRESETS, MAX_ACTIONS, PLAYER_FUNCTIONS } from './battle-config'
 import { livingEnemies, manhattan } from './battle-rules'
-import type { AttackStep, BattleState, Coord, EnemyState } from './battle-types'
+import type { AttackStep, BattleState, Coord, EnemyState, PredictedHit } from './battle-types'
+export type { PredictedHit } from './battle-types'
 
 export function inAttackRange(origin: Coord, target: Coord, step: AttackStep): boolean {
   const dx = Math.abs(origin.x - target.x)
@@ -35,18 +36,6 @@ export function stepDamage(step: AttackStep, state: BattleState, target: EnemySt
 
 export function presetFor(state: BattleState) {
   return BASH_PRESETS[state.player.activeBash]
-}
-
-export type PredictedHit = {
-  enemyId: string
-  presetIndex: number
-  stepIndex: number
-  damage: number
-  absorbed: number
-  dealt: number
-  focus: number
-  before: number
-  after: number
 }
 
 // This pure sequence planner is the single source of truth for both the yellow

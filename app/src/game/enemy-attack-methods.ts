@@ -1,35 +1,10 @@
 import { predictedSequence } from './attack-methods'
 import { PLAYER_FUNCTIONS } from './battle-config'
 import { isWarpLocked, livingEnemies, sameCoord } from './battle-rules'
-import type { BattleState, Coord, DesireStep, EnemyState } from './battle-types'
-
-export type PredictedEnemyHit = {
-  enemyId: string
-  stepIndex: number
-  damage: number
-  absorbed: number
-  dealt: number
-  before: number
-  after: number
-  origin: Coord
-  target: Coord
-  shape: DesireStep['shape']
-  range: number
-  width?: number
-}
-
-export type PlayerResourcePreview = {
-  healing: number
-  privilegeGain: number
-  blockAfterResources: number
-  sanityAfterHeal: number
-}
-
-export type EnemyResourcePreview = {
-  securityGain: number
-  recovery: number
-  soulCounterAfter: number
-}
+import type {
+  BattleState, Coord, DesireStep, EnemyResourcePreview, EnemyState, PlayerResourcePreview, PredictedEnemyHit,
+} from './battle-types'
+export type { EnemyResourcePreview, PlayerResourcePreview, PredictedEnemyHit } from './battle-types'
 
 export function desireStepsFor(enemy: EnemyState): DesireStep[] {
   return enemy.desireSteps ?? enemy.desire.map(amount => ({
@@ -124,7 +99,7 @@ export function predictedEnemySequence(state: BattleState, playerPos?: Coord, pl
   let sanity = resources.sanityAfterHeal
   const hits: PredictedEnemyHit[] = []
 
-  for (const enemy of effectiveEnemies(state, targetPos, playerStepsOverride)) {
+  for (const enemy of effectiveEnemies(state, targetPos, playerStepsOverride).filter((_, index) => index >= state.enemyPhaseIndex)) {
     let cursor = { ...enemy.pos }
     const enemyCounts = { bash: 0, privilege: 0, core: 0, overload: 0, blank: 0 }
     for (const pos of enemy.route) {

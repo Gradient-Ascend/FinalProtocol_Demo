@@ -412,3 +412,28 @@ it('guarantees only the Warden a baseline Desire step without Bash', () => {
   expect(desireReleaseCount(state.enemies[1], 0)).toBe(0)
   expect(desireReleaseCount(state.enemies[2], 0)).toBe(0)
 })
+
+
+it('advances HP previews through attack and enemy events before clearing them', async () => {
+  const store = readyStore()
+  store.getSnapshot().reducedMotion = false
+  store.addStep(0, -1)
+  store.addStep(0, -1)
+  const waitFor = async (predicate: () => boolean) => {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (predicate()) return
+      await new Promise(resolve => setTimeout(resolve, 20))
+    }
+    throw new Error('Timed out waiting for battle event')
+  }
+  const execution = store.executeTurn()
+  await waitFor(() => store.getSnapshot().playerAttackResolved)
+  expect(store.getSnapshot().playerAttackResolved).toBe(true)
+  await waitFor(() => Object.keys(store.getSnapshot().enemyResourcePreviews).length > 0)
+  expect(store.getSnapshot().enemyResourcePreviews.B01).toBeDefined()
+  await waitFor(() => store.getSnapshot().enemyPhaseIndex > 0)
+  await execution
+  expect(store.getSnapshot().enemyPhaseIndex).toBe(0)
+  expect(store.getSnapshot().playerAttackResolved).toBe(false)
+  expect(store.getSnapshot().enemyResourcePreviews).toEqual({})
+})

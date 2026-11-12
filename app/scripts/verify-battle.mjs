@@ -118,6 +118,24 @@ try {
   await page.getByRole('button', { name: 'Close' }).click()
 
   if (await page.locator('.incoming-preview').count() !== 1) throw new Error('Missing incoming Sanity damage preview')
+  const playerBar = await page.locator('.player-sanity').evaluate(element => {
+    const label = element.getAttribute('aria-label') ?? ''
+    const projected = Number(label.match(/Projected Sanity (\d+)/)?.[1])
+    const max = Number(label.match(/of (\d+)/)?.[1])
+    const current = element.querySelector('.health-current')
+    const left = element.querySelector('.incoming-segment.left-edge')
+    const right = element.querySelector('.incoming-segment.right-edge')
+    return {
+      remainingWidth: Number.parseFloat(current.style.width),
+      expectedWidth: projected / max * 100,
+      opacity: Number.parseFloat(getComputedStyle(current).opacity),
+      remainingRadius: getComputedStyle(current).borderTopRightRadius,
+      leftRadius: getComputedStyle(left).borderTopLeftRadius,
+      rightRadius: getComputedStyle(right).borderTopRightRadius,
+    }
+  })
+  if (Math.abs(playerBar.remainingWidth - playerBar.expectedWidth) > 0.01) throw new Error(`Player HP does not end at the projected value: ${JSON.stringify(playerBar)}`)
+  if (playerBar.opacity !== 1 || playerBar.remainingRadius !== '0px' || playerBar.leftRadius !== '0px' || playerBar.rightRadius !== '4px') throw new Error(`Player HP preview geometry is incorrect: ${JSON.stringify(playerBar)}`)
   await page.locator('.player-sanity .incoming-segment').first().hover()
   if (!(await snapshot()).enemyAttackPreview) throw new Error('Incoming segment did not expose enemy attack range')
   await page.mouse.move(0, 0)
@@ -163,6 +181,17 @@ try {
   if (rightRadius !== '4px') throw new Error(`Outer-right preview edge is not rounded: ${rightRadius}`)
   const remainingRadius = await page.locator('.enemy-card .health-current').first().evaluate(element => getComputedStyle(element).borderTopRightRadius)
   if (remainingRadius !== '0px') throw new Error(`Remaining HP edge is not vertical with previews present: ${remainingRadius}`)
+  const leftRadius = await page.locator('.enemy-card .health-segment.left-edge').first().evaluate(element => getComputedStyle(element).borderTopLeftRadius)
+  if (leftRadius !== '0px') throw new Error(`Inner-left preview edge is not vertical: ${leftRadius}`)
+  const remainingWidth = await page.locator('.enemy-card .health-current').first().evaluate(element => Number.parseFloat(element.style.width))
+  const currentHp = (await snapshot()).enemies[0]
+  const projectedHp = Number((await page.locator('.enemy-card .enemy-hp .to-be').first().textContent())?.replace('→', '').trim())
+  const expectedWidth = projectedHp / currentHp.maxRobustness * 100
+  if (Math.abs(remainingWidth - expectedWidth) > 0.01) throw new Error(`Remaining HP does not end at the projected value: ${remainingWidth} vs ${expectedWidth}`)
+  const originalOpacity = await page.locator('.enemy-card .health-current').first().evaluate(element => Number.parseFloat(getComputedStyle(element).opacity))
+  if (originalOpacity !== 1) throw new Error(`Remaining HP must stay solid outside the replacement segments: ${originalOpacity}`)
+  const segmentColor = await page.locator('.enemy-card .health-segment.segment-1').first().evaluate(element => getComputedStyle(element).backgroundColor)
+  if (!['rgb(242, 209, 107)', 'rgba(242, 209, 107, 0.78)'].includes(segmentColor)) throw new Error(`Outgoing preview is not GDD yellow: ${segmentColor}`)
   await page.locator('.enemy-card .health-segment').nth(0).hover()
   if (!(await page.locator('.method-detail strong').textContent())?.includes('MANHATTAN')) throw new Error('HP segment did not restore MANHATTAN preview')
   await page.screenshot({ path: join(SHOTS, '05-battle-compact.png') })
@@ -183,10 +212,15 @@ try {
   if ((await snapshot()).playerTrail.length < 2) throw new Error('Gray trail did not appear during the current route')
   if (await page.locator('.incoming-preview').count() !== 1) throw new Error('Incoming preview did not remain live during route resolution')
   await page.waitForFunction(() => window.__attackEffects.length > 0)
+  await page.waitForFunction(() => window.__battleProbe()?.playerAttackResolved === true)
+  if (await page.locator('.enemy-card').count() !== 0) throw new Error('Enemy damage preview did not clear after the planned attack landed')
   await page.screenshot({ path: join(SHOTS, '13-action-effect.png') })
   await page.evaluate(() => { window.__battleProbe().reducedMotion = true })
   await waitPhase(['planning'])
   let state = await snapshot()
+  if (state.playerAttackResolved || state.enemyPhaseIndex !== 0 || Object.keys(state.enemyResourcePreviews).length) {
+    throw new Error('Event-driven HP previews did not reset for the next planning turn')
+  }
   if (state.enemies[0].robustness !== 34) throw new Error(`Opening Bash expected B01 at 34, got ${state.enemies[0].robustness}`)
   if (state.playerTrail.length !== 1 || state.playerTrail[0].x !== 7 || state.playerTrail[0].y !== 5) {
     throw new Error(`Gray trail did not clear at turn completion: ${JSON.stringify(state.playerTrail)}`)

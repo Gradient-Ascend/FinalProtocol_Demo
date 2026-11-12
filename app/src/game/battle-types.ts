@@ -136,6 +136,46 @@ export type LogEntry = {
   tone: 'neutral' | 'good' | 'bad'
 }
 
+export type PredictedHit = {
+  enemyId: string
+  presetIndex: number
+  stepIndex: number
+  damage: number
+  absorbed: number
+  dealt: number
+  focus: number
+  before: number
+  after: number
+}
+
+export type PredictedEnemyHit = {
+  enemyId: string
+  stepIndex: number
+  damage: number
+  absorbed: number
+  dealt: number
+  before: number
+  after: number
+  origin: Coord
+  target: Coord
+  shape: DesireStep['shape']
+  range: number
+  width?: number
+}
+
+export type PlayerResourcePreview = {
+  healing: number
+  privilegeGain: number
+  blockAfterResources: number
+  sanityAfterHeal: number
+}
+
+export type EnemyResourcePreview = {
+  securityGain: number
+  recovery: number
+  soulCounterAfter: number
+}
+
 export type BattleState = {
   phase: Phase
   resumePhase: 'planning' | 'resolving' | null
@@ -151,6 +191,9 @@ export type BattleState = {
   enemies: EnemyState[]
   actions: BattleAction[]
   resolvedMoves: number
+  enemyPhaseIndex: number
+  playerAttackResolved: boolean
+  enemyResourcePreviews: Record<string, EnemyResourcePreview>
   log: LogEntry[]
   muted: boolean
   reducedMotion: boolean

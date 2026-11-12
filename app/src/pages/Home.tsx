@@ -45,7 +45,7 @@ function Bar({ value, max, hits, recovery, privilege, onPreview, onLeave }: {
         <button
           type="button"
           key={`${hit.enemyId}-${hit.stepIndex}-${index}`}
-          className={`health-segment incoming-segment ${hit.before === rightBefore ? 'right-edge' : ''}`}
+          className={`health-segment incoming-segment ${hit.after === projected ? 'left-edge' : ''} ${hit.before === rightBefore ? 'right-edge' : ''}`}
           style={{ left: `${hit.after / max * 100}%`, width: `${(hit.before - hit.after) / max * 100}%` }}
           onMouseEnter={() => onPreview(hit.enemyId, hit.stepIndex)}
           onMouseLeave={onLeave}
@@ -72,14 +72,14 @@ function SegmentedHealth({ enemy, hits, recovery, securityGain, previewStep, onP
   const rightBefore = Math.max(...hits.map(hit => hit.before))
   return (
     <div className={`segmented-health ${hits.length || recovery || securityGain ? 'has-preview' : ''}`} aria-label={`Projected Robustness ${projected} of ${enemy.maxRobustness}; +${recovery} recovery; +${securityGain} SECURITY`}>
-      <span className="health-current" style={{ width: `${projected / enemy.maxRobustness * 100}%` }} />
+      <span className="health-current" style={{ width: `${Math.max(0, Math.min(100, projected / enemy.maxRobustness * 100))}%` }} />
       {recovery > 0 && <i className="recover-segment" style={{ left: `${enemy.robustness / enemy.maxRobustness * 100}%`, width: `${recovery / enemy.maxRobustness * 100}%` }} />}
       {securityGain > 0 && <i className="privilege-segment" style={{ left: `${projected / enemy.maxRobustness * 100}%`, width: `${Math.min(securityGain, enemy.maxRobustness - projected) / enemy.maxRobustness * 100}%` }} />}
       {hits.filter(hit => hit.before > hit.after).map(hit => (
         <button
           type="button"
           key={hit.stepIndex}
-          className={`health-segment segment-${hit.stepIndex} ${previewStep === hit.stepIndex ? 'previewing' : ''} ${hit.before === rightBefore ? 'right-edge' : ''}`}
+          className={`health-segment segment-${hit.stepIndex} ${previewStep === hit.stepIndex ? 'previewing' : ''} ${hit.after === projected ? 'left-edge' : ''} ${hit.before === rightBefore ? 'right-edge' : ''}`}
           style={{ left: `${hit.after / enemy.maxRobustness * 100}%`, width: `${(hit.before - hit.after) / enemy.maxRobustness * 100}%` }}
           onMouseEnter={() => onPreview(hit.stepIndex)}
           onMouseLeave={onLeave}
@@ -146,10 +146,10 @@ export default function Home() {
     : []
   const incomingDamage = incomingSequence.reduce((total, hit) => total + hit.dealt, 0)
   const playerResources = predictedPlayerResources(realtimeForecastState)
-  const attackSequenceState = state.phase === 'resolving' ? { ...state, actions: state.actions } : previewState
-  const sequence = state.overloadArmed
-    ? predictedSequence(previewState, displayActiveBash, 4)
-    : predictedSequence(attackSequenceState)
+  const attackSequenceState = previewState
+  const sequence = state.playerAttackResolved
+    ? []
+    : state.overloadArmed ? predictedSequence(previewState, displayActiveBash, 4) : predictedSequence(attackSequenceState)
   const singleStep = methodInspector && state.attackPreview
     ? state.attackPreview.stepIndex
     : state.overloadArmed ? null : state.attackPreview?.stepIndex ?? null
@@ -160,7 +160,9 @@ export default function Home() {
   for (const hit of visibleSequence) expected[hit.enemyId] = (expected[hit.enemyId] ?? 0) + hit.dealt
   const aliveEnemies = state.enemies.filter(enemy => enemy.robustness > 0)
   const boss = aliveEnemies.find(enemy => enemy.bossStages?.length)
-  const affectedEnemies = aliveEnemies.filter(enemy => visibleSequence.some(hit => hit.enemyId === enemy.id))
+  const affectedEnemies = aliveEnemies.filter(enemy => visibleSequence.some(hit => hit.enemyId === enemy.id)
+    || (state.enemyResourcePreviews[enemy.id]?.recovery ?? 0) > 0
+    || (state.enemyResourcePreviews[enemy.id]?.securityGain ?? 0) > 0)
   const canAct = state.phase === 'planning'
   const releases = state.overloadArmed ? 4 : releaseCount(previewState)
   const bashDisplayIndex = state.overloadArmed ? displayActiveBash : bashView
@@ -396,7 +398,8 @@ export default function Home() {
               {affectedEnemies.map(enemy => {
                 const hits = visibleSequence.filter(hit => hit.enemyId === enemy.id)
                 const projected = hits.length ? hits[hits.length - 1].after : enemy.robustness
-                const resources = predictedEnemyResources(attackSequenceState, enemy.id, state.overloadArmed ? 4 : undefined)
+                const resources = state.enemyResourcePreviews[enemy.id] ?? predictedEnemyResources(attackSequenceState, enemy.id, state.overloadArmed ? 4 : undefined)
+                const previewEnemy = enemy
                 return (
                   <article className="enemy-card affected" key={enemy.id}>
                     <div className="enemy-card-head">
@@ -408,7 +411,7 @@ export default function Home() {
                       <span>ROBUSTNESS</span>
                     </div>
                     <SegmentedHealth
-                      enemy={enemy}
+                      enemy={previewEnemy}
                       hits={hits}
                       recovery={resources.recovery}
                       securityGain={resources.securityGain}

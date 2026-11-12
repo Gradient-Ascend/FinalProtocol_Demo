@@ -215,7 +215,7 @@ export function createInitialState(muted = false, reducedMotion = false): Battle
       effectCell: null,
       statuses: definition.bossStages ? ['DESIRE', 'SECURITY', 'SOUL', 'BREAKDOWN'] : ['DESIRE', 'SECURITY', 'SOUL'],
     })),
-    actions: [], resolvedMoves: 0, log: [],
+    actions: [], resolvedMoves: 0, enemyPhaseIndex: 0, playerAttackResolved: false, enemyResourcePreviews: {}, log: [],
     muted, reducedMotion, message: '', attackPreview: null, enemyAttackPreview: null, overloadArmed: false,
   }
   scheduleCurtains(state, 3)
