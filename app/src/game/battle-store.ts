@@ -224,11 +224,11 @@ export class BattleStore {
     this.state.actions = [...this.state.actions, { type: 'overload' }]
     this.state.player.overload = 0
     this.state.player.activeBash = 1 - this.state.player.activeBash
-    const releases = releaseCount(this.state)
-    this.log(`OVERLOAD switched to ${activePreset(this.state).name}; ${releases} immediate Bash steps.`, 'good')
-    this.state.message = releases ? `${activePreset(this.state).name} fired immediately.` : 'No Bash points available for immediate release.'
+    const releases = 4
+    this.log(`OVERLOAD switched to ${activePreset(this.state).name}; all 4 Bash methods released from the planned endpoint.`, 'good')
+    this.state.message = `${activePreset(this.state).name} released all 4 methods from the planned endpoint.`
     this.sfx('explosion')
-    this.firePlayerAttackImmediate(releases)
+    this.firePlayerAttackImmediate(releases, this.plannedPosition())
     enemyRoutes(this.state)
     this.checkOutcome()
     this.commit()
@@ -281,22 +281,23 @@ export class BattleStore {
     this.sfx('hit')
   }
 
-  private playerEffect(hit: ReturnType<typeof predictedSequence>[number]): AttackEffect {
+  private playerEffect(hit: ReturnType<typeof predictedSequence>[number], origin = this.state.player.pos): AttackEffect {
     const enemy = this.state.enemies.find(candidate => candidate.id === hit.enemyId)
     const step = activePreset(this.state).steps[hit.stepIndex]
     return {
       source: 'player', presetId: activePreset(this.state).id,
-      origin: { ...this.state.player.pos }, target: { ...(enemy?.pos ?? this.state.player.pos) },
+      origin: { ...origin }, target: { ...(enemy?.pos ?? this.state.player.pos) },
       stepIndex: hit.stepIndex, shape: step.shape, range: step.range, width: step.width,
     }
   }
 
-  private firePlayerAttackImmediate(steps: number): void {
+  private firePlayerAttackImmediate(steps: number, origin = this.state.player.pos): void {
     if (!steps) return
     const preset = activePreset(this.state)
-    const hits = predictedSequence(this.state, this.state.player.activeBash, steps)
+    const attackState = { ...this.state, player: { ...this.state.player, pos: origin } }
+    const hits = predictedSequence(attackState, this.state.player.activeBash, steps)
     for (const hit of hits) {
-      this.emitEffect(this.playerEffect(hit))
+      this.emitEffect(this.playerEffect(hit, origin))
       this.applyPlayerHit(preset.name, hit)
     }
   }
@@ -420,7 +421,6 @@ export class BattleStore {
     if (this.state.phase !== 'planning') return
     const id = ++this.runId
     const changedColumns = new Set<number>()
-    const usedOverload = this.state.actions.some(action => action.type === 'overload')
     this.state.overloadArmed = false
     this.state.attackPreview = null
     this.state.enemyAttackPreview = null
@@ -443,7 +443,7 @@ export class BattleStore {
     }
 
     this.resolvePlayerResources()
-    if (!usedOverload) await this.firePlayerAttack(releaseCount(this.state))
+    await this.firePlayerAttack(releaseCount(this.state))
     this.commit()
     await this.wait()
     if (this.checkOutcome()) { this.commit(); return }

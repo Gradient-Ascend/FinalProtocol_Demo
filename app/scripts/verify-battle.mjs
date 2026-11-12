@@ -168,11 +168,13 @@ try {
   await page.evaluate(() => { window.__battleProbe().player.overload = 5 })
   await page.keyboard.press('KeyO')
   const numericOverloadPreview = await page.locator('.overload-preview-value').textContent()
-  if (!/^−[2-5]$/.test(numericOverloadPreview?.trim() ?? '')) {
-    throw new Error(`Expected a numeric 2–5 damage Overload preview, got ${numericOverloadPreview}`)
+  if (!numericOverloadPreview || !/^−[1-9]\d*$/.test(numericOverloadPreview.trim())) {
+    throw new Error(`Expected a numeric Overload damage preview, got ${numericOverloadPreview}`)
   }
+  if (await page.locator('.action-indicator.overload-lit').count() !== 4) throw new Error('Overload did not light all four indicators yellow')
   await page.screenshot({ path: join(SHOTS, '08a-overload-damage.png') })
   await page.keyboard.press('Escape')
+  if (await page.locator('.action-indicator.overload-lit').count() !== 0) throw new Error('Overload indicators did not return to normal mechanics')
   await page.evaluate(() => { window.__battleProbe().reducedMotion = false })
   await page.getByRole('button', { name: /EXECUTE ROUTE/ }).click()
   await page.waitForFunction(() => window.__battleProbe()?.phase === 'resolving' && window.__battleProbe()?.resolvedMoves > 0)

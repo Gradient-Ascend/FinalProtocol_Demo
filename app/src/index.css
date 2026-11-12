@@ -246,6 +246,7 @@ button:disabled { cursor: not-allowed; opacity: 0.38; }
 .action-indicators { display: flex; gap: 6px; margin-top: 9px; }
 .action-indicator { flex: 1; min-width: 0; height: 27px; border: 1px solid var(--line-soft); border-radius: 6px; background: transparent; color: var(--muted); font-size: 8px; cursor: pointer; transition: color .15s ease, background .15s ease, border-color .15s ease; }
 .action-indicator.lit { border-color: var(--white); background: var(--white); color: #080808; }
+.action-indicator.overload-lit { border-color: #f2d16b; background: #f2d16b; color: #080808; }
 .action-indicator.inspecting { border-color: #f2d16b; color: #f2d16b; }
 .action-indicator.lit.inspecting { background: #f2d16b; color: #080808; }
 .method-detail { min-height: 54px; margin-top: 8px; color: var(--muted); font-size: 8px; line-height: 1.45; }
@@ -287,6 +288,7 @@ button:disabled { cursor: not-allowed; opacity: 0.38; }
 .buff-row { min-height: 32px; }
 .empty-geeks { padding: 22px 10px; border: 1px dashed var(--line-soft); border-radius: 9px; color: var(--faint); font-size: 8px; letter-spacing: .09em; text-align: center; }
 .damage-preview { color: #f2d16b !important; }
+.incoming-preview, .damage-preview { display: inline-block; padding-left: 6px; border-left: 1px solid var(--line); }
 .enemy-hp strong em { font-style: normal; font-weight: 650; }
 .enemy-hp strong small { color: var(--muted); font-size: 10px; font-weight: 400; }
 .to-be { color: #f2d16b; animation: to-be-flash .9s ease-in-out infinite; }

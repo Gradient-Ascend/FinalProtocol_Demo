@@ -34,8 +34,8 @@ export function desireInRange(origin: Coord, target: Coord, step: DesireStep): b
   return (dx === 0) !== (dy === 0) && dx + dy <= step.range
 }
 
-function effectiveEnemies(state: BattleState, playerPos: Coord): EnemyState[] {
-  const playerHits = predictedSequence({ ...state, player: { ...state.player, pos: playerPos } })
+function effectiveEnemies(state: BattleState, playerPos: Coord, playerStepsOverride?: number): EnemyState[] {
+  const playerHits = predictedSequence({ ...state, player: { ...state.player, pos: playerPos } }, undefined, playerStepsOverride)
   return livingEnemies(state).map(enemy => {
     if (!enemy.bossStages?.length || enemy.stage >= enemy.bossStages.length) return enemy
     const hits = playerHits.filter(hit => hit.enemyId === enemy.id)
@@ -46,7 +46,7 @@ function effectiveEnemies(state: BattleState, playerPos: Coord): EnemyState[] {
   })
 }
 
-export function predictedEnemySequence(state: BattleState, playerPos?: Coord): PredictedEnemyHit[] {
+export function predictedEnemySequence(state: BattleState, playerPos?: Coord, playerStepsOverride?: number): PredictedEnemyHit[] {
   const moves = state.actions.filter(action => action.type === 'move')
   const targetPos = playerPos ?? (moves.length ? moves[moves.length - 1].to : state.player.pos)
   const removed = new Set(moves.map(action => `${action.to.x},${action.to.y}`))
@@ -67,7 +67,7 @@ export function predictedEnemySequence(state: BattleState, playerPos?: Coord): P
   let sanity = Math.min(state.player.maxSanity, state.player.sanity + healing)
   const hits: PredictedEnemyHit[] = []
 
-  for (const enemy of effectiveEnemies(state, targetPos)) {
+  for (const enemy of effectiveEnemies(state, targetPos, playerStepsOverride)) {
     let cursor = { ...enemy.pos }
     const enemyCounts = { bash: 0, privilege: 0, core: 0, overload: 0, blank: 0 }
     for (const pos of enemy.route) {

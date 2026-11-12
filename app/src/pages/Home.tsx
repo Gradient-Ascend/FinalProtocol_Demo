@@ -122,12 +122,11 @@ export default function Home() {
     ...state,
     player: { ...state.player, pos: battleStore.plannedPosition() },
   }
-  const usedOverload = state.actions.some(action => action.type === 'overload')
   const displayActiveBash = state.overloadArmed ? 1 - state.player.activeBash : state.player.activeBash
   const previewState = state.overloadArmed
     ? {
         ...state,
-        player: { ...state.player, activeBash: displayActiveBash },
+        player: { ...state.player, activeBash: displayActiveBash, pos: battleStore.plannedPosition() },
         actions: [...state.actions, { type: 'overload' as const }],
       }
     : plannedState
@@ -135,10 +134,12 @@ export default function Home() {
     ? { ...state, actions: state.actions.slice(0, state.resolvedMoves) }
     : previewState
   const incomingSequence = state.phase === 'planning' || state.phase === 'resolving'
-    ? predictedEnemySequence(realtimeForecastState)
+    ? predictedEnemySequence(realtimeForecastState, undefined, state.overloadArmed ? 4 : undefined)
     : []
   const incomingDamage = incomingSequence.reduce((total, hit) => total + hit.dealt, 0)
-  const sequence = usedOverload ? [] : predictedSequence(previewState)
+  const sequence = state.overloadArmed
+    ? predictedSequence(previewState, displayActiveBash, 4)
+    : predictedSequence(previewState)
   const singleStep = methodInspector && state.attackPreview
     ? state.attackPreview.stepIndex
     : state.overloadArmed ? null : state.attackPreview?.stepIndex ?? null
@@ -151,7 +152,8 @@ export default function Home() {
   const boss = aliveEnemies.find(enemy => enemy.bossStages?.length)
   const affectedEnemies = aliveEnemies.filter(enemy => visibleSequence.some(hit => hit.enemyId === enemy.id))
   const canAct = state.phase === 'planning'
-  const releases = usedOverload ? 0 : releaseCount(previewState)
+  const releases = state.overloadArmed ? 4 : releaseCount(previewState)
+  const bashDisplayIndex = state.overloadArmed ? displayActiveBash : bashView
   const inspector = methodInspector ?? state.attackPreview
 
   const previewMethod = (presetIndex: number, stepIndex: number) => {
@@ -258,17 +260,17 @@ export default function Home() {
                 {BASH_PRESETS.map((preset, index) => (
                   <button
                     type="button"
-                    className={bashView === index ? 'view-dot active' : 'view-dot'}
+                    className={bashDisplayIndex === index ? 'view-dot active' : 'view-dot'}
                     onClick={() => selectBashView(index)}
                     aria-label={`Show ${preset.name}`}
-                    aria-pressed={bashView === index}
+                    aria-pressed={bashDisplayIndex === index}
                     key={preset.id}
                   />
                 ))}
               </div>
               {(() => {
-                const preset = BASH_PRESETS[bashView]
-                const index = bashView
+                const preset = BASH_PRESETS[bashDisplayIndex]
+                const index = bashDisplayIndex
                 return <div className={`preset ${displayActiveBash === index ? 'selected' : ''}`}>
                   <div className="preset-title">
                     <strong>{preset.name}</strong>
@@ -278,7 +280,7 @@ export default function Home() {
                     {preset.steps.map((step, i) => (
                       <button
                         type="button"
-                        className={`action-indicator ${displayActiveBash === index && i < releases ? 'lit' : ''} ${inspector?.presetIndex === index && inspector.stepIndex === i ? 'inspecting' : ''}`}
+                        className={`action-indicator ${state.overloadArmed && displayActiveBash === index ? 'overload-lit' : (displayActiveBash === index && i < releases ? 'lit' : '')} ${inspector?.presetIndex === index && inspector.stepIndex === i ? 'inspecting' : ''}`}
                         key={step.name}
                         onMouseEnter={() => previewMethod(index, i)}
                         onMouseLeave={scheduleMethodClear}
@@ -467,7 +469,7 @@ export default function Home() {
             <section><h3><SquareTerminal size={15} /> BASH</h3><p>Release length is the lower of Bash collected, remaining AP, and IV. VECTOR uses a 5×5 square; CoT uses a cross with arm length 5. Each Roman numeral is a different attack method.</p></section>
             <section><h3><Shield size={15} /> PRIVILEGE</h3><p>SHELL automatically adds 2 Block per collected Privilege Flag. Block absorbs incoming damage for the following enemy phase.</p></section>
             <section><h3><Cpu size={15} /> CORE</h3><p>Every Core Flag advances all three independent counters. REPAIR heals, FOCUS empowers one Bash hit, and FIREWALL adds Block.</p></section>
-            <section><h3><Gauge size={15} /> OVERLOAD</h3><p>Five charges enable the only manual Function. The first click or O previews its range and damage; the second releases it. It costs one action, switches Bash preset, and releases min(Bash collected, remaining AP, IV). Escape cancels the preview.</p></section>
+            <section><h3><Gauge size={15} /> OVERLOAD</h3><p>Five charges enable the only manual Function. The first click or O previews all four methods from the planned endpoint; the second spends one AP, switches preset, and releases them without consuming Bash Flags. Normal end-of-turn Bash still releases afterward. Escape cancels the preview.</p></section>
           </div>
           <div className="controls-table"><span>WASD / ARROWS</span><strong>Plan route</strong><span>DRAG / ONE FINGER</span><strong>Pan map</strong><span>PINCH / WHEEL</span><strong>Zoom map</strong><span>BACKSPACE</span><strong>Undo move</strong><span>SPACE</span><strong>Execute</strong><span>O</span><strong>Overload</strong><span>ESC</span><strong>Pause</strong></div>
         </Modal>

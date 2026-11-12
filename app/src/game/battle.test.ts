@@ -211,6 +211,30 @@ it('requires a second Overload request to switch Bash and release damage', () =>
   expect(store.getSnapshot().enemies[0].robustness).toBeLessThan(before)
 })
 
+it('releases all four Overload methods without any Bash Flags', () => {
+  const store = readyStore()
+  const state = store.getSnapshot()
+  state.player.overload = 5
+  const before = state.enemies[0].robustness
+  store.useOverload()
+  expect(store.getSnapshot().actions).toEqual([{ type: 'overload' }])
+  expect(store.getSnapshot().player.activeBash).toBe(1)
+  expect(state.enemies[0].robustness).toBeLessThan(before)
+})
+
+it('keeps the normal end-of-turn Bash release after Overload', async () => {
+  const store = readyStore()
+  const state = store.getSnapshot()
+  state.player.overload = 5
+  store.addStep(0, -1)
+  store.useOverload()
+  expect(releaseCount(store.getSnapshot())).toBe(1)
+  const previousLogIds = new Set(state.log.map(entry => entry.id))
+  await store.executeTurn()
+  expect(store.getSnapshot().log.some(entry => !previousLogIds.has(entry.id) && entry.text.includes('CoT / OFF'))).toBe(true)
+  expect(store.getSnapshot().actions).toHaveLength(0)
+})
+
 describe('GDD strategy infrastructure', () => {
   it('uses the same ordered attack sequence for preview and immediate resolution', () => {
     const store = readyStore()
@@ -222,10 +246,10 @@ describe('GDD strategy infrastructure', () => {
     const before = planned.enemies[0].robustness
     const previewState = {
       ...planned,
-      player: { ...planned.player, activeBash: 1 },
+      player: { ...planned.player, activeBash: 1, pos: store.plannedPosition() },
       actions: [...planned.actions, { type: 'overload' as const }],
     }
-    const hits = predictedSequence(previewState)
+    const hits = predictedSequence(previewState, 1, 4)
     store.requestOverload()
     store.requestOverload()
     expect(store.getSnapshot().enemies[0].robustness, JSON.stringify(hits)).toBe(hits.length ? hits[hits.length - 1].after : before)
