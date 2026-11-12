@@ -1,4 +1,4 @@
-import { BASH_PRESETS, BOARD_SIZE, ENEMY_DEFINITIONS, EXPLICIT_FLAGS, FLAG_WEIGHTS, WALLS } from './battle-config'
+import { BASH_PRESETS, BOARD_SIZE, ENEMY_DEFINITIONS, EXPLICIT_FLAGS, FLAG_WEIGHTS, PLAYER_FUNCTIONS, WALLS } from './battle-config'
 import type { AttackPreset, BattleState, Coord, Curtain, EnemyBehavior, EnemyState, FlagKind } from './battle-types'
 
 export function mulberry32(seed: number): () => number {
@@ -191,9 +191,9 @@ export function createInitialState(muted = false, reducedMotion = false): Battle
       pos: { x: 7, y: 7 }, sanity: 60, maxSanity: 60, block: 0, overload: 0,
       activeBash: 0, focusReady: false,
       buffs: [
-        { id: 'repair', name: 'REPAIR', counter: 0, threshold: 3, description: '+4 Sanity' },
-        { id: 'focus', name: 'FOCUS', counter: 0, threshold: 2, description: '+2 next Bash' },
-        { id: 'firewall', name: 'FIREWALL', counter: 0, threshold: 4, description: '+4 Block' },
+        { id: 'repair', name: 'REPAIR', counter: 0, threshold: 3, description: `+${PLAYER_FUNCTIONS.repairHeal} Sanity` },
+        { id: 'focus', name: 'FOCUS', counter: 0, threshold: 2, description: `+${PLAYER_FUNCTIONS.focusBonus} next Bash` },
+        { id: 'firewall', name: 'FIREWALL', counter: 0, threshold: 4, description: `+${PLAYER_FUNCTIONS.firewallPrivilege} PRIVILEGE` },
       ],
     },
     playerTrail: [{ x: 7, y: 7 }],

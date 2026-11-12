@@ -1,4 +1,4 @@
-import { BASH_PRESETS, MAX_ACTIONS } from './battle-config'
+import { BASH_PRESETS, MAX_ACTIONS, PLAYER_FUNCTIONS } from './battle-config'
 import { livingEnemies, manhattan } from './battle-rules'
 import type { AttackStep, BattleState, Coord, EnemyState } from './battle-types'
 
@@ -63,7 +63,7 @@ export function predictedSequence(state: BattleState, presetIndex = state.player
       ? candidates
       : candidates.sort((a, b) => manhattan(state.player.pos, a.pos) - manhattan(state.player.pos, b.pos) || a.id.localeCompare(b.id)).slice(0, 1)
     for (const target of targets) {
-      const focus = focusReady ? 2 : 0
+      const focus = focusReady ? PLAYER_FUNCTIONS.focusBonus : 0
       focusReady = false
       const damage = stepDamage(step, state, target, stepIndex) + focus
       const absorbed = Math.min(Math.max(0, shields[target.id] - (step.pierce ?? 0)), damage)

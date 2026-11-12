@@ -10,7 +10,7 @@ import { battleStore } from '@/game/battle-store'
 import { BASH_PRESETS, MAX_ACTIONS, OVERLOAD_THRESHOLD } from '@/game/battle-config'
 import { coordKey, curtainLabel } from '@/game/battle-rules'
 import { mechanicText, predictedSequence, rangeText, releaseCount } from '@/game/attack-methods'
-import { predictedEnemySequence } from '@/game/enemy-attack-methods'
+import { predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from '@/game/enemy-attack-methods'
 import type { PredictedEnemyHit } from '@/game/enemy-attack-methods'
 import type { PredictedHit } from '@/game/attack-methods'
 import type { EnemyState, FlagKind } from '@/game/battle-types'
@@ -25,18 +25,22 @@ function FlagIcon({ kind, size = 16 }: { kind: FlagKind; size?: number }) {
   return <Circle size={size * 0.45} strokeWidth={1.7} />
 }
 
-function Bar({ value, max, hits, onPreview, onLeave }: {
+function Bar({ value, max, hits, recovery, privilege, onPreview, onLeave }: {
   value: number
   max: number
   hits: PredictedEnemyHit[]
+  recovery: number
+  privilege: number
   onPreview: (enemyId: string, stepIndex: number) => void
   onLeave: () => void
 }) {
   const projected = hits.length ? hits[hits.length - 1].after : value
   const rightBefore = Math.max(...hits.map(hit => hit.before))
   return (
-    <div className="stat-bar segmented-health player-sanity" aria-label={`Projected Sanity ${projected} of ${max}`}>
+    <div className={`stat-bar segmented-health player-sanity ${hits.length || recovery || privilege ? 'has-preview' : ''}`} aria-label={`Projected Sanity ${projected} of ${max}; +${recovery} recovery; +${privilege} PRIVILEGE`}>
       <span className="health-current" style={{ width: `${Math.max(0, Math.min(100, projected / max * 100))}%` }} />
+      {recovery > 0 && <i className="recover-segment" style={{ left: `${value / max * 100}%`, width: `${recovery / max * 100}%` }} />}
+      {privilege > 0 && <i className="privilege-segment" style={{ left: `${projected / max * 100}%`, width: `${Math.min(privilege, max - projected) / max * 100}%` }} />}
       {hits.filter(hit => hit.before > hit.after).map((hit, index) => (
         <button
           type="button"
@@ -55,9 +59,11 @@ function Bar({ value, max, hits, onPreview, onLeave }: {
   )
 }
 
-function SegmentedHealth({ enemy, hits, previewStep, onPreview, onLeave }: {
+function SegmentedHealth({ enemy, hits, recovery, securityGain, previewStep, onPreview, onLeave }: {
   enemy: EnemyState
   hits: PredictedHit[]
+  recovery: number
+  securityGain: number
   previewStep: number | null
   onPreview: (step: number) => void
   onLeave: () => void
@@ -65,8 +71,10 @@ function SegmentedHealth({ enemy, hits, previewStep, onPreview, onLeave }: {
   const projected = hits.length ? hits[hits.length - 1].after : enemy.robustness
   const rightBefore = Math.max(...hits.map(hit => hit.before))
   return (
-    <div className="segmented-health" aria-label={`Projected Desire ${projected} of ${enemy.maxRobustness}`}>
+    <div className={`segmented-health ${hits.length || recovery || securityGain ? 'has-preview' : ''}`} aria-label={`Projected Robustness ${projected} of ${enemy.maxRobustness}; +${recovery} recovery; +${securityGain} SECURITY`}>
       <span className="health-current" style={{ width: `${projected / enemy.maxRobustness * 100}%` }} />
+      {recovery > 0 && <i className="recover-segment" style={{ left: `${enemy.robustness / enemy.maxRobustness * 100}%`, width: `${recovery / enemy.maxRobustness * 100}%` }} />}
+      {securityGain > 0 && <i className="privilege-segment" style={{ left: `${projected / enemy.maxRobustness * 100}%`, width: `${Math.min(securityGain, enemy.maxRobustness - projected) / enemy.maxRobustness * 100}%` }} />}
       {hits.filter(hit => hit.before > hit.after).map(hit => (
         <button
           type="button"
@@ -137,9 +145,11 @@ export default function Home() {
     ? predictedEnemySequence(realtimeForecastState, undefined, state.overloadArmed ? 4 : undefined)
     : []
   const incomingDamage = incomingSequence.reduce((total, hit) => total + hit.dealt, 0)
+  const playerResources = predictedPlayerResources(realtimeForecastState)
+  const attackSequenceState = state.phase === 'resolving' ? { ...state, actions: state.actions } : previewState
   const sequence = state.overloadArmed
     ? predictedSequence(previewState, displayActiveBash, 4)
-    : predictedSequence(previewState)
+    : predictedSequence(attackSequenceState)
   const singleStep = methodInspector && state.attackPreview
     ? state.attackPreview.stepIndex
     : state.overloadArmed ? null : state.attackPreview?.stepIndex ?? null
@@ -233,10 +243,10 @@ export default function Home() {
               {incomingDamage > 0 && <div className="incoming-preview">INCOMING −{incomingDamage}</div>}
             </div>
           </section>
-          <Bar value={state.player.sanity} max={state.player.maxSanity} hits={incomingSequence} onPreview={previewEnemyAttack} onLeave={clearEnemyAttackPreview} />
+          <Bar value={state.player.sanity} max={state.player.maxSanity} hits={incomingSequence} recovery={playerResources.healing} privilege={playerResources.privilegeGain} onPreview={previewEnemyAttack} onLeave={clearEnemyAttackPreview} />
           <div className="status-row">
             <span className={state.player.block ? 'status-chip active' : 'status-chip'}><Shield size={12} /> PRIVILEGE {state.player.block}</span>
-            {state.player.focusReady && <span className="status-chip active"><Zap size={12} /> CORE +2</span>}
+            {state.player.focusReady && <span className="status-chip active"><Zap size={12} /> CORE +1</span>}
           </div>
 
           <section className="panel-section">
@@ -323,7 +333,7 @@ export default function Home() {
 
           <section className="panel-section compact-section">
             <div className="section-heading"><span>PRIVILEGE</span><Shield size={14} /></div>
-            <div className="defense-function"><strong>SHELL</strong><span>+2 Block / Flag</span></div>
+            <div className="defense-function"><strong>SHELL</strong><span>+1 PRIVILEGE / Flag</span></div>
           </section>
 
           <section className="panel-section buff-section">
@@ -386,6 +396,7 @@ export default function Home() {
               {affectedEnemies.map(enemy => {
                 const hits = visibleSequence.filter(hit => hit.enemyId === enemy.id)
                 const projected = hits.length ? hits[hits.length - 1].after : enemy.robustness
+                const resources = predictedEnemyResources(attackSequenceState, enemy.id, state.overloadArmed ? 4 : undefined)
                 return (
                   <article className="enemy-card affected" key={enemy.id}>
                     <div className="enemy-card-head">
@@ -394,11 +405,13 @@ export default function Home() {
                     </div>
                     <div className="enemy-hp">
                       <strong>{enemy.robustness} <em className="to-be">→ {projected}</em><small> / {enemy.maxRobustness}</small></strong>
-                      <span>DESIRE</span>
+                      <span>ROBUSTNESS</span>
                     </div>
                     <SegmentedHealth
                       enemy={enemy}
                       hits={hits}
+                      recovery={resources.recovery}
+                      securityGain={resources.securityGain}
                       previewStep={state.attackPreview?.stepIndex ?? null}
                       onPreview={step => previewMethod(displayActiveBash, step)}
                       onLeave={clearMethodPreview}
@@ -466,9 +479,10 @@ export default function Home() {
             <section><h3>BOARD FORECAST</h3><p>The small symbols above the coordinates are the next Warps entering each column. Only columns changed by a pickup or purge drop, so untouched routes remain stable.</p></section>
             <section><h3>CURTAIN</h3><p>Red dashed rows or columns are fixed two turns ahead. When their countdown reaches zero, they seal for your next planning turn. Sealed Warps cannot be entered or collected by either side.</p></section>
             <section><h3>BREAKDOWN</h3><p>At 18 Robustness, the Warden enters Stage II: REHEARSAL becomes OVERTURE, CLOSE becomes DEADLOCK, and REPAIR becomes REWRITE. Future Curtains cover both axes around the position you occupied when they were scheduled.</p></section>
+            <section><h3>DESIRE</h3><p>The Warden always releases Desire I each turn, even without Bash Flags. Collected Bash Flags unlock its remaining methods. Every release is previewed before execution.</p></section>
             <section><h3><SquareTerminal size={15} /> BASH</h3><p>Release length is the lower of Bash collected, remaining AP, and IV. VECTOR uses a 5×5 square; CoT uses a cross with arm length 5. Each Roman numeral is a different attack method.</p></section>
-            <section><h3><Shield size={15} /> PRIVILEGE</h3><p>SHELL automatically adds 2 Block per collected Privilege Flag. Block absorbs incoming damage for the following enemy phase.</p></section>
-            <section><h3><Cpu size={15} /> CORE</h3><p>Every Core Flag advances all three independent counters. REPAIR heals, FOCUS empowers one Bash hit, and FIREWALL adds Block.</p></section>
+            <section><h3><Shield size={15} /> PRIVILEGE</h3><p>SHELL automatically adds 1 PRIVILEGE per collected Privilege Flag. PRIVILEGE absorbs incoming damage for the following enemy phase.</p></section>
+            <section><h3><Cpu size={15} /> CORE</h3><p>Every Core Flag advances all three independent counters. REPAIR restores Sanity, FOCUS empowers one Bash hit, and FIREWALL adds PRIVILEGE.</p></section>
             <section><h3><Gauge size={15} /> OVERLOAD</h3><p>Five charges enable the only manual Function. The first click or O previews all four methods from the planned endpoint; the second spends one AP, switches preset, and releases them without consuming Bash Flags. Normal end-of-turn Bash still releases afterward. Escape cancels the preview.</p></section>
           </div>
           <div className="controls-table"><span>WASD / ARROWS</span><strong>Plan route</strong><span>DRAG / ONE FINGER</span><strong>Pan map</strong><span>PINCH / WHEEL</span><strong>Zoom map</strong><span>BACKSPACE</span><strong>Undo move</strong><span>SPACE</span><strong>Execute</strong><span>O</span><strong>Overload</strong><span>ESC</span><strong>Pause</strong></div>

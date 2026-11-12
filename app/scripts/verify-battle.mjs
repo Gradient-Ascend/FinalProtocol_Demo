@@ -161,6 +161,8 @@ try {
   if (Math.abs(segmentThickness.segment - segmentThickness.bar) > 0.1) throw new Error(`Preview segment thickness differs from HP bar: ${JSON.stringify(segmentThickness)}`)
   const rightRadius = await page.locator('.enemy-card .health-segment.right-edge').first().evaluate(element => getComputedStyle(element).borderTopRightRadius)
   if (rightRadius !== '4px') throw new Error(`Outer-right preview edge is not rounded: ${rightRadius}`)
+  const remainingRadius = await page.locator('.enemy-card .health-current').first().evaluate(element => getComputedStyle(element).borderTopRightRadius)
+  if (remainingRadius !== '0px') throw new Error(`Remaining HP edge is not vertical with previews present: ${remainingRadius}`)
   await page.locator('.enemy-card .health-segment').nth(0).hover()
   if (!(await page.locator('.method-detail strong').textContent())?.includes('MANHATTAN')) throw new Error('HP segment did not restore MANHATTAN preview')
   await page.screenshot({ path: join(SHOTS, '05-battle-compact.png') })

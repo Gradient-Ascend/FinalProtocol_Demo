@@ -5,6 +5,13 @@ export const MAX_ACTIONS = 8
 export const OVERLOAD_THRESHOLD = 5
 export const STEP_MS = 180
 
+export const PLAYER_FUNCTIONS = {
+  privilegePerFlag: 1,
+  repairHeal: 2,
+  focusBonus: 1,
+  firewallPrivilege: 3,
+}
+
 export const BASH_PRESETS: AttackPreset[] = [
   {
     id: 'vector',
@@ -14,7 +21,7 @@ export const BASH_PRESETS: AttackPreset[] = [
       { name: 'BASE', amount: 1, range: 2, area: 'nearest', shape: 'square' },
       { name: 'MANHATTAN', amount: 0, range: 2, area: 'nearest', shape: 'square', mode: 'manhattan' },
       { name: 'ARRAY', amount: 2, range: 2, area: 'all', shape: 'square' },
-      { name: 'ZERO', amount: 5, range: 2, area: 'nearest', shape: 'square', pierce: 2 },
+      { name: 'ZERO', amount: 4, range: 2, area: 'nearest', shape: 'square', pierce: 2 },
     ],
   },
   {
@@ -24,8 +31,8 @@ export const BASH_PRESETS: AttackPreset[] = [
     steps: [
       { name: 'OFF', amount: 3, range: 5, area: 'nearest', shape: 'cross', mode: 'random' },
       { name: 'ON', amount: 2, range: 5, area: 'nearest', shape: 'cross' },
-      { name: 'HIGH', amount: 4, range: 5, area: 'all', shape: 'cross' },
-      { name: 'ULTRA', amount: 7, range: 5, area: 'nearest', shape: 'cross', pierce: 3 },
+      { name: 'HIGH', amount: 3, range: 5, area: 'all', shape: 'cross' },
+      { name: 'ULTRA', amount: 5, range: 5, area: 'nearest', shape: 'cross', pierce: 3 },
     ],
   },
 ]
@@ -34,44 +41,44 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
   {
     id: 'B01', name: 'WARDEN / CURTAIN', behavior: 'warden', pos: { x: 7, y: 4 },
     robustness: 36, breakdownAt: 0.5,
-    desireName: 'REHEARSAL', desire: [2, 3, 4], desireRange: 3, desireShape: 'square', routeLength: 3,
+    desireName: 'REHEARSAL', desire: [3, 3, 5], desireRange: 3, desireShape: 'square', routeLength: 3,
     desireSteps: [
-      { amount: 2, range: 3, shape: 'square' },
-      { amount: 3, range: 6, shape: 'rectangle', width: 1 },
-      { amount: 4, range: 4, shape: 'square' },
+      { amount: 3, range: 4, shape: 'square' },
+      { amount: 3, range: 15, shape: 'rectangle', width: 2 },
+      { amount: 5, range: 5, shape: 'square' },
     ],
-    securityName: 'CLOSE', securityPerFlag: 1,
-    soulName: 'REPAIR', soulThreshold: 3, soulHeal: 3,
+    securityName: 'CLOSE', securityPerFlag: 2,
+    soulName: 'REPAIR', soulThreshold: 2, soulHeal: 4,
     bossStages: [
       {
-        stage: 1, desireName: 'REHEARSAL', desire: [2, 3, 4], desireRange: 3, desireShape: 'square', routeLength: 3,
+        stage: 1, desireName: 'REHEARSAL', desire: [3, 3, 5], desireRange: 3, desireShape: 'square', routeLength: 3,
         desireSteps: [
-          { amount: 2, range: 3, shape: 'square' },
-          { amount: 3, range: 6, shape: 'rectangle', width: 1 },
-          { amount: 4, range: 4, shape: 'square' },
+          { amount: 3, range: 4, shape: 'square' },
+          { amount: 3, range: 15, shape: 'rectangle', width: 2 },
+          { amount: 5, range: 5, shape: 'square' },
         ],
-        securityName: 'CLOSE', securityPerFlag: 1, soulName: 'REPAIR', soulThreshold: 3, soulHeal: 3, curtainLines: 1,
+        securityName: 'CLOSE', securityPerFlag: 2, soulName: 'REPAIR', soulThreshold: 2, soulHeal: 4, curtainLines: 1,
       },
       {
-        stage: 2, desireName: 'OVERTURE', desire: [3, 4, 6], desireRange: 4, desireShape: 'square', routeLength: 3,
+        stage: 2, desireName: 'OVERTURE', desire: [4, 5, 7], desireRange: 4, desireShape: 'square', routeLength: 3,
         desireSteps: [
-          { amount: 3, range: 6, shape: 'rectangle', width: 1 },
-          { amount: 4, range: 4, shape: 'square' },
-          { amount: 6, range: 7, shape: 'rectangle', width: 2 },
+          { amount: 4, range: 15, shape: 'rectangle', width: 3 },
+          { amount: 5, range: 5, shape: 'square' },
+          { amount: 7, range: 15, shape: 'rectangle', width: 4 },
         ],
-        securityName: 'DEADLOCK', securityPerFlag: 2, soulName: 'REWRITE', soulThreshold: 2, soulHeal: 3, curtainLines: 2,
+        securityName: 'DEADLOCK', securityPerFlag: 3, soulName: 'REWRITE', soulThreshold: 2, soulHeal: 4, curtainLines: 2,
       },
     ],
   },
   {
     id: 'E02', name: 'DESIRE / RUSH', behavior: 'collector', pos: { x: 10, y: 7 },
-    robustness: 10, desire: [2, 2], desireRange: 3, desireShape: 'square', routeLength: 3,
-    securityPerFlag: 1, soulThreshold: 3, soulHeal: 2,
+    robustness: 10, desire: [2, 3], desireRange: 4, desireShape: 'square', routeLength: 3,
+    securityPerFlag: 1, soulThreshold: 3, soulHeal: 3,
   },
   {
     id: 'E03', name: 'DESIRE / PATCH', behavior: 'disruptor', pos: { x: 4, y: 7 },
-    robustness: 9, desire: [1, 2], desireRange: 3, desireShape: 'cross', routeLength: 2,
-    securityPerFlag: 1, soulThreshold: 4, soulHeal: 2,
+    robustness: 9, desire: [2, 2], desireRange: 6, desireShape: 'cross', routeLength: 2,
+    securityPerFlag: 2, soulThreshold: 4, soulHeal: 3,
   },
 ]
 

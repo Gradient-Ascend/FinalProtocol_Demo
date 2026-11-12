@@ -1,6 +1,6 @@
-import { MAX_ACTIONS, OVERLOAD_THRESHOLD, STEP_MS } from './battle-config'
+import { MAX_ACTIONS, OVERLOAD_THRESHOLD, PLAYER_FUNCTIONS, STEP_MS } from './battle-config'
 import { predictedSequence, releaseCount } from './attack-methods'
-import { desireInRange, desireStepsFor } from './enemy-attack-methods'
+import { desireInRange, desireReleaseCount, desireStepsFor } from './enemy-attack-methods'
 import {
   activePreset, advanceCurtains, coordKey, createInitialState, curtainLabel, enemyRoutes,
   isWarpLocked, livingEnemies, manhattan, mulberry32, refillBoard, sameCoord,
@@ -245,9 +245,9 @@ export class BattleStore {
   private resolvePlayerResources(): void {
     const counts = this.plannedFlagCounts()
     if (counts.privilege) {
-      const block = counts.privilege * 2
-      this.state.player.block += block
-      this.log(`PRIVILEGE / SHELL +${block} Block.`, 'good')
+      const privilege = counts.privilege * PLAYER_FUNCTIONS.privilegePerFlag
+      this.state.player.block += privilege
+      this.log(`PRIVILEGE / SHELL +${privilege} PRIVILEGE.`, 'good')
     }
     for (let i = 0; i < counts.core; i++) {
       for (const buff of this.state.player.buffs) {
@@ -255,15 +255,15 @@ export class BattleStore {
         if (buff.counter < buff.threshold) continue
         buff.counter = 0
         if (buff.id === 'repair') {
-          const healed = Math.min(4, this.state.player.maxSanity - this.state.player.sanity)
+          const healed = Math.min(PLAYER_FUNCTIONS.repairHeal, this.state.player.maxSanity - this.state.player.sanity)
           this.state.player.sanity += healed
           this.log(`CORE / REPAIR restored ${healed} Sanity.`, 'good')
         } else if (buff.id === 'focus') {
           this.state.player.focusReady = true
           this.log('CORE / FOCUS empowers the next Bash hit.', 'good')
         } else {
-          this.state.player.block += 4
-          this.log('CORE / FIREWALL added 4 Block.', 'good')
+          this.state.player.block += PLAYER_FUNCTIONS.firewallPrivilege
+          this.log(`CORE / FIREWALL added ${PLAYER_FUNCTIONS.firewallPrivilege} PRIVILEGE.`, 'good')
         }
       }
     }
@@ -316,7 +316,7 @@ export class BattleStore {
   }
 
   private async enemyAttack(enemy: EnemyState, bashCount: number): Promise<void> {
-    const steps = desireStepsFor(enemy).slice(0, bashCount)
+    const steps = desireStepsFor(enemy).slice(0, desireReleaseCount(enemy, bashCount))
     for (const [stepIndex, step] of steps.entries()) {
       if (!desireInRange(enemy.pos, this.state.player.pos, step)) continue
       this.emitEffect({

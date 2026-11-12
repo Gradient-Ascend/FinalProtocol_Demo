@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BattleStore } from './battle-store'
 import { coordKey, createInitialState, enemyRoutes, refillBoard, scheduleCurtains } from './battle-rules'
 import { attackRoll, inAttackRange, predictedDamage, predictedSequence, releaseCount, stepDamage } from './attack-methods'
-import { desireInRange, predictedEnemySequence } from './enemy-attack-methods'
+import { desireInRange, desireReleaseCount, predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from './enemy-attack-methods'
 import { BASH_PRESETS, FLAG_WEIGHTS } from './battle-config'
 
 function readyStore(): BattleStore {
@@ -190,7 +190,7 @@ it('releases the complete I–IV VECTOR sequence with four Bash and four AP rema
   store.addStep(1, 0)
   expect(releaseCount(store.getSnapshot())).toBe(4)
   await store.executeTurn()
-  expect(store.getSnapshot().enemies[0].robustness).toBe(25)
+  expect(store.getSnapshot().enemies[0].robustness).toBe(26)
 })
 
 it('requires a second Overload request to switch Bash and release damage', () => {
@@ -307,9 +307,9 @@ describe('Warden boss protocol', () => {
     const boss = store.getSnapshot().enemies[0]
     expect(boss.stage).toBe(2)
     expect(boss.desireName).toBe('OVERTURE')
-    expect(boss.desire).toEqual([3, 4, 6])
+    expect(boss.desire).toEqual([4, 5, 7])
     expect(boss.securityName).toBe('DEADLOCK')
-    expect(boss.securityPerFlag).toBe(2)
+    expect(boss.securityPerFlag).toBe(3)
     expect(boss.soulName).toBe('REWRITE')
     expect(boss.soulThreshold).toBe(2)
     expect(store.getSnapshot().log.some(entry => entry.text.includes('BREAKDOWN / Stage II'))).toBe(true)
@@ -354,9 +354,9 @@ describe('rebalanced encounter and player forecast', () => {
     state.player.block = 1
     const counters = state.player.buffs.map(buff => buff.counter)
     const hits = predictedEnemySequence(state)
-    expect(hits.map(hit => hit.dealt)).toEqual([1, 3])
+    expect(hits.map(hit => hit.dealt)).toEqual([2, 3])
     expect(hits.every(hit => hit.origin.x === 7 && hit.origin.y === 5)).toBe(true)
-    expect(hits[hits.length - 1].after).toBe(56)
+    expect(hits[hits.length - 1].after).toBe(55)
     expect(state.player.buffs.map(buff => buff.counter)).toEqual(counters)
   })
 
@@ -368,4 +368,47 @@ describe('rebalanced encounter and player forecast', () => {
     expect(store.getSnapshot().playerTrail).toEqual([{ x: 7, y: 5 }])
     expect(store.getSnapshot().actions).toHaveLength(0)
   })
+})
+
+
+describe('live HP resource previews', () => {
+  it('previews player PRIVILEGE and REPAIR without mutating live counters', () => {
+    const state = createInitialState()
+    state.actions = [
+      { type: 'move', to: { x: 8, y: 7 }, flag: 'privilege' },
+      { type: 'move', to: { x: 9, y: 7 }, flag: 'core' },
+    ]
+    state.player.sanity = 50
+    state.player.buffs.find(buff => buff.id === 'repair')!.counter = 2
+    const preview = predictedPlayerResources(state)
+    expect(preview.privilegeGain).toBe(1)
+    expect(preview.healing).toBe(2)
+    expect(preview.sanityAfterHeal).toBe(52)
+    expect(preview.blockAfterResources).toBe(1)
+    expect(state.player.buffs.find(buff => buff.id === 'repair')!.counter).toBe(2)
+  })
+
+  it('previews enemy SECURITY and Soul recovery from the exposed route', () => {
+    const state = createInitialState()
+    const boss = state.enemies[0]
+    boss.robustness = 30
+    boss.route = [{ x: 7, y: 5 }, { x: 7, y: 6 }]
+    boss.soulCounter = 1
+    state.flags[5][7] = 'privilege'
+    state.flags[6][7] = 'core'
+    const preview = predictedEnemyResources(state, boss.id)
+    expect(preview.securityGain).toBe(2)
+    expect(preview.recovery).toBe(4)
+    expect(preview.soulCounterAfter).toBe(0)
+  })
+})
+
+
+it('guarantees only the Warden a baseline Desire step without Bash', () => {
+  const state = createInitialState()
+  expect(desireReleaseCount(state.enemies[0], 0)).toBe(1)
+  state.enemies[0].stage = 2
+  expect(desireReleaseCount(state.enemies[0], 0)).toBe(1)
+  expect(desireReleaseCount(state.enemies[1], 0)).toBe(0)
+  expect(desireReleaseCount(state.enemies[2], 0)).toBe(0)
 })
