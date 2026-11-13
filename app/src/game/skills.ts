@@ -29,15 +29,15 @@ export const IGNORES_SECURITY = 99
 export const SKILLS: Skill[] = [
   { id: 'base', name: 'BASE', area: 'nearest', amounts: [1, 2, 3, 4], fx: 'base' },
   { id: 'on', name: 'ON', area: 'nearest', amounts: [2, 2, 3, 3], fx: 'on' },
-  { id: 'spike', name: 'SPIKE', area: 'nearest', amounts: [0, 1, 3, 6], fx: 'zero' },
+  { id: 'spike', name: 'SPIKE', area: 'nearest', amounts: [0, 1, 3, 6], fx: 'spike' },
   { id: 'manhattan', name: 'MANHATTAN', area: 'nearest', mode: 'manhattan', amounts: [-1, 0, 1, 2], fx: 'manhattan' },
   { id: 'off', name: 'OFF', area: 'nearest', mode: 'random', amounts: [3, 4, 5, 6], fx: 'off' },
   { id: 'array', name: 'ARRAY', area: 'all', amounts: [1, 2, 2, 3], fx: 'array' },
   { id: 'high', name: 'HIGH', area: 'all', amounts: [0, 1, 3, 5], fx: 'high' },
-  { id: 'flood', name: 'FLOOD', area: 'all', amounts: [1, 1, 1, 2], pierce: [1, 1, 2, 2], fx: 'array' },
+  { id: 'flood', name: 'FLOOD', area: 'all', amounts: [1, 1, 1, 2], pierce: [1, 1, 2, 2], fx: 'flood' },
   { id: 'zero', name: 'ZERO', area: 'nearest', amounts: [1, 2, 3, 4], pierce: [2, 2, 2, 2], fx: 'zero' },
   { id: 'ultra', name: 'ULTRA', area: 'nearest', amounts: [1, 1, 3, 5], pierce: [0, 0, 1, 3], fx: 'ultra' },
-  { id: 'probe', name: 'PROBE', area: 'nearest', amounts: [1, 1, 2, 2], pierce: [IGNORES_SECURITY, IGNORES_SECURITY, IGNORES_SECURITY, IGNORES_SECURITY], fx: 'ultra' },
+  { id: 'probe', name: 'PROBE', area: 'nearest', amounts: [1, 1, 2, 2], pierce: [IGNORES_SECURITY, IGNORES_SECURITY, IGNORES_SECURITY, IGNORES_SECURITY], fx: 'probe' },
 ]
 
 export const FRAMES: Frame[] = [

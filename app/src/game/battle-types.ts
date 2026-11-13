@@ -129,6 +129,14 @@ export type AttackEffect = {
   range: number
   width?: number
   fx?: string
+  // Raw damage of the hit, and for a random skill the most it could roll.
+  amount?: number
+  cap?: number
+  // What the hit takes off the target after block, and what block absorbs.
+  dealt?: number
+  absorbed?: number
+  // Released by an Overload rather than at the end of the turn.
+  overload?: boolean
 }
 
 export type BattleAction =

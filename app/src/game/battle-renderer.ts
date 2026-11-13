@@ -1,4 +1,5 @@
 import { livingEnemies } from './battle-rules'
+import { AttackFx } from './attack-fx'
 import { inAttackRange } from './attack-methods'
 import { predictedEnemySequence } from './enemy-attack-methods'
 import type { BattleStore } from './battle-store'
@@ -8,11 +9,6 @@ const COLORS = {
   bg: '#090909', cell: '#0D0D0D', grid: '#343434', wall: '#272727',
   white: '#F4F4F4', light: '#D8D8D8', muted: '#777777', faint: '#484848',
   blue: '#79BFFF', red: '#FF7070',
-}
-
-const FX_SIGNATURES: Record<string, ['vector' | 'cot', number]> = {
-  base: ['vector', 0], manhattan: ['vector', 1], array: ['vector', 2], zero: ['vector', 3],
-  off: ['cot', 0], on: ['cot', 1], high: ['cot', 2], ultra: ['cot', 3],
 }
 
 export class BattleRenderer {
@@ -26,8 +22,7 @@ export class BattleRenderer {
   private hover: Coord | null = null
   private unitSeen = new Map<string, string>()
   private movingUntil = new Map<string, number>()
-  private effectQueue: AttackEffect[] = []
-  private activeEffect: { effect: AttackEffect; started: number } | null = null
+  private fx = new AttackFx()
   private pointers = new Map<number, { x: number; y: number }>()
   private pinchStartDistance = 0
   private pinchStartZoom = 1
@@ -54,7 +49,7 @@ export class BattleRenderer {
   }
 
   private onAttackEffect = (event: Event): void => {
-    this.effectQueue.push((event as CustomEvent<AttackEffect>).detail)
+    this.fx.play((event as CustomEvent<AttackEffect>).detail, this.store.getSnapshot().reducedMotion)
   }
 
   private onPointerMove = (event: PointerEvent): void => {
@@ -204,10 +199,12 @@ export class BattleRenderer {
     return { x, y }
   }
 
+  // Everything drawn in a cell rides the grid when an impact ripples it.
   private center(pos: Coord): Coord {
+    const push = Number.isInteger(pos.x) && Number.isInteger(pos.y) ? this.fx.cellOffset(pos.x, pos.y) : { x: 0, y: 0 }
     return {
-      x: this.origin.x + (pos.x + 0.5) * this.cell,
-      y: this.origin.y + (pos.y + 0.5) * this.cell,
+      x: this.origin.x + (pos.x + 0.5 + push.x) * this.cell,
+      y: this.origin.y + (pos.y + 0.5 + push.y) * this.cell,
     }
   }
 
@@ -336,170 +333,6 @@ export class BattleRenderer {
     ctx.globalAlpha = 1
   }
 
-  private drawActionSignature(effect: AttackEffect, progress: number, time: number): void {
-    const origin = this.center(effect.origin)
-    const target = this.center(effect.target)
-    const color = effect.source === 'player' ? 'rgba(242,209,107,0.96)' : 'rgba(255,112,112,0.96)'
-    const ctx = this.ctx
-    const cell = this.cell
-    const projectile = {
-      x: origin.x + (target.x - origin.x) * progress,
-      y: origin.y + (target.y - origin.y) * progress,
-    }
-    const dot = (pos: Coord, radius: number) => {
-      ctx.fillStyle = color
-      ctx.beginPath()
-      ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2)
-      ctx.fill()
-    }
-    const diamond = (pos: Coord, radius: number, width = 1.5) => {
-      this.line({ x: pos.x, y: pos.y - radius }, { x: pos.x + radius, y: pos.y }, color, width)
-      this.line({ x: pos.x + radius, y: pos.y }, { x: pos.x, y: pos.y + radius }, color, width)
-      this.line({ x: pos.x, y: pos.y + radius }, { x: pos.x - radius, y: pos.y }, color, width)
-      this.line({ x: pos.x - radius, y: pos.y }, { x: pos.x, y: pos.y - radius }, color, width)
-    }
-
-    // Each skill names its animation, so it looks the same in any slot or deck.
-    const [family, variant] = FX_SIGNATURES[effect.fx ?? ''] ?? [null, 0]
-    if (family === 'vector') {
-      if (variant === 0) {
-        this.line(origin, projectile, color, 1.4)
-        const r = cell * 0.36
-        const l = cell * 0.16
-        for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
-          const cx = target.x + sx * r
-          const cy = target.y + sy * r
-          this.line({ x: cx - sx * l, y: cy }, { x: cx, y: cy }, color, 1.8)
-          this.line({ x: cx, y: cy - sy * l }, { x: cx, y: cy }, color, 1.8)
-        }
-      } else if (variant === 1) {
-        const elbow = { x: target.x, y: origin.y }
-        if (progress <= 0.5) {
-          const point = { x: origin.x + (elbow.x - origin.x) * progress * 2, y: origin.y }
-          this.line(origin, point, color, 2.2)
-          dot(point, 2.4)
-        } else {
-          const point = { x: elbow.x, y: elbow.y + (target.y - elbow.y) * (progress - 0.5) * 2 }
-          this.line(origin, elbow, color, 2.2)
-          this.line(elbow, point, color, 2.2)
-          dot(point, 2.4)
-        }
-      } else if (variant === 2) {
-        for (let y = effect.origin.y - effect.range; y <= effect.origin.y + effect.range; y++) {
-          for (let x = effect.origin.x - effect.range; x <= effect.origin.x + effect.range; x++) {
-            if ((x + y) % 2 !== 0 || !inAttackRange(effect.origin, { x, y }, {
-              name: '', amount: 0, area: 'nearest', shape: effect.shape, range: effect.range,
-            })) continue
-            const point = this.center({ x, y })
-            const size = cell * (0.08 + progress * 0.12)
-            ctx.strokeStyle = color
-            ctx.lineWidth = 1
-            ctx.strokeRect(point.x - size, point.y - size, size * 2, size * 2)
-          }
-        }
-        this.line(origin, projectile, color, 1.2, [2, 3])
-      } else {
-        this.line(origin, projectile, color, 3)
-        const r = cell * (0.15 + progress * 0.35)
-        this.line({ x: target.x - r, y: target.y - r }, { x: target.x + r, y: target.y + r }, color, 2.4)
-        this.line({ x: target.x + r, y: target.y - r }, { x: target.x - r, y: target.y + r }, color, 2.4)
-        ctx.strokeStyle = color
-        ctx.lineWidth = 1.2
-        ctx.beginPath()
-        ctx.arc(target.x, target.y, r * 1.25, 0, Math.PI * 2)
-        ctx.stroke()
-      }
-      return
-    }
-
-    if (family === 'cot') {
-      if (variant === 0) {
-        this.line(origin, projectile, color, 1.4, [2, 4])
-        for (const [index, [dx, dy]] of [[0, -1], [1, 0], [0, 1], [-1, 0]].entries()) {
-          if (Math.sin(time / 55 + index) > -0.25) dot({ x: target.x + dx * cell * 0.35, y: target.y + dy * cell * 0.35 }, 2.2)
-        }
-      } else if (variant === 1) {
-        this.line(origin, projectile, color, 1.8)
-        const r = cell * 0.35
-        this.line({ x: target.x - r, y: target.y }, { x: target.x + r, y: target.y }, color, 1.6)
-        this.line({ x: target.x, y: target.y - r }, { x: target.x, y: target.y + r }, color, 1.6)
-        ctx.strokeStyle = color
-        ctx.strokeRect(target.x - r * 0.45, target.y - r * 0.45, r * 0.9, r * 0.9)
-      } else if (variant === 2) {
-        const reach = effect.range * cell * progress
-        this.line(origin, { x: origin.x + reach, y: origin.y }, color, 2)
-        this.line(origin, { x: origin.x - reach, y: origin.y }, color, 2)
-        this.line(origin, { x: origin.x, y: origin.y + reach }, color, 2)
-        this.line(origin, { x: origin.x, y: origin.y - reach }, color, 2)
-        ctx.strokeStyle = color
-        ctx.strokeRect(target.x - cell * 0.16, target.y - cell * 0.16, cell * 0.32, cell * 0.32)
-      } else {
-        this.line(origin, projectile, color, 1.4)
-        this.line({ x: origin.x + 4, y: origin.y }, { x: projectile.x + 4, y: projectile.y }, color, 1.4)
-        diamond(target, cell * (0.18 + progress * 0.42), 2)
-        diamond(target, cell * (0.32 + progress * 0.55), 1)
-      }
-      return
-    }
-
-    if (effect.shape === 'square') {
-      this.line(origin, projectile, color, 1.6)
-      const r = cell * (0.18 + progress * 0.42)
-      ctx.strokeStyle = color
-      ctx.lineWidth = 1.7
-      ctx.strokeRect(target.x - r, target.y - r, r * 2, r * 2)
-      this.line({ x: target.x - r, y: target.y - r }, { x: target.x + r, y: target.y + r }, color, 1.4)
-    } else if (effect.shape === 'rectangle') {
-      const bands = Math.max(1, effect.width ?? 1)
-      for (let band = -bands; band <= bands; band++) {
-        const offset = band * cell * 0.25
-        this.line({ x: target.x - cell * 0.55, y: target.y + offset }, { x: target.x + cell * 0.55, y: target.y + offset }, color, band === 0 ? 2.2 : 1)
-      }
-      this.line(origin, projectile, color, 1.3, [4, 3])
-    } else {
-      this.line(origin, projectile, color, 1.5)
-      const r = cell * (0.2 + progress * 0.35)
-      this.line({ x: target.x - r, y: target.y }, { x: target.x + r, y: target.y }, color, 2)
-      this.line({ x: target.x, y: target.y - r }, { x: target.x, y: target.y + r }, color, 2)
-      diamond(target, r * 0.65, 1.2)
-    }
-  }
-
-  private drawAttackEffect(time: number): void {
-    const state = this.store.getSnapshot()
-    const duration = state.reducedMotion ? 100 : 360
-    if (!this.activeEffect && this.effectQueue.length) {
-      this.activeEffect = { effect: this.effectQueue.shift()!, started: time }
-    }
-    if (!this.activeEffect) return
-    const elapsed = time - this.activeEffect.started
-    if (elapsed >= duration) {
-      this.activeEffect = null
-      return
-    }
-    const effect = this.activeEffect.effect
-    const progress = Math.max(0, Math.min(1, elapsed / duration))
-    const color = effect.source === 'player' ? '242,209,107' : '255,112,112'
-    const ctx = this.ctx
-    ctx.globalAlpha = 0.8 - progress * 0.45
-    for (let y = 0; y < 15; y++) {
-      for (let x = 0; x < 15; x++) {
-        if (!inAttackRange(effect.origin, { x, y }, {
-          name: '', amount: 0, area: 'nearest', shape: effect.shape, range: effect.range, width: effect.width,
-        })) continue
-        const px = this.origin.x + x * this.cell
-        const py = this.origin.y + y * this.cell
-        ctx.fillStyle = `rgba(${color},0.16)`
-        ctx.fillRect(px + 1, py + 1, this.cell - 2, this.cell - 2)
-        ctx.strokeStyle = `rgba(${color},0.5)`
-        ctx.lineWidth = 1
-        ctx.strokeRect(px + 2.5, py + 2.5, this.cell - 5, this.cell - 5)
-      }
-    }
-    this.drawActionSignature(effect, progress, time)
-    ctx.globalAlpha = 1
-  }
-
   private draw(time: number): void {
     const state = this.store.getSnapshot()
     const ctx = this.ctx
@@ -507,6 +340,10 @@ export class BattleRenderer {
     ctx.clearRect(0, 0, rect.width, rect.height)
     ctx.fillStyle = COLORS.bg
     ctx.fillRect(0, 0, rect.width, rect.height)
+    this.fx.step(time)
+    const shake = state.reducedMotion ? { x: 0, y: 0 } : this.fx.shakeOffset()
+    ctx.save()
+    ctx.translate(shake.x, shake.y)
 
     ctx.font = '10px "JetBrains Mono", monospace'
     ctx.fillStyle = COLORS.muted
@@ -524,8 +361,9 @@ export class BattleRenderer {
 
     for (let y = 0; y < 15; y++) {
       for (let x = 0; x < 15; x++) {
-        const px = this.origin.x + x * this.cell
-        const py = this.origin.y + y * this.cell
+        const push = this.fx.cellOffset(x, y)
+        const px = this.origin.x + (x + push.x) * this.cell
+        const py = this.origin.y + (y + push.y) * this.cell
         ctx.fillStyle = state.walls[y][x] ? COLORS.wall : COLORS.cell
         ctx.fillRect(px, py, this.cell, this.cell)
         ctx.strokeStyle = COLORS.grid
@@ -635,8 +473,6 @@ export class BattleRenderer {
       }
     }
 
-    this.drawAttackEffect(time)
-
     if (this.hover && state.phase === 'planning') {
       const px = this.origin.x + this.hover.x * this.cell
       const py = this.origin.y + this.hover.y * this.cell
@@ -665,6 +501,8 @@ export class BattleRenderer {
     if (route.length && state.phase === 'planning') {
       this.drawBreathingDot(this.store.plannedPosition(), COLORS.blue, time, true)
     }
+    ctx.restore()
+    this.fx.draw(ctx, { origin: this.origin, cell: this.cell, dpr: this.canvas.width / Math.max(1, rect.width) }, shake)
   }
 
   private loop = (time: number): void => {
@@ -683,7 +521,6 @@ export class BattleRenderer {
     this.canvas.removeEventListener('pointercancel', this.onPointerUp)
     this.canvas.removeEventListener('wheel', this.onWheel)
     window.removeEventListener('battle-attack-effect', this.onAttackEffect)
-    this.effectQueue = []
-    this.activeEffect = null
+    this.fx.clear()
   }
 }

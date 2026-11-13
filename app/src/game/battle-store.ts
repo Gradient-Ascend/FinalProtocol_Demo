@@ -1,4 +1,5 @@
 import { MAX_ACTIONS, OVERLOAD_THRESHOLD, PLAYER_FUNCTIONS, STEP_MS } from './battle-config'
+import { effectTiming } from './attack-fx'
 import { predictedSequence, releaseCount } from './attack-methods'
 import { desireInRange, desireReleaseCount, desireStepsFor, predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from './enemy-attack-methods'
 import {
@@ -49,6 +50,12 @@ export class BattleStore {
   private wait(): Promise<void> {
     const delay = this.state.reducedMotion ? 15 : STEP_MS
     return new Promise(resolve => setTimeout(resolve, delay))
+  }
+
+  // Attack pacing follows the animation: a hit lands when its effect strikes,
+  // and the next attack waits until that effect has played out.
+  private pause(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, this.state.reducedMotion ? 15 : ms))
   }
 
   private emitEffect(effect: AttackEffect): void {
@@ -314,6 +321,8 @@ export class BattleStore {
       source: 'player', presetId: activePreset(this.state).id,
       origin: { ...origin }, target: { ...(enemy?.pos ?? this.state.player.pos) },
       stepIndex: hit.stepIndex, shape: step.shape, range: step.range, width: step.width, fx: step.fx,
+      amount: hit.damage, cap: step.mode === 'random' ? step.amount : undefined,
+      dealt: hit.dealt, absorbed: hit.absorbed,
     }
   }
 
@@ -322,10 +331,20 @@ export class BattleStore {
     const preset = activePreset(this.state)
     const attackState = { ...this.state, player: { ...this.state.player, pos: origin } }
     const hits = predictedSequence(attackState, this.state.player.activeBash, steps)
+    // Overload is shown as a single cascade, so each Geek gets one effect
+    // carrying everything the four methods did to it.
+    const effects = new Map<string, AttackEffect>()
     for (const hit of hits) {
-      this.emitEffect(this.playerEffect(hit, origin))
+      const effect = this.playerEffect(hit, origin)
+      const total = effects.get(hit.enemyId)
+      if (total) {
+        total.amount = (total.amount ?? 0) + hit.damage
+        total.dealt = (total.dealt ?? 0) + hit.dealt
+        total.absorbed = (total.absorbed ?? 0) + hit.absorbed
+      } else effects.set(hit.enemyId, { ...effect, fx: 'overload', cap: undefined, overload: true })
       this.applyPlayerHit(preset.name, hit)
     }
+    effects.forEach(effect => this.emitEffect(effect))
   }
 
   private async firePlayerAttack(steps: number): Promise<void> {
@@ -335,13 +354,15 @@ export class BattleStore {
     this.state.outgoingForecast = hits
     this.commit()
     for (const [index, hit] of hits.entries()) {
-      this.emitEffect(this.playerEffect(hit))
-      await this.wait()
+      const effect = this.playerEffect(hit)
+      const timing = effectTiming(effect)
+      this.emitEffect(effect)
+      await this.pause(timing.strike)
       this.applyPlayerHit(preset.name, hit)
       this.state.outgoingForecast = hits.slice(index + 1)
       this.state.playerAttackResolved = true
       this.commit()
-      await this.wait()
+      await this.pause(timing.settle)
     }
   }
 
@@ -349,21 +370,24 @@ export class BattleStore {
     const steps = desireStepsFor(enemy).slice(0, desireReleaseCount(enemy, bashCount))
     for (const [stepIndex, step] of steps.entries()) {
       if (!desireInRange(enemy.pos, this.state.player.pos, step)) continue
-      this.emitEffect({
+      const absorbed = Math.min(this.state.player.block, step.amount)
+      const dealt = step.amount - absorbed
+      const effect: AttackEffect = {
         source: 'enemy', presetId: enemy.id, origin: { ...enemy.pos }, target: { ...this.state.player.pos },
         stepIndex, shape: step.shape, range: step.range, width: step.width,
-      })
-      await this.wait()
-      const absorbed = Math.min(this.state.player.block, step.amount)
+        amount: step.amount, dealt: Math.min(dealt, this.state.player.sanity), absorbed,
+      }
+      const timing = effectTiming(effect)
+      this.emitEffect(effect)
+      await this.pause(timing.strike)
       this.state.player.block -= absorbed
-      const dealt = step.amount - absorbed
       this.state.player.sanity = Math.max(0, this.state.player.sanity - dealt)
       this.state.incomingForecast = this.state.incomingForecast
         ?.filter(hit => hit.enemyId !== enemy.id || hit.stepIndex !== stepIndex) ?? null
       this.log(`${enemy.id} / ${enemy.desireName ?? 'DESIRE'} → ${dealt} Sanity damage.`, 'bad')
       this.sfx('hit')
       this.commit()
-      await this.wait()
+      await this.pause(timing.settle)
       if (this.state.player.sanity <= 0) return
     }
   }

@@ -146,7 +146,7 @@ try {
   await page.keyboard.press('KeyW')
   if (await page.locator('.enemy-card.affected').count() !== 1) throw new Error('Expected exactly one affected Geek')
   const previewColor = await page.locator('.enemy-card.affected .to-be').evaluate(element => getComputedStyle(element).color)
-  if (previewColor !== 'rgb(242, 209, 107)') throw new Error(`Damage preview is not yellow: ${previewColor}`)
+  if (previewColor !== 'rgb(245, 245, 245)') throw new Error(`Projected HP is not white: ${previewColor}`)
   const projected = await page.locator('.to-be').textContent()
   if (!projected?.includes('62')) throw new Error(`Missing projected Desire value: ${projected}`)
   if (await page.locator('.action-slot').count() !== 8) throw new Error('Expected eight smaller AP slots')

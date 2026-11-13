@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
-  ArrowRight, BookOpen, Check, ChevronRight, Circle, Cpu, Gauge,
+  ArrowRight, BookOpen, Check, ChevronDown, ChevronRight, Circle, Cpu, Gauge,
   Hexagon, Home as HomeIcon, Maximize2, Minimize2, Play, RotateCcw, Settings, Shield, ShieldAlert, SquareTerminal,
   X, Zap,
 } from 'lucide-react'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { startGame, stopGame, zoomMap } from '@/game/boot'
 import { battleStore } from '@/game/battle-store'
-import { ENEMY_DEFINITIONS, MAX_ACTIONS, OVERLOAD_THRESHOLD } from '@/game/battle-config'
+import { ENEMY_DEFINITIONS, MAX_ACTIONS, OVERLOAD_THRESHOLD, PLAYER_FUNCTIONS } from '@/game/battle-config'
 import { DEFAULT_LOADOUT, FRAMES, SKILLS, assignSkill, cloneLoadout, frameById, skillById, slotLabel } from '@/game/skills'
 import type { Loadout } from '@/game/skills'
 import { coordKey, curtainLabel } from '@/game/battle-rules'
 import { mechanicText, predictedSequence, rangeText, releaseCount } from '@/game/attack-methods'
 import { predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from '@/game/enemy-attack-methods'
-import type { FlagKind } from '@/game/battle-types'
+import type { CoreBuff, FlagKind } from '@/game/battle-types'
 
 const ROMAN = ['I', 'II', 'III', 'IV']
 const WARDEN = ENEMY_DEFINITIONS.find(enemy => enemy.bossStages?.length)
@@ -39,39 +39,91 @@ type HealthHit = {
 // The bar shows raw damage only. `hits` are the hits still to land, in order;
 // each is a segment hanging off the right end of the current HP, and the white
 // fill is what would remain if all of them landed unblocked. Block and repair
-// are shown beneath the bar and never reshape the segments. As a turn
-// resolves, a landed hit leaves the list: whatever block absorbed returns to
-// the fill, and the HP actually lost lingers as a ghost before draining.
-function HealthBar({ value, max, hits, live, label, className = '', onLeave }: {
+// are shown beneath the bar and never reshape the segments.
+//
+// When a hit lands the bar takes the blow: the fill snaps back at once, the
+// bar rattles, the HP lost hangs for a beat in the attacker's colour and then
+// shatters into fragments that fall away, while the remaining segments catch
+// up late with a little overshoot. Restored HP draws motes up into the bar.
+function HealthBar({ value, max, hits, live, label, className = '', lossColor, onLeave }: {
   value: number
   max: number
   hits: HealthHit[]
   live: boolean
   label: string
   className?: string
+  lossColor: string
   onLeave: () => void
 }) {
+  const wrap = useRef<HTMLDivElement>(null)
+  const debris = useRef<HTMLDivElement>(null)
   const previous = useRef(value)
   const ghostFrom = useRef<number | null>(null)
   const [ghostTop, setGhostTop] = useState<number | null>(null)
   const [grown, setGrown] = useState<{ from: number; to: number } | null>(null)
+  const color = useRef(lossColor)
+  color.current = lossColor
   useEffect(() => {
     const before = previous.current
     if (value === before) return
     previous.current = value
+    const calm = !wrap.current || !debris.current || wrap.current.closest('.reduced-motion') !== null
+    // Small squares thrown from a stretch of the bar; they fall for a loss and rise for a gain.
+    const scatter = (from: number, to: number, count: number, tint: string, rising: boolean) => {
+      const layer = debris.current
+      if (!layer) return
+      for (let i = 0; i < count; i++) {
+        const bit = document.createElement('i')
+        const size = 2 + Math.random() * 2
+        bit.style.cssText = `left:${(from + Math.random() * (to - from)) / max * 100}%;width:${size}px;height:${size}px;background:${tint}`
+        layer.appendChild(bit)
+        const dx = (Math.random() - 0.5) * 26
+        const fall = 18 + Math.random() * 26
+        const frames = rising
+          ? [
+              { transform: `translate(${dx}px, ${fall}px)`, opacity: 0 },
+              { transform: `translate(${dx * 0.4}px, ${fall * 0.45}px)`, opacity: 1, offset: 0.35 },
+              { transform: 'translate(0, 0)', opacity: 0 },
+            ]
+          : [
+              { transform: 'translate(0, 0) rotate(0deg)', opacity: 1 },
+              { transform: `translate(${dx * 0.35}px, ${-4 - Math.random() * 7}px) rotate(${dx * 4}deg)`, opacity: 1, offset: 0.22 },
+              { transform: `translate(${dx}px, ${fall}px) rotate(${dx * 14}deg)`, opacity: 0 },
+            ]
+        bit.animate(frames, {
+          duration: 480 + Math.random() * 420, delay: Math.random() * (rising ? 160 : 70),
+          easing: rising ? 'cubic-bezier(.2,.8,.3,1)' : 'cubic-bezier(.45,0,.9,.55)', fill: 'both',
+        }).onfinish = () => bit.remove()
+      }
+    }
     if (value < before) {
-      ghostFrom.current = Math.max(ghostFrom.current ?? before, before)
-      setGhostTop(ghostFrom.current)
+      const top = Math.max(ghostFrom.current ?? before, before)
+      const lost = top - value
+      ghostFrom.current = top
+      setGhostTop(top)
       setGrown(null)
-      const timer = window.setTimeout(() => { ghostFrom.current = null; setGhostTop(null) }, 520)
+      if (!calm) {
+        // A fast, decaying rattle: harder the more HP the hit took.
+        const power = Math.min(7, 1.5 + lost * 0.8)
+        wrap.current?.animate([0, -1, 0.8, -0.6, 0.45, -0.3, 0.15, 0].map((k, i) => ({
+          transform: `translate(${k * power}px, ${i % 2 ? 1 : -1}px)`,
+        })), { duration: 300, easing: 'linear' })
+      }
+      // The lost HP lags behind the hit, then breaks off.
+      const timer = window.setTimeout(() => {
+        ghostFrom.current = null
+        setGhostTop(null)
+        if (!calm) scatter(value, top, Math.min(26, Math.max(4, Math.round(lost * 3))), color.current, false)
+      }, calm ? 520 : 190)
       return () => window.clearTimeout(timer)
     }
     ghostFrom.current = null
     setGhostTop(null)
     setGrown({ from: before, to: value })
+    if (!calm) scatter(before, value, Math.min(16, Math.max(4, Math.round((value - before) * 3))), 'var(--white)', true)
     const timer = window.setTimeout(() => setGrown(null), 620)
     return () => window.clearTimeout(timer)
-  }, [value])
+  }, [value, max])
 
   const pct = (amount: number) => `${Math.max(0, Math.min(100, amount / max * 100))}%`
   const placed: (HealthHit & { left: number; right: number })[] = []
@@ -83,32 +135,68 @@ function HealthBar({ value, max, hits, live, label, className = '', onLeave }: {
   }
 
   return (
-    <div className={`segmented-health ${className} ${placed.length ? 'has-preview' : ''} ${live ? 'live' : ''} ${grown ? 'growing' : ''}`} style={{ '--pip': `${5 / max * 100}%` } as React.CSSProperties} aria-label={label}>
-      <span className="health-current" style={{ width: pct(cursor) }} />
-      {grown && <i className="gain-chunk" style={{ left: pct(grown.from), width: pct(grown.to - grown.from) }} />}
-      <i className={`loss-ghost ${ghostTop === null ? 'draining' : ''}`} style={{ left: pct(value), width: pct(Math.max(0, (ghostTop ?? value) - value)) }} />
-      {placed.map((hit, index) => (
-        <button
-          type="button"
-          key={hit.key}
-          className={`health-segment ${hit.className} ${hit.active ? 'previewing' : ''} ${index === placed.length - 1 ? 'left-edge' : ''} ${index === 0 ? 'right-edge' : ''}`}
-          style={{ left: pct(hit.left), width: pct(hit.right - hit.left) }}
-          onMouseEnter={hit.onPreview}
-          onMouseLeave={onLeave}
-          onFocus={hit.onPreview}
-          onBlur={onLeave}
-          onClick={hit.onPreview}
-          aria-label={hit.label}
-        />
-      ))}
+    <div className="health-wrap" ref={wrap}>
+      <div className={`segmented-health ${className} ${placed.length ? 'has-preview' : ''} ${live ? 'live' : ''} ${grown ? 'growing' : ''}`} style={{ '--pip': `${5 / max * 100}%` } as React.CSSProperties} aria-label={label}>
+        <span className="health-current" style={{ width: pct(cursor) }} />
+        {grown && <i className="gain-chunk" style={{ left: pct(grown.from), width: pct(grown.to - grown.from) }} />}
+        <i className={`loss-ghost ${ghostTop === null ? 'draining' : 'struck'}`} style={{ left: pct(value), width: pct(Math.max(0, (ghostTop ?? value) - value)), background: lossColor }} />
+        {placed.map((hit, index) => (
+          <button
+            type="button"
+            key={hit.key}
+            className={`health-segment ${hit.className} ${hit.active ? 'previewing' : ''} ${index === placed.length - 1 ? 'left-edge' : ''} ${index === 0 ? 'right-edge' : ''}`}
+            style={{ left: pct(hit.left), width: pct(hit.right - hit.left), transitionDelay: live ? `${60 + index * 45}ms` : undefined }}
+            onMouseEnter={hit.onPreview}
+            onMouseLeave={onLeave}
+            onFocus={hit.onPreview}
+            onBlur={onLeave}
+            onClick={hit.onPreview}
+            aria-label={hit.label}
+          />
+        ))}
+      </div>
+      <div className="health-debris" ref={debris} aria-hidden="true" />
     </div>
   )
 }
 
-// Deck builder shown on the menu. Pick a slot, then pick a skill for it; a
-// skill already placed elsewhere trades places with the one it replaces.
-function LoadoutEditor({ loadout, onChange }: { loadout: Loadout; onChange: (loadout: Loadout) => void }) {
-  const [selected, setSelected] = useState({ deck: 0, slot: 0 })
+type DrawerId = 'a' | 'b' | 'defense' | 'core'
+
+// One collapsible row of the menu's deck list. A closed drawer keeps its
+// summary visible in the header, so the whole build reads at a glance.
+function Drawer({ id, open, onToggle, icon, kicker, title, summary, children }: {
+  id: DrawerId
+  open: boolean
+  onToggle: () => void
+  icon: React.ReactNode
+  kicker: string
+  title: string
+  summary: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className={`drawer ${open ? 'open' : ''}`}>
+      <button type="button" className="drawer-head" onClick={onToggle} aria-expanded={open} aria-controls={`drawer-${id}`}>
+        <span className="drawer-icon">{icon}</span>
+        <span className="drawer-title"><em>{kicker}</em><strong>{title}</strong></span>
+        <span className="drawer-summary">{summary}</span>
+        <ChevronDown size={15} className="drawer-chevron" />
+      </button>
+      <div className="drawer-body" id={`drawer-${id}`} inert={!open}>
+        <div className="drawer-clip"><div className="drawer-content">{children}</div></div>
+      </div>
+    </section>
+  )
+}
+
+// Deck builder shown on the menu, one drawer per deck. In a Bash deck, pick a
+// slot, then pick a skill for it; a skill already placed elsewhere trades
+// places with the one it replaces. The Defense and Core decks have a single
+// fixed build, so their drawers only describe it.
+function LoadoutEditor({ loadout, buffs, onChange }: { loadout: Loadout; buffs: CoreBuff[]; onChange: (loadout: Loadout) => void }) {
+  const [open, setOpen] = useState<DrawerId | null>('a')
+  const [slots, setSlots] = useState([0, 0])
+  const toggle = (id: DrawerId) => setOpen(current => current === id ? null : id)
   const placement = (id: string): string | null => {
     for (const [deckIndex, deck] of loadout.entries()) {
       const slot = deck.skills.findIndex(skill => skill === id)
@@ -122,67 +210,115 @@ function LoadoutEditor({ loadout, onChange }: { loadout: Loadout; onChange: (loa
     next[deckIndex].frame = FRAMES[(at + 1) % FRAMES.length].id
     onChange(next)
   }
-  const selectedSkill = loadout[selected.deck].skills[selected.slot]
   return (
     <div className="loadout" aria-label="Deck builder">
-      <div className="loadout-decks">
-        {loadout.map((deck, deckIndex) => {
-          const frame = frameById(deck.frame)
-          return (
-            <section className="loadout-deck" key={deckIndex}>
-              <button type="button" className="frame-toggle" onClick={() => cycleFrame(deckIndex)} aria-label={`Deck ${'AB'[deckIndex]} frame ${frame.name}. Change frame`}>
-                <span>DECK {'AB'[deckIndex]}{deckIndex === 0 ? ' · STARTS ACTIVE' : ' · ON OVERLOAD'}</span>
-                <strong>{frame.name}</strong>
-                <em>{frame.description}</em>
-              </button>
-              <div className="loadout-slots">
-                {deck.skills.map((id, slot) => {
-                  const skill = skillById(id)
-                  const active = selected.deck === deckIndex && selected.slot === slot
-                  return (
-                    <button
-                      type="button"
-                      className={`loadout-slot ${active ? 'selected' : ''}`}
-                      key={slot}
-                      onClick={() => setSelected({ deck: deckIndex, slot })}
-                      aria-pressed={active}
-                      aria-label={`Deck ${'AB'[deckIndex]} slot ${ROMAN[slot]}: ${skill.name}, ${slotLabel(skill, slot)}`}
-                    >
-                      <span>{ROMAN[slot]}</span>
-                      <strong>{skill.name}</strong>
-                      <em>{slotLabel(skill, slot)}</em>
-                    </button>
-                  )
-                })}
-              </div>
-            </section>
-          )
-        })}
-      </div>
-      <div className="loadout-pool">
-        <div className="pool-row pool-head">
-          <span>SKILL → {'AB'[selected.deck]}·{ROMAN[selected.slot]}</span>
-          {ROMAN.map((numeral, slot) => <span className={slot === selected.slot ? 'at-slot' : ''} key={numeral}>{numeral}</span>)}
-          <span>IN</span>
-        </div>
-        {SKILLS.map(skill => {
-          const where = placement(skill.id)
-          return (
-            <button
-              type="button"
-              className={`pool-row pool-skill ${skill.id === selectedSkill ? 'current' : ''} ${where ? 'placed' : ''}`}
-              key={skill.id}
-              onClick={() => onChange(assignSkill(loadout, selected.deck, selected.slot, skill.id))}
-              aria-label={`Put ${skill.name} in deck ${'AB'[selected.deck]} slot ${ROMAN[selected.slot]}`}
-            >
-              <strong>{skill.name}</strong>
-              {skill.amounts.map((_, slot) => <span className={slot === selected.slot ? 'at-slot' : ''} key={slot}>{slotLabel(skill, slot)}</span>)}
-              <em>{where ?? '—'}</em>
+      {loadout.map((deck, deckIndex) => {
+        const frame = frameById(deck.frame)
+        const letter = 'AB'[deckIndex]
+        const slot = slots[deckIndex]
+        const selectedSkill = deck.skills[slot]
+        return (
+          <Drawer
+            key={deckIndex}
+            id={deckIndex === 0 ? 'a' : 'b'}
+            open={open === (deckIndex === 0 ? 'a' : 'b')}
+            onToggle={() => toggle(deckIndex === 0 ? 'a' : 'b')}
+            icon={<SquareTerminal size={15} strokeWidth={1.7} />}
+            kicker={`BASH DECK ${letter} · ${deckIndex === 0 ? 'STARTS ACTIVE' : 'ON OVERLOAD'}`}
+            title={frame.name}
+            summary={deck.skills.map(id => skillById(id).name).join(' · ')}
+          >
+            <button type="button" className="frame-toggle" onClick={() => cycleFrame(deckIndex)} aria-label={`Deck ${letter} frame ${frame.name}. Change frame`}>
+              <span>FRAME</span>
+              <strong>{frame.name}</strong>
+              <em>{frame.description}</em>
+              <i>CHANGE</i>
             </button>
-          )
-        })}
-        <p className="pool-legend">Slot N fires with N Bash Flags and N unused action points. ALL hits every Geek in range · P pierces Security · D is the distance to the target.</p>
-      </div>
+            <div className="loadout-slots">
+              {deck.skills.map((id, index) => {
+                const skill = skillById(id)
+                const active = slot === index
+                return (
+                  <button
+                    type="button"
+                    className={`loadout-slot ${active ? 'selected' : ''}`}
+                    key={index}
+                    onClick={() => setSlots(current => current.map((value, i) => i === deckIndex ? index : value))}
+                    aria-pressed={active}
+                    aria-label={`Deck ${letter} slot ${ROMAN[index]}: ${skill.name}, ${slotLabel(skill, index)}`}
+                  >
+                    <span>{ROMAN[index]}</span>
+                    <strong>{skill.name}</strong>
+                    <em>{slotLabel(skill, index)}</em>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="loadout-pool">
+              <div className="pool-row pool-head">
+                <span>SKILL → {letter}·{ROMAN[slot]}</span>
+                {ROMAN.map((numeral, index) => <span className={index === slot ? 'at-slot' : ''} key={numeral}>{numeral}</span>)}
+                <span>IN</span>
+              </div>
+              {SKILLS.map(skill => {
+                const where = placement(skill.id)
+                return (
+                  <button
+                    type="button"
+                    className={`pool-row pool-skill ${skill.id === selectedSkill ? 'current' : ''} ${where ? 'placed' : ''}`}
+                    key={skill.id}
+                    onClick={() => onChange(assignSkill(loadout, deckIndex, slot, skill.id))}
+                    aria-label={`Put ${skill.name} in deck ${letter} slot ${ROMAN[slot]}`}
+                  >
+                    <strong>{skill.name}</strong>
+                    {skill.amounts.map((_, index) => <span className={index === slot ? 'at-slot' : ''} key={index}>{slotLabel(skill, index)}</span>)}
+                    <em>{where ?? '—'}</em>
+                  </button>
+                )
+              })}
+              <p className="pool-legend">Slot N fires with N Bash Flags and N unused action points. ALL hits every Geek in range · P pierces Security · D is the distance to the target.</p>
+            </div>
+          </Drawer>
+        )
+      })}
+      <Drawer
+        id="defense"
+        open={open === 'defense'}
+        onToggle={() => toggle('defense')}
+        icon={<Shield size={15} strokeWidth={1.7} />}
+        kicker="DEFENSE DECK · PRIVILEGE"
+        title="SHELL"
+        summary={`+${PLAYER_FUNCTIONS.privilegePerFlag} PRIVILEGE / FLAG`}
+      >
+        <div className="deck-cards">
+          <article className="deck-card">
+            <header><strong>SHELL</strong><em>AUTOMATIC</em></header>
+            <b>+{PLAYER_FUNCTIONS.privilegePerFlag} PRIVILEGE</b>
+            <p>For every Privilege Flag collected. PRIVILEGE absorbs damage in the enemy phase that follows, then resets.</p>
+          </article>
+        </div>
+        <p className="deck-note">The Defense deck has one fixed function in this build.</p>
+      </Drawer>
+      <Drawer
+        id="core"
+        open={open === 'core'}
+        onToggle={() => toggle('core')}
+        icon={<Cpu size={15} strokeWidth={1.7} />}
+        kicker="CORE DECK · COUNTERS"
+        title={`${buffs.length} BLOCKS`}
+        summary={buffs.map(buff => buff.name).join(' · ')}
+      >
+        <div className="deck-cards">
+          {buffs.map(buff => (
+            <article className="deck-card" key={buff.id}>
+              <header><strong>{buff.name}</strong><em>EVERY {buff.threshold}</em></header>
+              <b>{buff.description}</b>
+              <div className="counter-ticks">{Array.from({ length: buff.threshold }, (_, i) => <i key={i} />)}</div>
+            </article>
+          ))}
+        </div>
+        <p className="deck-note">Every Core Flag advances all three counters at once. The Core deck is fixed in this build.</p>
+      </Drawer>
     </div>
   )
 }
@@ -211,6 +347,9 @@ export default function Home() {
   const [devicePanel, setDevicePanel] = useState<'operator' | 'geeks'>('operator')
   const [mapZoom, setMapZoom] = useState(1)
   const clearTimer = useRef<number | null>(null)
+
+  // The Bash panel follows the active set, so an Overload shows its switch at once.
+  useEffect(() => setBashView(state.player.activeBash), [state.player.activeBash])
 
   useEffect(() => {
     const onZoom = (event: Event) => setMapZoom((event as CustomEvent<number>).detail)
@@ -256,8 +395,12 @@ export default function Home() {
   const overloadDamage = visibleSequence.reduce((total, hit) => total + hit.dealt, 0)
   const overloadHasTargets = visibleSequence.length > 0
   const aliveEnemies = state.enemies.filter(enemy => enemy.robustness > 0)
+  // Geek bars break in the colour of whatever is hitting them: violet for an
+  // Overload (the only damage dealt while planning), otherwise the active deck's.
+  const strikeColor = !live ? '#a78bfa' : presets[state.player.activeBash].steps[0].shape === 'cross' ? '#5ee6ff' : '#ffc857'
   const boss = aliveEnemies.find(enemy => enemy.bossStages?.length)
   const canAct = state.phase === 'planning'
+  const plannedCore = canAct ? state.actions.filter(action => action.type === 'move' && action.flag === 'core').length : 0
   const releases = state.overloadArmed ? 4 : releaseCount(previewState)
   const bashDisplayIndex = state.overloadArmed ? displayActiveBash : bashView
   const inspector = methodInspector ?? state.attackPreview
@@ -351,6 +494,7 @@ export default function Home() {
               onPreview: () => previewEnemyAttack(hit.enemyId, hit.stepIndex),
             }))}
             live={live}
+            lossColor="#ff5d73"
             label={`Sanity ${state.player.sanity} of ${state.player.maxSanity}; ${incomingDamage} raw damage incoming`}
             onLeave={clearEnemyAttackPreview}
           />
@@ -403,7 +547,7 @@ export default function Home() {
                     {preset.steps.map((step, i) => (
                       <button
                         type="button"
-                        className={`action-indicator ${state.overloadArmed && displayActiveBash === index ? 'overload-lit' : (displayActiveBash === index && i < releases ? 'lit' : '')} ${inspector?.presetIndex === index && inspector.stepIndex === i ? 'inspecting' : ''}`}
+                        className={`action-indicator ${state.overloadArmed && displayActiveBash === index ? 'overload-lit' : (displayActiveBash === index && i < releases ? `lit ${canAct ? 'pending' : ''}` : '')} ${inspector?.presetIndex === index && inspector.stepIndex === i ? 'inspecting' : ''}`}
                         key={step.name}
                         onMouseEnter={() => previewMethod(index, i)}
                         onMouseLeave={scheduleMethodClear}
@@ -446,23 +590,35 @@ export default function Home() {
 
           <section className="panel-section compact-section">
             <div className="section-heading"><span>PRIVILEGE</span><Shield size={14} /></div>
-            <div className="defense-function"><strong>SHELL</strong><span>+1 PRIVILEGE / Flag</span></div>
+            <div className="defense-function"><strong>SHELL</strong><span>+{PLAYER_FUNCTIONS.privilegePerFlag} PRIVILEGE / Flag</span></div>
           </section>
 
           <section className="panel-section buff-section">
             <div className="section-heading"><span>CORE</span><Cpu size={14} /></div>
             <div className="buff-list">
-              {state.player.buffs.map(buff => (
-                <div className="buff-row" key={buff.id}>
-                  <div><strong>{buff.name}</strong><span>{buff.description}</span></div>
-                  <div className="buff-counter">
-                    <div className="counter-ticks">
-                      {Array.from({ length: buff.threshold }, (_, i) => <i className={i < buff.counter ? 'on' : ''} key={i} />)}
+              {state.player.buffs.map(buff => {
+                // Planned Core Flags are previewed on the counters: the ticks
+                // they would fill pulse, and a counter that would trip says so.
+                const total = buff.counter + plannedCore
+                const fires = Math.floor(total / buff.threshold)
+                const after = total % buff.threshold
+                return (
+                  <div className={`buff-row ${fires ? 'firing' : ''}`} key={buff.id}>
+                    <div><strong>{buff.name}</strong><span>{buff.description}</span></div>
+                    <div className="buff-counter">
+                      <div className="counter-ticks">
+                        {Array.from({ length: buff.threshold }, (_, i) => (
+                          <i className={i < buff.counter ? 'on' : plannedCore && (fires || i < after) ? 'pending' : ''} key={i} />
+                        ))}
+                      </div>
+                      <span>
+                        {buff.counter}/{buff.threshold}
+                        {plannedCore > 0 && <em className="to-be"> → {fires ? `FIRE${fires > 1 ? ` ×${fires}` : ''}` : after}</em>}
+                      </span>
                     </div>
-                    <span>{buff.counter}/{buff.threshold}</span>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </section>
         </aside>
@@ -537,6 +693,7 @@ export default function Home() {
                         onPreview: () => previewMethod(displayActiveBash, hit.stepIndex),
                       }))}
                       live={live}
+                      lossColor={strikeColor}
                       label={`Robustness ${enemy.robustness} of ${enemy.maxRobustness}; ${allHits.reduce((total, hit) => total + hit.damage, 0)} raw damage incoming`}
                       onLeave={clearMethodPreview}
                     />
@@ -565,7 +722,7 @@ export default function Home() {
             <button className="primary-action" onClick={() => battleStore.start()}><Play size={16} /> BREACH SANDBOX <span>SPACE</span></button>
             <button className="secondary-action reset-decks" onClick={() => battleStore.setLoadout(DEFAULT_LOADOUT)}><RotateCcw size={15} /> DEFAULT DECKS</button>
           </div>
-          <LoadoutEditor loadout={loadout} onChange={next => battleStore.setLoadout(next)} />
+          <LoadoutEditor loadout={loadout} buffs={state.player.buffs} onChange={next => battleStore.setLoadout(next)} />
         </div>
       )}
 
@@ -604,9 +761,9 @@ export default function Home() {
             <section><h3>BREAKDOWN</h3><p>At {breakdownAt} Robustness, the Warden enters Stage II: REHEARSAL becomes OVERTURE, CLOSE becomes DEADLOCK, and REPAIR becomes REWRITE. Future Curtains cover both axes around the position you occupied when they were scheduled.</p></section>
             <section><h3>DESIRE</h3><p>The Warden always releases Desire I each turn, and Desire I and II in Stage II, even without Bash Flags. Collected Bash Flags unlock its remaining methods. Every release is previewed before execution.</p></section>
             <section><h3><SquareTerminal size={15} /> BASH</h3><p>Release length is the lower of Bash collected, remaining AP, and IV. Each deck has a frame that sets its range (VECTOR is a 5×5 square, CoT a cross with arm length 5) and four skills, one per Roman numeral. A skill is stronger the later its slot. Decks are built on the main menu.</p></section>
-            <section><h3><Shield size={15} /> PRIVILEGE</h3><p>SHELL automatically adds 1 PRIVILEGE per collected Privilege Flag. PRIVILEGE absorbs incoming damage for the following enemy phase. HP bars show raw damage; PRIVILEGE and REPAIR are listed beneath the bar.</p></section>
+            <section><h3><Shield size={15} /> PRIVILEGE</h3><p>SHELL automatically adds {PLAYER_FUNCTIONS.privilegePerFlag} PRIVILEGE per collected Privilege Flag. PRIVILEGE absorbs incoming damage for the following enemy phase. HP bars show raw damage; PRIVILEGE and REPAIR are listed beneath the bar.</p></section>
             <section><h3><Cpu size={15} /> CORE</h3><p>Every Core Flag advances all three independent counters. REPAIR restores Sanity at the end of the turn, after enemies attack; FOCUS empowers one Bash hit, and FIREWALL adds PRIVILEGE.</p></section>
-            <section><h3><Gauge size={15} /> OVERLOAD</h3><p>Five charges enable the only manual Function. The first click or O previews all four methods from the planned endpoint; the second spends one AP, switches preset, and releases them without consuming Bash Flags. Normal end-of-turn Bash still releases afterward. Escape cancels the preview.</p></section>
+            <section><h3><Gauge size={15} /> OVERLOAD</h3><p>Five charges enable the only manual Function. The first click or O previews all four methods from the planned endpoint; the second spends one AP, switches to the other deck at once, and releases that deck’s four methods without consuming Bash Flags. Normal end-of-turn Bash still releases afterward. Escape cancels the preview.</p></section>
           </div>
           <div className="controls-table"><span>WASD / ARROWS</span><strong>Plan route</strong><span>DRAG / ONE FINGER</span><strong>Pan map</strong><span>PINCH / WHEEL</span><strong>Zoom map</strong><span>BACKSPACE</span><strong>Undo move</strong><span>SPACE</span><strong>Execute</strong><span>O</span><strong>Overload</strong><span>ESC</span><strong>Pause</strong></div>
         </Modal>

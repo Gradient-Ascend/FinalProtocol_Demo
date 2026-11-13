@@ -468,7 +468,7 @@ it('advances HP previews through attack and enemy events before clearing them', 
   expect(store.getSnapshot().enemyPhaseIndex).toBe(0)
   expect(store.getSnapshot().playerAttackResolved).toBe(false)
   expect(store.getSnapshot().enemyResourcePreviews).toEqual({})
-})
+}, 20000) // runs a full turn at real attack pacing
 
 
 describe('decks and skills', () => {
