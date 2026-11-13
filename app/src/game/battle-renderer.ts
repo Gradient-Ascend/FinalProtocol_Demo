@@ -1,5 +1,4 @@
 import { livingEnemies } from './battle-rules'
-import { BASH_PRESETS } from './battle-config'
 import { inAttackRange } from './attack-methods'
 import { predictedEnemySequence } from './enemy-attack-methods'
 import type { BattleStore } from './battle-store'
@@ -9,6 +8,11 @@ const COLORS = {
   bg: '#090909', cell: '#0D0D0D', grid: '#343434', wall: '#272727',
   white: '#F4F4F4', light: '#D8D8D8', muted: '#777777', faint: '#484848',
   blue: '#79BFFF', red: '#FF7070',
+}
+
+const FX_SIGNATURES: Record<string, ['vector' | 'cot', number]> = {
+  base: ['vector', 0], manhattan: ['vector', 1], array: ['vector', 2], zero: ['vector', 3],
+  off: ['cot', 0], on: ['cot', 1], high: ['cot', 2], ultra: ['cot', 3],
 }
 
 export class BattleRenderer {
@@ -355,8 +359,10 @@ export class BattleRenderer {
       this.line({ x: pos.x - radius, y: pos.y }, { x: pos.x, y: pos.y - radius }, color, width)
     }
 
-    if (effect.presetId === 'vector') {
-      if (effect.stepIndex === 0) {
+    // Each skill names its animation, so it looks the same in any slot or deck.
+    const [family, variant] = FX_SIGNATURES[effect.fx ?? ''] ?? [null, 0]
+    if (family === 'vector') {
+      if (variant === 0) {
         this.line(origin, projectile, color, 1.4)
         const r = cell * 0.36
         const l = cell * 0.16
@@ -366,7 +372,7 @@ export class BattleRenderer {
           this.line({ x: cx - sx * l, y: cy }, { x: cx, y: cy }, color, 1.8)
           this.line({ x: cx, y: cy - sy * l }, { x: cx, y: cy }, color, 1.8)
         }
-      } else if (effect.stepIndex === 1) {
+      } else if (variant === 1) {
         const elbow = { x: target.x, y: origin.y }
         if (progress <= 0.5) {
           const point = { x: origin.x + (elbow.x - origin.x) * progress * 2, y: origin.y }
@@ -378,11 +384,11 @@ export class BattleRenderer {
           this.line(elbow, point, color, 2.2)
           dot(point, 2.4)
         }
-      } else if (effect.stepIndex === 2) {
+      } else if (variant === 2) {
         for (let y = effect.origin.y - effect.range; y <= effect.origin.y + effect.range; y++) {
           for (let x = effect.origin.x - effect.range; x <= effect.origin.x + effect.range; x++) {
             if ((x + y) % 2 !== 0 || !inAttackRange(effect.origin, { x, y }, {
-              name: '', amount: 0, area: 'nearest', shape: 'square', range: effect.range,
+              name: '', amount: 0, area: 'nearest', shape: effect.shape, range: effect.range,
             })) continue
             const point = this.center({ x, y })
             const size = cell * (0.08 + progress * 0.12)
@@ -406,20 +412,20 @@ export class BattleRenderer {
       return
     }
 
-    if (effect.presetId === 'cot') {
-      if (effect.stepIndex === 0) {
+    if (family === 'cot') {
+      if (variant === 0) {
         this.line(origin, projectile, color, 1.4, [2, 4])
         for (const [index, [dx, dy]] of [[0, -1], [1, 0], [0, 1], [-1, 0]].entries()) {
           if (Math.sin(time / 55 + index) > -0.25) dot({ x: target.x + dx * cell * 0.35, y: target.y + dy * cell * 0.35 }, 2.2)
         }
-      } else if (effect.stepIndex === 1) {
+      } else if (variant === 1) {
         this.line(origin, projectile, color, 1.8)
         const r = cell * 0.35
         this.line({ x: target.x - r, y: target.y }, { x: target.x + r, y: target.y }, color, 1.6)
         this.line({ x: target.x, y: target.y - r }, { x: target.x, y: target.y + r }, color, 1.6)
         ctx.strokeStyle = color
         ctx.strokeRect(target.x - r * 0.45, target.y - r * 0.45, r * 0.9, r * 0.9)
-      } else if (effect.stepIndex === 2) {
+      } else if (variant === 2) {
         const reach = effect.range * cell * progress
         this.line(origin, { x: origin.x + reach, y: origin.y }, color, 2)
         this.line(origin, { x: origin.x - reach, y: origin.y }, color, 2)
@@ -552,7 +558,7 @@ export class BattleRenderer {
     }
 
     if (state.attackPreview) {
-      const step = BASH_PRESETS[state.attackPreview.presetIndex].steps[state.attackPreview.stepIndex]
+      const step = state.presets[state.attackPreview.presetIndex].steps[state.attackPreview.stepIndex]
       // Bash fires from where the route ends, which is also what the damage forecast uses.
       const attackOrigin = state.phase === 'planning' ? this.store.plannedPosition() : state.player.pos
       for (let y = 0; y < 15; y++) {

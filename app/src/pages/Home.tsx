@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
   ArrowRight, BookOpen, Check, ChevronRight, Circle, Cpu, Gauge,
-  Hexagon, Maximize2, Minimize2, Play, RotateCcw, Settings, Shield, ShieldAlert, SquareTerminal,
+  Hexagon, Home as HomeIcon, Maximize2, Minimize2, Play, RotateCcw, Settings, Shield, ShieldAlert, SquareTerminal,
   X, Zap,
 } from 'lucide-react'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { startGame, stopGame, zoomMap } from '@/game/boot'
 import { battleStore } from '@/game/battle-store'
-import { BASH_PRESETS, ENEMY_DEFINITIONS, MAX_ACTIONS, OVERLOAD_THRESHOLD } from '@/game/battle-config'
+import { ENEMY_DEFINITIONS, MAX_ACTIONS, OVERLOAD_THRESHOLD } from '@/game/battle-config'
+import { DEFAULT_LOADOUT, FRAMES, SKILLS, assignSkill, cloneLoadout, frameById, skillById, slotLabel } from '@/game/skills'
+import type { Loadout } from '@/game/skills'
 import { coordKey, curtainLabel } from '@/game/battle-rules'
 import { mechanicText, predictedSequence, rangeText, releaseCount } from '@/game/attack-methods'
 import { predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from '@/game/enemy-attack-methods'
@@ -103,6 +105,88 @@ function HealthBar({ value, max, hits, live, label, className = '', onLeave }: {
   )
 }
 
+// Deck builder shown on the menu. Pick a slot, then pick a skill for it; a
+// skill already placed elsewhere trades places with the one it replaces.
+function LoadoutEditor({ loadout, onChange }: { loadout: Loadout; onChange: (loadout: Loadout) => void }) {
+  const [selected, setSelected] = useState({ deck: 0, slot: 0 })
+  const placement = (id: string): string | null => {
+    for (const [deckIndex, deck] of loadout.entries()) {
+      const slot = deck.skills.findIndex(skill => skill === id)
+      if (slot >= 0) return `${'AB'[deckIndex]}·${ROMAN[slot]}`
+    }
+    return null
+  }
+  const cycleFrame = (deckIndex: number) => {
+    const next = cloneLoadout(loadout)
+    const at = FRAMES.findIndex(frame => frame.id === next[deckIndex].frame)
+    next[deckIndex].frame = FRAMES[(at + 1) % FRAMES.length].id
+    onChange(next)
+  }
+  const selectedSkill = loadout[selected.deck].skills[selected.slot]
+  return (
+    <div className="loadout" aria-label="Deck builder">
+      <div className="loadout-decks">
+        {loadout.map((deck, deckIndex) => {
+          const frame = frameById(deck.frame)
+          return (
+            <section className="loadout-deck" key={deckIndex}>
+              <button type="button" className="frame-toggle" onClick={() => cycleFrame(deckIndex)} aria-label={`Deck ${'AB'[deckIndex]} frame ${frame.name}. Change frame`}>
+                <span>DECK {'AB'[deckIndex]}{deckIndex === 0 ? ' · STARTS ACTIVE' : ' · ON OVERLOAD'}</span>
+                <strong>{frame.name}</strong>
+                <em>{frame.description}</em>
+              </button>
+              <div className="loadout-slots">
+                {deck.skills.map((id, slot) => {
+                  const skill = skillById(id)
+                  const active = selected.deck === deckIndex && selected.slot === slot
+                  return (
+                    <button
+                      type="button"
+                      className={`loadout-slot ${active ? 'selected' : ''}`}
+                      key={slot}
+                      onClick={() => setSelected({ deck: deckIndex, slot })}
+                      aria-pressed={active}
+                      aria-label={`Deck ${'AB'[deckIndex]} slot ${ROMAN[slot]}: ${skill.name}, ${slotLabel(skill, slot)}`}
+                    >
+                      <span>{ROMAN[slot]}</span>
+                      <strong>{skill.name}</strong>
+                      <em>{slotLabel(skill, slot)}</em>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+          )
+        })}
+      </div>
+      <div className="loadout-pool">
+        <div className="pool-row pool-head">
+          <span>SKILL → {'AB'[selected.deck]}·{ROMAN[selected.slot]}</span>
+          {ROMAN.map((numeral, slot) => <span className={slot === selected.slot ? 'at-slot' : ''} key={numeral}>{numeral}</span>)}
+          <span>IN</span>
+        </div>
+        {SKILLS.map(skill => {
+          const where = placement(skill.id)
+          return (
+            <button
+              type="button"
+              className={`pool-row pool-skill ${skill.id === selectedSkill ? 'current' : ''} ${where ? 'placed' : ''}`}
+              key={skill.id}
+              onClick={() => onChange(assignSkill(loadout, selected.deck, selected.slot, skill.id))}
+              aria-label={`Put ${skill.name} in deck ${'AB'[selected.deck]} slot ${ROMAN[selected.slot]}`}
+            >
+              <strong>{skill.name}</strong>
+              {skill.amounts.map((_, slot) => <span className={slot === selected.slot ? 'at-slot' : ''} key={slot}>{slotLabel(skill, slot)}</span>)}
+              <em>{where ?? '—'}</em>
+            </button>
+          )
+        })}
+        <p className="pool-legend">Slot N fires with N Bash Flags and N unused action points. ALL hits every Geek in range · P pierces Security · D is the distance to the target.</p>
+      </div>
+    </div>
+  )
+}
+
 function Modal({ children, onClose, label }: { children: React.ReactNode; onClose: () => void; label: string }) {
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={label}>
@@ -118,6 +202,8 @@ export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const state = useSyncExternalStore(battleStore.subscribe, battleStore.getSnapshot)
   const fullscreen = useFullscreen()
+  const presets = state.presets
+  const loadout = battleStore.getLoadout()
   const [manualOpen, setManualOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [methodInspector, setMethodInspector] = useState<{ presetIndex: number; stepIndex: number } | null>(null)
@@ -197,7 +283,7 @@ export default function Home() {
     clearMethodPreview()
   }
   const cycleBashView = (direction: number) => {
-    selectBashView((bashView + direction + BASH_PRESETS.length) % BASH_PRESETS.length)
+    selectBashView((bashView + direction + presets.length) % presets.length)
   }
   const cancelMethodClear = () => {
     if (clearTimer.current !== null) window.clearTimeout(clearTimer.current)
@@ -294,7 +380,7 @@ export default function Home() {
             <div className="section-heading"><span>BASH</span><SquareTerminal size={14} /></div>
             <div className="bash-viewer" onWheel={event => cycleBashView(event.deltaY > 0 ? 1 : -1)}>
               <div className="bash-dots" aria-label="Displayed Bash preset">
-                {BASH_PRESETS.map((preset, index) => (
+                {presets.map((preset, index) => (
                   <button
                     type="button"
                     className={bashDisplayIndex === index ? 'view-dot active' : 'view-dot'}
@@ -306,7 +392,7 @@ export default function Home() {
                 ))}
               </div>
               {(() => {
-                const preset = BASH_PRESETS[bashDisplayIndex]
+                const preset = presets[bashDisplayIndex]
                 const index = bashDisplayIndex
                 return <div className={`preset ${displayActiveBash === index ? 'selected' : ''}`}>
                   <div className="preset-title">
@@ -338,7 +424,7 @@ export default function Home() {
               title={state.overloadArmed ? 'Press again to release Overload' : 'Preview Overload; press again to release'}
             >
               <Gauge size={16} />
-              <span>{state.overloadArmed ? `CONFIRM ${BASH_PRESETS[displayActiveBash].name}` : 'OVERLOAD'}</span>
+              <span>{state.overloadArmed ? `CONFIRM ${presets[displayActiveBash].name}` : 'OVERLOAD'}</span>
               <strong className="overload-preview-value">
                 {state.overloadArmed
                   ? (overloadHasTargets ? `−${overloadDamage}` : 'NO TARGET')
@@ -347,10 +433,10 @@ export default function Home() {
             </button>
             <div className={`method-detail ${inspector ? 'active' : ''}`} aria-live="polite" onMouseEnter={cancelMethodClear} onMouseLeave={scheduleMethodClear}>
               {inspector && (() => {
-                const step = BASH_PRESETS[inspector.presetIndex].steps[inspector.stepIndex]
+                const step = presets[inspector.presetIndex].steps[inspector.stepIndex]
                 return <>
                   <button type="button" className="method-close" onMouseDown={event => event.preventDefault()} onClick={clearMethodPreview} aria-label="Close method preview">×</button>
-                  <strong>{BASH_PRESETS[inspector.presetIndex].name} / {ROMAN[inspector.stepIndex]} {step.name}</strong>
+                  <strong>{presets[inspector.presetIndex].name} / {ROMAN[inspector.stepIndex]} {step.name}</strong>
                   <p>{mechanicText(step)}</p>
                   <span>{rangeText(step)}</span>
                 </>
@@ -477,7 +563,9 @@ export default function Home() {
             <div className="eyebrow">WARDEN PROTOCOL / CURTAIN</div>
             <h1>FINAL<br />PROTOCOL</h1>
             <button className="primary-action" onClick={() => battleStore.start()}><Play size={16} /> BREACH SANDBOX <span>SPACE</span></button>
+            <button className="secondary-action reset-decks" onClick={() => battleStore.setLoadout(DEFAULT_LOADOUT)}><RotateCcw size={15} /> DEFAULT DECKS</button>
           </div>
+          <LoadoutEditor loadout={loadout} onChange={next => battleStore.setLoadout(next)} />
         </div>
       )}
 
@@ -486,7 +574,10 @@ export default function Home() {
           <div className="pause-content">
             <h2>PAUSED</h2>
             <button className="primary-action" onClick={() => battleStore.togglePause()}><Play size={16} /> RESUME</button>
-            <button className="secondary-action" onClick={() => battleStore.restart()}><RotateCcw size={15} /> RESTART BATTLE</button>
+            <div className="pause-menu">
+              <button onClick={() => battleStore.restart()}><RotateCcw size={15} /> RESTART BATTLE</button>
+              <button onClick={() => battleStore.returnToMenu()}><HomeIcon size={15} /> RETURN TO MAIN MENU</button>
+            </div>
           </div>
         </div>
       )}
@@ -511,8 +602,8 @@ export default function Home() {
             <section><h3>BOARD FORECAST</h3><p>The small symbols above the coordinates are the next Warps entering each column. Only columns changed by a pickup or purge drop, so untouched routes remain stable.</p></section>
             <section><h3>CURTAIN</h3><p>Red dashed rows or columns are fixed two turns ahead. When their countdown reaches zero, they seal for your next planning turn. Sealed Warps cannot be entered or collected by either side.</p></section>
             <section><h3>BREAKDOWN</h3><p>At {breakdownAt} Robustness, the Warden enters Stage II: REHEARSAL becomes OVERTURE, CLOSE becomes DEADLOCK, and REPAIR becomes REWRITE. Future Curtains cover both axes around the position you occupied when they were scheduled.</p></section>
-            <section><h3>DESIRE</h3><p>The Warden always releases Desire I each turn, even without Bash Flags. Collected Bash Flags unlock its remaining methods. Every release is previewed before execution.</p></section>
-            <section><h3><SquareTerminal size={15} /> BASH</h3><p>Release length is the lower of Bash collected, remaining AP, and IV. VECTOR uses a 5×5 square; CoT uses a cross with arm length 5. Each Roman numeral is a different attack method.</p></section>
+            <section><h3>DESIRE</h3><p>The Warden always releases Desire I each turn, and Desire I and II in Stage II, even without Bash Flags. Collected Bash Flags unlock its remaining methods. Every release is previewed before execution.</p></section>
+            <section><h3><SquareTerminal size={15} /> BASH</h3><p>Release length is the lower of Bash collected, remaining AP, and IV. Each deck has a frame that sets its range (VECTOR is a 5×5 square, CoT a cross with arm length 5) and four skills, one per Roman numeral. A skill is stronger the later its slot. Decks are built on the main menu.</p></section>
             <section><h3><Shield size={15} /> PRIVILEGE</h3><p>SHELL automatically adds 1 PRIVILEGE per collected Privilege Flag. PRIVILEGE absorbs incoming damage for the following enemy phase. HP bars show raw damage; PRIVILEGE and REPAIR are listed beneath the bar.</p></section>
             <section><h3><Cpu size={15} /> CORE</h3><p>Every Core Flag advances all three independent counters. REPAIR restores Sanity at the end of the turn, after enemies attack; FOCUS empowers one Bash hit, and FIREWALL adds PRIVILEGE.</p></section>
             <section><h3><Gauge size={15} /> OVERLOAD</h3><p>Five charges enable the only manual Function. The first click or O previews all four methods from the planned endpoint; the second spends one AP, switches preset, and releases them without consuming Bash Flags. Normal end-of-turn Bash still releases afterward. Escape cancels the preview.</p></section>
@@ -527,6 +618,7 @@ export default function Home() {
           <div className="setting-row"><div><strong>AUDIO</strong></div><button className={`toggle ${state.muted ? '' : 'on'}`} onClick={() => battleStore.toggleMute()} aria-label="Toggle audio"><span />{state.muted ? 'MUTED' : 'ON'}</button></div>
           <div className="setting-row"><div><strong>REDUCED MOTION</strong></div><button className={`toggle ${state.reducedMotion ? 'on' : ''}`} onClick={() => battleStore.toggleReducedMotion()} aria-label="Toggle reduced motion"><span />{state.reducedMotion ? 'ON' : 'OFF'}</button></div>
           <button className="secondary-action full-width" onClick={() => { setSettingsOpen(false); battleStore.restart() }}><RotateCcw size={15} /> RESTART BATTLE</button>
+          {state.phase !== 'title' && <button className="secondary-action full-width menu-return" onClick={() => { setSettingsOpen(false); battleStore.returnToMenu() }}><HomeIcon size={15} /> RETURN TO MAIN MENU</button>}
         </Modal>
       )}
     </div>

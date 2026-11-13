@@ -148,7 +148,7 @@ try {
   const previewColor = await page.locator('.enemy-card.affected .to-be').evaluate(element => getComputedStyle(element).color)
   if (previewColor !== 'rgb(242, 209, 107)') throw new Error(`Damage preview is not yellow: ${previewColor}`)
   const projected = await page.locator('.to-be').textContent()
-  if (!projected?.includes('34')) throw new Error(`Missing projected Desire value: ${projected}`)
+  if (!projected?.includes('62')) throw new Error(`Missing projected Desire value: ${projected}`)
   if (await page.locator('.action-slot').count() !== 8) throw new Error('Expected eight smaller AP slots')
   if (await page.locator('.action-indicator.lit').count() !== 2) throw new Error('Expected Roman steps I and II to light')
   const coreLayout = await page.locator('.buff-list').evaluate(element => ({
@@ -219,7 +219,7 @@ try {
   if (state.playerAttackResolved || state.enemyPhaseIndex !== 0 || Object.keys(state.enemyResourcePreviews).length) {
     throw new Error('Event-driven HP previews did not reset for the next planning turn')
   }
-  if (state.enemies[0].robustness !== 34) throw new Error(`Opening Bash expected B01 at 34, got ${state.enemies[0].robustness}`)
+  if (state.enemies[0].robustness !== 62) throw new Error(`Opening Bash expected B01 at 62, got ${state.enemies[0].robustness}`)
   if (state.playerTrail.length !== 1 || state.playerTrail[0].x !== 7 || state.playerTrail[0].y !== 5) {
     throw new Error(`Gray trail did not clear at turn completion: ${JSON.stringify(state.playerTrail)}`)
   }
@@ -227,15 +227,18 @@ try {
   if (openingEffects.length < 2 || openingEffects[0].source !== 'player' || openingEffects[1].source !== 'player') {
     throw new Error(`Player attacks were not emitted sequentially: ${JSON.stringify(openingEffects)}`)
   }
-  if (openingEffects[0].presetId !== 'vector' || openingEffects[1].presetId !== 'vector'
+  if (openingEffects[0].fx !== 'base' || openingEffects[1].fx !== 'manhattan'
     || openingEffects[0].stepIndex !== 0 || openingEffects[1].stepIndex !== 1) {
     throw new Error(`Action-specific effect identities are missing: ${JSON.stringify(openingEffects.slice(0, 2))}`)
   }
 
   let overloadUsed = false
+  // This playthrough checks the flow to the victory screen, not the balance.
+  // bestRoute ignores incoming damage, so it gets extra Sanity to survive.
+  await page.evaluate(() => { const player = window.__battleProbe().player; player.maxSanity = 300; player.sanity = 300 })
   let stageTwoSeen = false
   let curtainLockSeen = false
-  for (let turn = 0; turn < 20; turn++) {
+  for (let turn = 0; turn < 45; turn++) {
     state = await snapshot()
     if (state.phase !== 'planning') break
     if (state.enemies[0].stage === 2 && !stageTwoSeen) {

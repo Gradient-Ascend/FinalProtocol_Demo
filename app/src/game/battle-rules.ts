@@ -1,4 +1,6 @@
-import { BASH_PRESETS, BOARD_SIZE, ENEMY_DEFINITIONS, EXPLICIT_FLAGS, FLAG_WEIGHTS, PLAYER_FUNCTIONS, WALLS } from './battle-config'
+import { BOARD_SIZE, ENEMY_DEFINITIONS, EXPLICIT_FLAGS, FLAG_WEIGHTS, PLAYER_FUNCTIONS, PLAYER_SANITY, WALLS } from './battle-config'
+import { DEFAULT_LOADOUT, buildPresets } from './skills'
+import type { Loadout } from './skills'
 import type { AttackPreset, BattleState, Coord, Curtain, EnemyBehavior, EnemyState, FlagKind } from './battle-types'
 
 export function mulberry32(seed: number): () => number {
@@ -174,7 +176,7 @@ export function enemyRoutes(state: BattleState): void {
   }
 }
 
-export function createInitialState(muted = false, reducedMotion = false): BattleState {
+export function createInitialState(muted = false, reducedMotion = false, loadout: Loadout = DEFAULT_LOADOUT): BattleState {
   const random = mulberry32(0xF1A6)
   const flags = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => randomFlag(random)))
   const walls = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => false))
@@ -185,10 +187,11 @@ export function createInitialState(muted = false, reducedMotion = false): Battle
   }
   const incoming = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => randomFlag(random)))
   const state: BattleState = {
+    presets: buildPresets(loadout),
     phase: 'title', resumePhase: null, turn: 1, boardSize: BOARD_SIZE,
     flags, incoming, walls, curtains: [], curtainCycle: 0,
     player: {
-      pos: { x: 7, y: 7 }, sanity: 60, maxSanity: 60, block: 0, overload: 0,
+      pos: { x: 7, y: 7 }, sanity: PLAYER_SANITY, maxSanity: PLAYER_SANITY, block: 0, overload: 0,
       activeBash: 0, focusReady: false,
       buffs: [
         { id: 'repair', name: 'REPAIR', counter: 0, threshold: 3, description: `+${PLAYER_FUNCTIONS.repairHeal} Sanity` },
@@ -250,5 +253,5 @@ export function refillBoard(state: BattleState, random: () => number, changedCol
 }
 
 export function activePreset(state: BattleState): AttackPreset {
-  return BASH_PRESETS[state.player.activeBash]
+  return state.presets[state.player.activeBash]
 }

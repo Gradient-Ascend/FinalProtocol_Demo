@@ -15,7 +15,7 @@ export function desireStepsFor(enemy: EnemyState): DesireStep[] {
 }
 
 export function desireReleaseCount(enemy: EnemyState, bashCount: number): number {
-  return enemy.bossStages?.length ? Math.max(1, bashCount) : bashCount
+  return Math.max(enemy.desireFloor ?? 0, bashCount)
 }
 
 export function desireInRange(origin: Coord, target: Coord, step: DesireStep): boolean {

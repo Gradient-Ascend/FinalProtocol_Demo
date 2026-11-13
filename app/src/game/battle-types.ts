@@ -15,6 +15,7 @@ export type AttackStep = {
   width?: number
   mode?: AttackMode
   pierce?: number
+  fx?: string
 }
 
 export type AttackPreset = {
@@ -69,6 +70,8 @@ export type BossStageDefinition = {
   soulThreshold: number
   soulHeal: number
   curtainLines: 1 | 2
+  // Desire methods released even when no Bash Flag was collected.
+  desireFloor: number
 }
 
 export type EnemyDefinition = {
@@ -89,6 +92,7 @@ export type EnemyDefinition = {
   securityName?: string
   soulName?: string
   breakdownAt?: number
+  desireFloor?: number
   bossStages?: BossStageDefinition[]
 }
 
@@ -124,6 +128,7 @@ export type AttackEffect = {
   shape: AttackShape
   range: number
   width?: number
+  fx?: string
 }
 
 export type BattleAction =
@@ -176,6 +181,8 @@ export type EnemyResourcePreview = {
 }
 
 export type BattleState = {
+  // The two Bash decks in play, built from the loadout chosen on the menu.
+  presets: AttackPreset[]
   phase: Phase
   resumePhase: 'planning' | 'resolving' | null
   turn: number

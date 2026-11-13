@@ -648,3 +648,51 @@ button:disabled { cursor: not-allowed; opacity: 0.38; }
 .enemy-panel .enemy-status { margin-top: 6px; }
 .enemy-panel .enemy-route { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-top: 6px; }
 .enemy-panel .enemy-route p { margin: 0; }
+
+/* Main menu: title on the left, deck builder on the right. */
+.title-overlay { align-items: center; justify-content: center; gap: clamp(24px, 4vw, 64px); padding: 24px clamp(20px, 5vw, 90px); overflow-y: auto; }
+.title-content { flex: 0 1 430px; min-width: 0; }
+.title-content .reset-decks { margin-left: 10px; }
+.loadout { flex: 0 1 560px; min-width: 0; display: grid; gap: 12px; }
+.loadout-decks { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.loadout-deck { padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.02); }
+.frame-toggle { width: 100%; display: grid; gap: 4px; padding: 0 0 10px; border: 0; border-bottom: 1px solid var(--line-soft); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.frame-toggle span { color: var(--muted); font-size: 7px; letter-spacing: .14em; }
+.frame-toggle strong { font-size: 15px; letter-spacing: .06em; }
+.frame-toggle em { color: var(--muted); font-size: 8px; font-style: normal; }
+.frame-toggle:hover strong, .frame-toggle:focus-visible strong { text-decoration: underline; text-underline-offset: 4px; }
+.loadout-slots { display: grid; gap: 5px; margin-top: 10px; }
+.loadout-slot { display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 6px; min-height: 30px; padding: 0 9px; border: 1px solid var(--line-soft); border-radius: 7px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.loadout-slot span { color: var(--muted); font-size: 8px; }
+.loadout-slot strong { font-size: 10px; letter-spacing: .06em; }
+.loadout-slot em { color: var(--muted); font-size: 9px; font-style: normal; }
+.loadout-slot:hover { border-color: var(--line); }
+.loadout-slot.selected { border-color: var(--white); background: var(--white); color: #080808; }
+.loadout-slot.selected span, .loadout-slot.selected em { color: #333; }
+.loadout-pool { padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.02); }
+.pool-row { width: 100%; display: grid; grid-template-columns: minmax(84px, 1.5fr) repeat(4, 1fr) 40px; align-items: center; gap: 6px; min-height: 25px; padding: 0 6px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 9px; text-align: left; }
+.pool-head { min-height: 20px; font-size: 7px; letter-spacing: .12em; }
+.pool-skill { cursor: pointer; }
+.pool-skill strong { color: var(--text); font-size: 9px; letter-spacing: .06em; }
+.pool-skill em { font-size: 8px; font-style: normal; }
+.pool-skill:hover, .pool-skill:focus-visible { background: rgba(255,255,255,.07); }
+.pool-skill.placed em { color: var(--text); }
+.pool-skill.current { background: rgba(255,255,255,.1); }
+.pool-row .at-slot { color: var(--white); font-weight: 650; }
+.pool-legend { margin: 8px 6px 2px; color: var(--faint); font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 9px; line-height: 1.5; }
+@media (max-width: 1020px) {
+  .title-overlay { flex-direction: column; align-items: stretch; justify-content: flex-start; }
+  .title-content, .loadout { flex: 0 0 auto; max-width: 620px; width: 100%; margin: 0 auto; }
+  .title-content h1 { font-size: 44px; margin: 12px 0; }
+}
+@media (max-width: 520px) {
+  .loadout-decks { grid-template-columns: 1fr; }
+  .title-content .reset-decks { margin-left: 0; }
+  .pool-row { grid-template-columns: minmax(70px, 1.4fr) repeat(4, 1fr) 30px; gap: 3px; font-size: 8px; }
+}
+
+/* Pause panel: the secondary actions form one rounded two-entry list. */
+.pause-menu { display: grid; min-width: 250px; margin-top: 14px; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+.pause-menu button { min-height: 43px; display: flex; align-items: center; gap: 10px; padding: 0 18px; border: 0; background: transparent; color: var(--text); font-size: 9px; letter-spacing: .07em; text-align: left; cursor: pointer; }
+.pause-menu button + button { border-top: 1px solid var(--line); }
+.pause-menu button:hover, .pause-menu button:focus-visible { background: rgba(255,255,255,.07); }

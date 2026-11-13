@@ -1,4 +1,5 @@
-import { BASH_PRESETS, MAX_ACTIONS, PLAYER_FUNCTIONS } from './battle-config'
+import { MAX_ACTIONS, PLAYER_FUNCTIONS } from './battle-config'
+import { IGNORES_SECURITY } from './skills'
 import { livingEnemies, manhattan } from './battle-rules'
 import type { AttackStep, BattleState, Coord, EnemyState, PredictedHit } from './battle-types'
 export type { PredictedHit } from './battle-types'
@@ -18,24 +19,26 @@ export function releaseCount(state: BattleState): number {
   return Math.min(4, bash, remaining)
 }
 
-export function attackRoll(state: BattleState, stepIndex: number, targetId: string): number {
+export function attackRoll(state: BattleState, stepIndex: number, targetId: string, sides = 4): number {
   const key = `${state.turn}:${state.player.pos.x},${state.player.pos.y}:${state.actions.length}:${stepIndex}:${targetId}`
   let hash = 2166136261
   for (let i = 0; i < key.length; i++) {
     hash ^= key.charCodeAt(i)
     hash = Math.imul(hash, 16777619)
   }
-  return (hash >>> 0) % 4
+  return (hash >>> 0) % sides
 }
 
 export function stepDamage(step: AttackStep, state: BattleState, target: EnemyState, stepIndex: number): number {
-  if (step.mode === 'manhattan') return manhattan(state.player.pos, target.pos)
-  if (step.mode === 'random') return attackRoll(state, stepIndex, target.id)
+  // For these two modes `amount` is the slot's modifier: a bonus on top of the
+  // distance, or the highest value the roll can reach.
+  if (step.mode === 'manhattan') return Math.max(0, manhattan(state.player.pos, target.pos) + step.amount)
+  if (step.mode === 'random') return attackRoll(state, stepIndex, target.id, step.amount + 1)
   return step.amount
 }
 
 export function presetFor(state: BattleState) {
-  return BASH_PRESETS[state.player.activeBash]
+  return state.presets[state.player.activeBash]
 }
 
 // This pure sequence planner is the single source of truth for both the yellow
@@ -46,7 +49,7 @@ export function predictedSequence(state: BattleState, presetIndex = state.player
   const shields = Object.fromEntries(livingEnemies(state).map(enemy => [enemy.id, enemy.block]))
   const hits: PredictedHit[] = []
   let focusReady = state.player.focusReady
-  for (const [stepIndex, step] of BASH_PRESETS[presetIndex].steps.slice(0, steps).entries()) {
+  for (const [stepIndex, step] of state.presets[presetIndex].steps.slice(0, steps).entries()) {
     const candidates = livingEnemies(state).filter(enemy => hp[enemy.id] > 0 && inAttackRange(state.player.pos, enemy.pos, step))
     const targets = step.area === 'all'
       ? candidates
@@ -76,10 +79,13 @@ export function predictedDamage(state: BattleState, presetIndex = state.player.a
 }
 
 export function mechanicText(step: AttackStep): string {
-  if (step.mode === 'manhattan') return 'Deal damage equal to the target’s Manhattan distance.'
-  if (step.mode === 'random') return 'Deal a deterministic random 0–3 damage.'
-  const targets = step.area === 'all' ? ' every Geek in range' : ' the nearest Geek'
-  const pierce = step.pierce ? `; pierce ${step.pierce} Security` : ''
+  const targets = step.area === 'all' ? 'every Geek in range' : 'the nearest Geek'
+  const pierce = !step.pierce ? '' : step.pierce >= IGNORES_SECURITY ? '; ignore Security' : `; pierce ${step.pierce} Security`
+  if (step.mode === 'manhattan') {
+    const bonus = step.amount > 0 ? ` plus ${step.amount}` : step.amount < 0 ? ` minus ${-step.amount}` : ''
+    return `Deal damage equal to the Manhattan distance${bonus} to ${targets}${pierce}.`
+  }
+  if (step.mode === 'random') return `Deal a deterministic random 0–${step.amount} damage to ${targets}${pierce}.`
   return `Deal ${step.amount} damage to ${targets}${pierce}.`
 }
 

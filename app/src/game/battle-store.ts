@@ -10,14 +10,18 @@ import type {
   EnemyState, FlagKind, Phase,
 } from './battle-types'
 import { storage } from './storage'
+import { buildPresets, cloneLoadout, sanitizeLoadout } from './skills'
+import type { Loadout } from './skills'
 
 type Listener = () => void
 type Sfx = (id: 'move' | 'hit' | 'pickup' | 'ui' | 'explosion' | 'win' | 'lose') => void
 
 export class BattleStore {
+  private loadout: Loadout = sanitizeLoadout(storage.get<unknown>('loadout', null))
   private state: BattleState = createInitialState(
     storage.get('muted', false),
     storage.get('reducedMotion', false),
+    this.loadout,
   )
   private listeners = new Set<Listener>()
   private random = mulberry32(0xB17B1E)
@@ -53,6 +57,28 @@ export class BattleStore {
     }
   }
 
+  getLoadout = (): Loadout => this.loadout
+
+  // Decks can only be changed on the menu, before the battle starts.
+  setLoadout(loadout: Loadout): void {
+    if (this.state.phase !== 'title') return
+    this.loadout = sanitizeLoadout(cloneLoadout(loadout))
+    storage.set('loadout', this.loadout)
+    this.state.presets = buildPresets(this.loadout)
+    this.sfx('ui')
+    this.commit()
+  }
+
+  returnToMenu(): void {
+    this.runId++
+    const { muted, reducedMotion } = this.state
+    this.random = mulberry32(0xB17B1E)
+    this.logId = 10
+    this.state = createInitialState(muted, reducedMotion, this.loadout)
+    this.sfx('ui')
+    this.commit()
+  }
+
   start(): void {
     if (this.state.phase !== 'title') return
     this.state.phase = 'planning'
@@ -67,7 +93,7 @@ export class BattleStore {
     const { muted, reducedMotion } = this.state
     this.random = mulberry32(0xB17B1E)
     this.logId = 10
-    this.state = createInitialState(muted, reducedMotion)
+    this.state = createInitialState(muted, reducedMotion, this.loadout)
     this.state.phase = 'planning'
     this.state.message = ''
     this.sfx('ui')
@@ -118,14 +144,12 @@ export class BattleStore {
   }
 
   addStep(dx: number, dy: number): void {
-    if (this.state.phase === 'title') this.start()
     if (this.state.phase !== 'planning') return
     const from = this.plannedPosition()
     this.addMove({ x: from.x + dx, y: from.y + dy })
   }
 
   addMove(to: Coord): void {
-    if (this.state.phase === 'title') this.start()
     if (this.state.phase !== 'planning') return
     if (this.state.actions.length >= MAX_ACTIONS) {
       this.state.message = 'No action points remain. Execute or undo.'
@@ -289,7 +313,7 @@ export class BattleStore {
     return {
       source: 'player', presetId: activePreset(this.state).id,
       origin: { ...origin }, target: { ...(enemy?.pos ?? this.state.player.pos) },
-      stepIndex: hit.stepIndex, shape: step.shape, range: step.range, width: step.width,
+      stepIndex: hit.stepIndex, shape: step.shape, range: step.range, width: step.width, fx: step.fx,
     }
   }
 
@@ -416,6 +440,7 @@ export class BattleStore {
       enemy.soulName = next.soulName
       enemy.soulThreshold = next.soulThreshold
       enemy.soulHeal = next.soulHeal
+      enemy.desireFloor = next.desireFloor
       enemy.block = 0
       enemy.soulCounter = 0
       this.log(`BREAKDOWN / Stage II: ${next.desireName}, ${next.securityName}, ${next.soulName}; dual Curtain armed.`, 'bad')

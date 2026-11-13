@@ -4,6 +4,8 @@ import { coordKey, createInitialState, enemyRoutes, refillBoard, scheduleCurtain
 import { attackRoll, inAttackRange, predictedDamage, predictedSequence, releaseCount, stepDamage } from './attack-methods'
 import { desireInRange, desireReleaseCount, predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from './enemy-attack-methods'
 import { BASH_PRESETS, FLAG_WEIGHTS } from './battle-config'
+import { DEFAULT_LOADOUT, SKILLS, assignSkill, buildPresets, sanitizeLoadout, skillById, slotLabel } from './skills'
+import type { Loadout } from './skills'
 
 function readyStore(): BattleStore {
   const store = new BattleStore()
@@ -71,7 +73,7 @@ describe('turn resolution', () => {
     store.addStep(0, -1)
     await store.executeTurn()
     const state = store.getSnapshot()
-    expect(state.enemies[0].robustness).toBe(34)
+    expect(state.enemies[0].robustness).toBe(62)
     expect(state.turn).toBe(2)
     expect(state.actions).toHaveLength(0)
     expect(state.phase).toBe('planning')
@@ -201,7 +203,7 @@ it('releases the complete I–IV VECTOR sequence with four Bash and four AP rema
   store.addStep(1, 0)
   expect(releaseCount(store.getSnapshot())).toBe(4)
   await store.executeTurn()
-  expect(store.getSnapshot().enemies[0].robustness).toBe(26)
+  expect(store.getSnapshot().enemies[0].robustness).toBe(54)
 })
 
 it('requires a second Overload request to switch Bash and release damage', () => {
@@ -310,7 +312,7 @@ describe('Warden boss protocol', () => {
   it('Breakdown swaps Desire, Security and Soul sets at half Robustness', async () => {
     const store = readyStore()
     const state = store.getSnapshot()
-    state.enemies[0].robustness = 19
+    state.enemies[0].robustness = 33
     state.enemies[0].route = []
     store.addStep(0, -1)
     store.addStep(0, -1)
@@ -367,7 +369,7 @@ describe('rebalanced encounter and player forecast', () => {
     const hits = predictedEnemySequence(state)
     expect(hits.map(hit => hit.dealt)).toEqual([2, 3])
     expect(hits.every(hit => hit.origin.x === 7 && hit.origin.y === 5)).toBe(true)
-    expect(hits[hits.length - 1].after).toBe(55)
+    expect(hits[hits.length - 1].after).toBe(31)
     expect(state.player.buffs.map(buff => buff.counter)).toEqual(counters)
   })
 
@@ -389,19 +391,19 @@ describe('live HP resource previews', () => {
       { type: 'move', to: { x: 8, y: 7 }, flag: 'privilege' },
       { type: 'move', to: { x: 9, y: 7 }, flag: 'core' },
     ]
-    state.player.sanity = 50
+    state.player.sanity = 20
     state.player.buffs.find(buff => buff.id === 'repair')!.counter = 2
     const preview = predictedPlayerResources(state)
-    expect(preview.privilegeGain).toBe(1)
-    expect(preview.healing).toBe(2)
-    expect(preview.blockAfterResources).toBe(1)
+    expect(preview.privilegeGain).toBe(2)
+    expect(preview.healing).toBe(3)
+    expect(preview.blockAfterResources).toBe(2)
     expect(state.player.buffs.find(buff => buff.id === 'repair')!.counter).toBe(2)
   })
 
   it('previews enemy SECURITY and Soul recovery from the exposed route', () => {
     const state = createInitialState()
     const boss = state.enemies[0]
-    boss.robustness = 30
+    boss.robustness = 50
     boss.route = [{ x: 7, y: 5 }, { x: 7, y: 6 }]
     boss.soulCounter = 1
     state.flags[5][7] = 'privilege'
@@ -417,17 +419,17 @@ describe('live HP resource previews', () => {
 it('applies REPAIR after the enemy phase and keeps it out of the damage forecast', async () => {
   const store = readyStore()
   const state = store.getSnapshot()
-  state.player.sanity = 50
+  state.player.sanity = 20
   state.player.buffs.find(buff => buff.id === 'repair')!.counter = 2
   state.flags[6][7] = 'core'
   store.addStep(0, -1)
   const predicted = predictedEnemySequence(store.getSnapshot())
   expect(predicted.length).toBeGreaterThan(0)
-  expect(predicted[0].before).toBe(50)
+  expect(predicted[0].before).toBe(20)
   const lost = predicted.reduce((total, hit) => total + hit.dealt, 0)
   await store.executeTurn()
   const after = store.getSnapshot()
-  expect(after.player.sanity).toBe(50 - lost + 2)
+  expect(after.player.sanity).toBe(20 - lost + 3)
   expect(after.pendingRepair).toBe(0)
   expect(after.incomingForecast).toBeNull()
   expect(after.outgoingForecast).toBeNull()
@@ -437,7 +439,8 @@ it('guarantees only the Warden a baseline Desire step without Bash', () => {
   const state = createInitialState()
   expect(desireReleaseCount(state.enemies[0], 0)).toBe(1)
   state.enemies[0].stage = 2
-  expect(desireReleaseCount(state.enemies[0], 0)).toBe(1)
+  state.enemies[0].desireFloor = state.enemies[0].bossStages![1].desireFloor
+  expect(desireReleaseCount(state.enemies[0], 0)).toBe(2)
   expect(desireReleaseCount(state.enemies[1], 0)).toBe(0)
   expect(desireReleaseCount(state.enemies[2], 0)).toBe(0)
 })
@@ -465,4 +468,82 @@ it('advances HP previews through attack and enemy events before clearing them', 
   expect(store.getSnapshot().enemyPhaseIndex).toBe(0)
   expect(store.getSnapshot().playerAttackResolved).toBe(false)
   expect(store.getSnapshot().enemyResourcePreviews).toEqual({})
+})
+
+
+describe('decks and skills', () => {
+  it('builds the default decks with the original eight methods in their original slots', () => {
+    const [vector, cot] = buildPresets(DEFAULT_LOADOUT)
+    expect(vector.name).toBe('VECTOR')
+    expect(vector.steps.map(step => [step.name, step.amount, step.pierce ?? 0])).toEqual([
+      ['BASE', 1, 0], ['MANHATTAN', 0, 0], ['ARRAY', 2, 0], ['ZERO', 4, 2],
+    ])
+    expect(vector.steps.every(step => step.shape === 'square' && step.range === 2)).toBe(true)
+    expect(cot.name).toBe('CoT')
+    expect(cot.steps.map(step => [step.name, step.amount, step.pierce ?? 0])).toEqual([
+      ['OFF', 3, 0], ['ON', 2, 0], ['HIGH', 3, 0], ['ULTRA', 5, 3],
+    ])
+    expect(cot.steps.every(step => step.shape === 'cross' && step.range === 5)).toBe(true)
+  })
+
+  it('never makes a skill weaker in a later slot', () => {
+    for (const skill of SKILLS) {
+      for (let slot = 1; slot < 4; slot++) {
+        expect(skill.amounts[slot]).toBeGreaterThanOrEqual(skill.amounts[slot - 1])
+        if (skill.pierce) expect(skill.pierce[slot]).toBeGreaterThanOrEqual(skill.pierce[slot - 1])
+      }
+    }
+    expect(slotLabel(skillById('manhattan'), 0)).toBe('D−1')
+    expect(slotLabel(skillById('flood'), 3)).toBe('ALL 2 P2')
+    expect(slotLabel(skillById('probe'), 0)).toBe('1 P∞')
+  })
+
+  it('trades slots when a placed skill is assigned elsewhere', () => {
+    const next = assignSkill(DEFAULT_LOADOUT, 0, 0, 'ultra')
+    expect(next[0].skills).toEqual(['ultra', 'manhattan', 'array', 'zero'])
+    expect(next[1].skills).toEqual(['off', 'on', 'high', 'base'])
+    expect(DEFAULT_LOADOUT[0].skills[0]).toBe('base')
+    const fresh = assignSkill(DEFAULT_LOADOUT, 1, 2, 'spike')
+    expect(fresh[1].skills).toEqual(['off', 'on', 'spike', 'ultra'])
+  })
+
+  it('rejects stored loadouts that are malformed or reuse a skill', () => {
+    expect(sanitizeLoadout(null)).toEqual(DEFAULT_LOADOUT)
+    expect(sanitizeLoadout([{ frame: 'vector', skills: ['base', 'base', 'array', 'zero'] }, DEFAULT_LOADOUT[1]])).toEqual(DEFAULT_LOADOUT)
+    expect(sanitizeLoadout([{ frame: 'nope', skills: ['base', 'on', 'array', 'zero'] }, DEFAULT_LOADOUT[1]])).toEqual(DEFAULT_LOADOUT)
+  })
+
+  it('applies a custom loadout to the battle and keeps it across restart and menu', async () => {
+    const store = new BattleStore()
+    store.getSnapshot().reducedMotion = true
+    const custom: Loadout = [
+      { frame: 'cot', skills: ['spike', 'base', 'flood', 'probe'] },
+      { frame: 'cot', skills: ['off', 'on', 'high', 'ultra'] },
+    ]
+    store.setLoadout(custom)
+    expect(store.getSnapshot().presets.map(preset => preset.name)).toEqual(['CoT·A', 'CoT·B'])
+    store.start()
+    store.setLoadout(DEFAULT_LOADOUT)
+    expect(store.getLoadout()).toEqual(custom)
+    store.addStep(0, -1)
+    store.addStep(0, -1)
+    // SPIKE deals 0 in slot I and BASE deals 2 in slot II; the Warden is 3 cells up the cross.
+    expect(predictedDamage({ ...store.getSnapshot(), player: { ...store.getSnapshot().player, pos: store.plannedPosition() } }).B01).toBe(2)
+    await store.executeTurn()
+    expect(store.getSnapshot().enemies[0].robustness).toBe(62)
+    store.restart()
+    expect(store.getSnapshot().presets[0].steps[0].name).toBe('SPIKE')
+    store.returnToMenu()
+    expect(store.getSnapshot().phase).toBe('title')
+    expect(store.getSnapshot().presets[0].steps[0].name).toBe('SPIKE')
+    store.setLoadout(DEFAULT_LOADOUT)
+    expect(store.getSnapshot().presets[0].steps[0].name).toBe('BASE')
+  })
+
+  it('does not start the battle from the menu when a move key is pressed', () => {
+    const store = new BattleStore()
+    store.addStep(0, -1)
+    expect(store.getSnapshot().phase).toBe('title')
+    expect(store.getSnapshot().actions).toHaveLength(0)
+  })
 })
