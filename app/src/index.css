@@ -754,3 +754,14 @@ button:disabled { cursor: not-allowed; opacity: 0.38; }
 .health-debris i { position: absolute; top: 1px; border-radius: 1px; box-shadow: 0 0 6px currentColor; }
 .reduced-motion .health-debris { display: none; }
 .reduced-motion .live .health-segment { transition: none; }
+/* Block absorbing damage: the absorbed stretch becomes a hatched strip that
+   flashes and is peeled off toward the HP edge, so it never reads as HP
+   coming back. */
+.block-strip { position: absolute; top: 0; bottom: 0; z-index: 4; pointer-events: none; background: repeating-linear-gradient(115deg, #f5f5f5 0 2px, #6b6b6b 2px 4px); animation: block-strip .62s ease-in forwards; }
+@keyframes block-strip {
+  0% { clip-path: inset(0 0 0 0); filter: brightness(2.4); }
+  18% { filter: brightness(1); }
+  38% { clip-path: inset(0 0 0 0); }
+  100% { clip-path: inset(0 0 0 100%); }
+}
+.reduced-motion .block-strip { display: none; }

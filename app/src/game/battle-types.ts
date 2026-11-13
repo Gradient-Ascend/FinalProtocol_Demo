@@ -208,6 +208,9 @@ export type BattleState = {
   enemyPhaseIndex: number
   playerAttackResolved: boolean
   enemyResourcePreviews: Record<string, EnemyResourcePreview>
+  // Running totals of what block has absorbed for each unit ('player' or a
+  // Geek id), so its HP bar can show a blocked hit as blocked.
+  absorbedTotals: Record<string, number>
   log: LogEntry[]
   muted: boolean
   reducedMotion: boolean

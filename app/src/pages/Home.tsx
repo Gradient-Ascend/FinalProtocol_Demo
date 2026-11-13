@@ -16,6 +16,7 @@ import { predictedEnemyResources, predictedEnemySequence, predictedPlayerResourc
 import type { CoreBuff, FlagKind } from '@/game/battle-types'
 
 const ROMAN = ['I', 'II', 'III', 'IV']
+const BLOCK_COLOR = '#f5f5f5'
 const WARDEN = ENEMY_DEFINITIONS.find(enemy => enemy.bossStages?.length)
 const breakdownAt = WARDEN ? Math.ceil(WARDEN.robustness * (WARDEN.breakdownAt ?? 0.5)) : 0
 
@@ -45,7 +46,10 @@ type HealthHit = {
 // bar rattles, the HP lost hangs for a beat in the attacker's colour and then
 // shatters into fragments that fall away, while the remaining segments catch
 // up late with a little overshoot. Restored HP draws motes up into the bar.
-function HealthBar({ value, max, hits, live, label, className = '', lossColor, onLeave }: {
+// Damage that block absorbed is never shown as HP coming back: that stretch
+// turns into a hatched block strip that is peeled off, with chips deflected
+// upward.
+function HealthBar({ value, max, hits, live, label, className = '', lossColor, absorbed, onLeave }: {
   value: number
   max: number
   hits: HealthHit[]
@@ -53,6 +57,7 @@ function HealthBar({ value, max, hits, live, label, className = '', lossColor, o
   label: string
   className?: string
   lossColor: string
+  absorbed: number
   onLeave: () => void
 }) {
   const wrap = useRef<HTMLDivElement>(null)
@@ -68,34 +73,6 @@ function HealthBar({ value, max, hits, live, label, className = '', lossColor, o
     if (value === before) return
     previous.current = value
     const calm = !wrap.current || !debris.current || wrap.current.closest('.reduced-motion') !== null
-    // Small squares thrown from a stretch of the bar; they fall for a loss and rise for a gain.
-    const scatter = (from: number, to: number, count: number, tint: string, rising: boolean) => {
-      const layer = debris.current
-      if (!layer) return
-      for (let i = 0; i < count; i++) {
-        const bit = document.createElement('i')
-        const size = 2 + Math.random() * 2
-        bit.style.cssText = `left:${(from + Math.random() * (to - from)) / max * 100}%;width:${size}px;height:${size}px;background:${tint}`
-        layer.appendChild(bit)
-        const dx = (Math.random() - 0.5) * 26
-        const fall = 18 + Math.random() * 26
-        const frames = rising
-          ? [
-              { transform: `translate(${dx}px, ${fall}px)`, opacity: 0 },
-              { transform: `translate(${dx * 0.4}px, ${fall * 0.45}px)`, opacity: 1, offset: 0.35 },
-              { transform: 'translate(0, 0)', opacity: 0 },
-            ]
-          : [
-              { transform: 'translate(0, 0) rotate(0deg)', opacity: 1 },
-              { transform: `translate(${dx * 0.35}px, ${-4 - Math.random() * 7}px) rotate(${dx * 4}deg)`, opacity: 1, offset: 0.22 },
-              { transform: `translate(${dx}px, ${fall}px) rotate(${dx * 14}deg)`, opacity: 0 },
-            ]
-        bit.animate(frames, {
-          duration: 480 + Math.random() * 420, delay: Math.random() * (rising ? 160 : 70),
-          easing: rising ? 'cubic-bezier(.2,.8,.3,1)' : 'cubic-bezier(.45,0,.9,.55)', fill: 'both',
-        }).onfinish = () => bit.remove()
-      }
-    }
     if (value < before) {
       const top = Math.max(ghostFrom.current ?? before, before)
       const lost = top - value
@@ -113,17 +90,66 @@ function HealthBar({ value, max, hits, live, label, className = '', lossColor, o
       const timer = window.setTimeout(() => {
         ghostFrom.current = null
         setGhostTop(null)
-        if (!calm) scatter(value, top, Math.min(26, Math.max(4, Math.round(lost * 3))), color.current, false)
+        if (!calm) scatter(value, top, Math.min(26, Math.max(4, Math.round(lost * 3))), color.current, 'fall')
       }, calm ? 520 : 190)
       return () => window.clearTimeout(timer)
     }
     ghostFrom.current = null
     setGhostTop(null)
     setGrown({ from: before, to: value })
-    if (!calm) scatter(before, value, Math.min(16, Math.max(4, Math.round((value - before) * 3))), 'var(--white)', true)
+    if (!calm) scatter(before, value, Math.min(16, Math.max(4, Math.round((value - before) * 3))), 'var(--white)', 'rise')
     const timer = window.setTimeout(() => setGrown(null), 620)
     return () => window.clearTimeout(timer)
   }, [value, max])
+
+  // Block absorbing a hit: the absorbed stretch sits just under the current HP.
+  const absorbedBefore = useRef(absorbed)
+  const [blocked, setBlocked] = useState<{ amount: number; seq: number } | null>(null)
+  useEffect(() => {
+    const amount = absorbed - absorbedBefore.current
+    absorbedBefore.current = absorbed
+    if (amount <= 0) return
+    setBlocked(current => ({ amount, seq: (current?.seq ?? 0) + 1 }))
+    if (wrap.current && !wrap.current.closest('.reduced-motion')) {
+      scatter(Math.max(0, value - amount), value, Math.min(14, Math.max(4, amount * 3)), BLOCK_COLOR, 'deflect')
+    }
+  }, [absorbed])
+
+  // Small squares thrown from a stretch of the bar: they fall for lost HP,
+  // rise into the bar for restored HP, and fly up and away for a block.
+  const scatter = (from: number, to: number, count: number, tint: string, mode: 'fall' | 'rise' | 'deflect') => {
+    const rising = mode === 'rise'
+    const layer = debris.current
+    if (!layer) return
+    for (let i = 0; i < count; i++) {
+      const bit = document.createElement('i')
+      const size = 2 + Math.random() * 2
+      bit.style.cssText = `left:${(from + Math.random() * (to - from)) / max * 100}%;width:${size}px;height:${size}px;background:${tint}`
+      layer.appendChild(bit)
+      const dx = (Math.random() - 0.5) * 26
+      const fall = 18 + Math.random() * 26
+      const frames = mode === 'deflect'
+        ? [
+            { transform: 'translate(0, 0)', opacity: 1 },
+            { transform: `translate(${dx * 1.3}px, ${-10 - Math.random() * 16}px) rotate(${dx * 10}deg)`, opacity: 0 },
+          ]
+        : rising
+        ? [
+            { transform: `translate(${dx}px, ${fall}px)`, opacity: 0 },
+            { transform: `translate(${dx * 0.4}px, ${fall * 0.45}px)`, opacity: 1, offset: 0.35 },
+            { transform: 'translate(0, 0)', opacity: 0 },
+          ]
+        : [
+            { transform: 'translate(0, 0) rotate(0deg)', opacity: 1 },
+            { transform: `translate(${dx * 0.35}px, ${-4 - Math.random() * 7}px) rotate(${dx * 4}deg)`, opacity: 1, offset: 0.22 },
+            { transform: `translate(${dx}px, ${fall}px) rotate(${dx * 14}deg)`, opacity: 0 },
+          ]
+      bit.animate(frames, {
+        duration: 480 + Math.random() * 420, delay: Math.random() * (rising ? 160 : 70),
+        easing: mode === 'fall' ? 'cubic-bezier(.45,0,.9,.55)' : 'cubic-bezier(.2,.8,.3,1)', fill: 'both',
+      }).onfinish = () => bit.remove()
+    }
+  }
 
   const pct = (amount: number) => `${Math.max(0, Math.min(100, amount / max * 100))}%`
   const placed: (HealthHit & { left: number; right: number })[] = []
@@ -140,6 +166,7 @@ function HealthBar({ value, max, hits, live, label, className = '', lossColor, o
         <span className="health-current" style={{ width: pct(cursor) }} />
         {grown && <i className="gain-chunk" style={{ left: pct(grown.from), width: pct(grown.to - grown.from) }} />}
         <i className={`loss-ghost ${ghostTop === null ? 'draining' : 'struck'}`} style={{ left: pct(value), width: pct(Math.max(0, (ghostTop ?? value) - value)), background: lossColor }} />
+        {blocked && <i className="block-strip" key={blocked.seq} style={{ left: pct(value - blocked.amount), width: pct(Math.min(value, blocked.amount)) }} />}
         {placed.map((hit, index) => (
           <button
             type="button"
@@ -495,6 +522,7 @@ export default function Home() {
             }))}
             live={live}
             lossColor="#ff5d73"
+            absorbed={state.absorbedTotals.player ?? 0}
             label={`Sanity ${state.player.sanity} of ${state.player.maxSanity}; ${incomingDamage} raw damage incoming`}
             onLeave={clearEnemyAttackPreview}
           />
@@ -694,6 +722,7 @@ export default function Home() {
                       }))}
                       live={live}
                       lossColor={strikeColor}
+                      absorbed={state.absorbedTotals[enemy.id] ?? 0}
                       label={`Robustness ${enemy.robustness} of ${enemy.maxRobustness}; ${allHits.reduce((total, hit) => total + hit.damage, 0)} raw damage incoming`}
                       onLeave={clearMethodPreview}
                     />
@@ -745,6 +774,9 @@ export default function Home() {
             <div className="outcome-icon">{state.phase === 'victory' ? <Check size={34} /> : <ShieldAlert size={34} />}</div>
             <h2>{state.phase === 'victory' ? 'ESCAPED' : 'ELIMINATED'}</h2>
             <button className="primary-action" onClick={() => battleStore.restart()}><RotateCcw size={16} /> RESTART BATTLE <span>R</span></button>
+            <div className="pause-menu">
+              <button onClick={() => battleStore.returnToMenu()}><HomeIcon size={15} /> RETURN TO MAIN MENU</button>
+            </div>
           </div>
         </div>
       )}

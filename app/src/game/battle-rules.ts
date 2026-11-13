@@ -218,7 +218,7 @@ export function createInitialState(muted = false, reducedMotion = false, loadout
       effectCell: null,
       statuses: definition.bossStages ? ['DESIRE', 'SECURITY', 'SOUL', 'BREAKDOWN'] : ['DESIRE', 'SECURITY', 'SOUL'],
     })),
-    actions: [], resolvedMoves: 0, enemyPhaseIndex: 0, playerAttackResolved: false, enemyResourcePreviews: {}, log: [],
+    actions: [], resolvedMoves: 0, enemyPhaseIndex: 0, playerAttackResolved: false, enemyResourcePreviews: {}, absorbedTotals: {}, log: [],
     muted, reducedMotion, message: '', attackPreview: null, enemyAttackPreview: null, overloadArmed: false,
     incomingForecast: null, outgoingForecast: null, pendingRepair: 0, resourcesResolved: false,
   }

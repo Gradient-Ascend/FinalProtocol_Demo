@@ -268,6 +268,11 @@ export class BattleStore {
     this.commit()
   }
 
+  private noteAbsorbed(unit: string, amount: number): void {
+    if (!amount) return
+    this.state.absorbedTotals = { ...this.state.absorbedTotals, [unit]: (this.state.absorbedTotals[unit] ?? 0) + amount }
+  }
+
   private collectPlayerFlag(flag: FlagKind): void {
     if (flag === 'overload') {
       this.state.player.overload = Math.min(OVERLOAD_THRESHOLD, this.state.player.overload + 1)
@@ -307,6 +312,7 @@ export class BattleStore {
     if (!enemy) return
     enemy.block = Math.max(0, enemy.block - hit.absorbed)
     enemy.robustness = hit.after
+    this.noteAbsorbed(enemy.id, hit.absorbed)
     if (hit.focus) this.state.player.focusReady = false
     const step = activePreset(this.state).steps[hit.stepIndex]
     const shieldText = hit.absorbed ? ` / ${hit.absorbed} blocked` : ''
@@ -381,6 +387,7 @@ export class BattleStore {
       this.emitEffect(effect)
       await this.pause(timing.strike)
       this.state.player.block -= absorbed
+      this.noteAbsorbed('player', absorbed)
       this.state.player.sanity = Math.max(0, this.state.player.sanity - dealt)
       this.state.incomingForecast = this.state.incomingForecast
         ?.filter(hit => hit.enemyId !== enemy.id || hit.stepIndex !== stepIndex) ?? null
@@ -442,7 +449,9 @@ export class BattleStore {
     this.log(`CORE / REPAIR restored ${healed} Sanity.`, 'good')
     if (healed) this.sfx('pickup')
     this.commit()
-    await this.wait()
+    // Let the recovery finish on the HP bar before the next turn's incoming
+    // damage is previewed on it.
+    await (healed ? this.pause(950) : this.wait())
   }
 
   private checkBreakdown(): boolean {
