@@ -217,6 +217,7 @@ export function createInitialState(muted = false, reducedMotion = false): Battle
     })),
     actions: [], resolvedMoves: 0, enemyPhaseIndex: 0, playerAttackResolved: false, enemyResourcePreviews: {}, log: [],
     muted, reducedMotion, message: '', attackPreview: null, enemyAttackPreview: null, overloadArmed: false,
+    incomingForecast: null, outgoingForecast: null, pendingRepair: 0, resourcesResolved: false,
   }
   scheduleCurtains(state, 3)
   enemyRoutes(state)

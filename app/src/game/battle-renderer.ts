@@ -553,9 +553,11 @@ export class BattleRenderer {
 
     if (state.attackPreview) {
       const step = BASH_PRESETS[state.attackPreview.presetIndex].steps[state.attackPreview.stepIndex]
+      // Bash fires from where the route ends, which is also what the damage forecast uses.
+      const attackOrigin = state.phase === 'planning' ? this.store.plannedPosition() : state.player.pos
       for (let y = 0; y < 15; y++) {
         for (let x = 0; x < 15; x++) {
-          if (state.walls[y][x] || !inAttackRange(state.player.pos, { x, y }, step)) continue
+          if (state.walls[y][x] || !inAttackRange(attackOrigin, { x, y }, step)) continue
           const px = this.origin.x + x * this.cell
           const py = this.origin.y + y * this.cell
           ctx.fillStyle = 'rgba(242,209,107,0.13)'

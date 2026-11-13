@@ -144,7 +144,10 @@ export class BattleStore {
       this.commit()
       return
     }
-    const action: BattleAction = { type: 'move', to: { ...to }, flag: this.state.flags[to.y][to.x] }
+    // A Warp is emptied the first time the route crosses it, so walking back
+    // over it yields nothing.
+    const revisited = this.state.actions.some(action => action.type === 'move' && sameCoord(action.to, to))
+    const action: BattleAction = { type: 'move', to: { ...to }, flag: revisited ? 'blank' : this.state.flags[to.y][to.x] }
     this.state.actions = [...this.state.actions, action]
     this.state.message = `${coordKey(to)} queued · ${this.state.actions.length}/${MAX_ACTIONS} operations.`
     this.sfx('move')
@@ -255,9 +258,8 @@ export class BattleStore {
         if (buff.counter < buff.threshold) continue
         buff.counter = 0
         if (buff.id === 'repair') {
-          const healed = Math.min(PLAYER_FUNCTIONS.repairHeal, this.state.player.maxSanity - this.state.player.sanity)
-          this.state.player.sanity += healed
-          this.log(`CORE / REPAIR restored ${healed} Sanity.`, 'good')
+          this.state.pendingRepair += PLAYER_FUNCTIONS.repairHeal
+          this.log(`CORE / REPAIR queued ${PLAYER_FUNCTIONS.repairHeal} Sanity for the end of the turn.`, 'good')
         } else if (buff.id === 'focus') {
           this.state.player.focusReady = true
           this.log('CORE / FOCUS empowers the next Bash hit.', 'good')
@@ -306,10 +308,13 @@ export class BattleStore {
     if (!steps) return
     const preset = activePreset(this.state)
     const hits = predictedSequence(this.state, this.state.player.activeBash, steps)
-    for (const hit of hits) {
+    this.state.outgoingForecast = hits
+    this.commit()
+    for (const [index, hit] of hits.entries()) {
       this.emitEffect(this.playerEffect(hit))
       await this.wait()
       this.applyPlayerHit(preset.name, hit)
+      this.state.outgoingForecast = hits.slice(index + 1)
       this.state.playerAttackResolved = true
       this.commit()
       await this.wait()
@@ -329,6 +334,8 @@ export class BattleStore {
       this.state.player.block -= absorbed
       const dealt = step.amount - absorbed
       this.state.player.sanity = Math.max(0, this.state.player.sanity - dealt)
+      this.state.incomingForecast = this.state.incomingForecast
+        ?.filter(hit => hit.enemyId !== enemy.id || hit.stepIndex !== stepIndex) ?? null
       this.log(`${enemy.id} / ${enemy.desireName ?? 'DESIRE'} → ${dealt} Sanity damage.`, 'bad')
       this.sfx('hit')
       this.commit()
@@ -375,6 +382,19 @@ export class BattleStore {
       enemy.effectCell = null
     }
     await this.enemyAttack(enemy, counts.bash)
+    // Anything forecast for this enemy that did not land is no longer coming.
+    this.state.incomingForecast = this.state.incomingForecast?.filter(hit => hit.enemyId !== enemy.id) ?? null
+  }
+
+  private async resolveRepair(): Promise<void> {
+    if (!this.state.pendingRepair) return
+    const healed = Math.min(this.state.pendingRepair, this.state.player.maxSanity - this.state.player.sanity)
+    this.state.player.sanity += healed
+    this.state.pendingRepair = 0
+    this.log(`CORE / REPAIR restored ${healed} Sanity.`, 'good')
+    if (healed) this.sfx('pickup')
+    this.commit()
+    await this.wait()
   }
 
   private checkBreakdown(): boolean {
@@ -436,6 +456,10 @@ export class BattleStore {
     this.state.overloadArmed = false
     this.state.attackPreview = null
     this.state.enemyAttackPreview = null
+    this.state.incomingForecast = predictedEnemySequence(this.state)
+    this.state.outgoingForecast = null
+    this.state.pendingRepair = 0
+    this.state.resourcesResolved = false
     this.state.phase = 'resolving'
     this.state.resolvedMoves = 0
     this.state.message = 'Executing player route…'
@@ -455,6 +479,7 @@ export class BattleStore {
     }
 
     this.resolvePlayerResources()
+    this.state.resourcesResolved = true
     await this.firePlayerAttack(releaseCount(this.state))
     this.commit()
     await this.wait()
@@ -470,6 +495,12 @@ export class BattleStore {
       await this.wait()
       if (this.checkOutcome()) { this.commit(); return }
     }
+
+    await this.resolveRepair()
+    if (id !== this.runId) return
+    this.state.incomingForecast = null
+    this.state.outgoingForecast = null
+    this.state.resourcesResolved = false
 
     for (const event of advanceCurtains(this.state)) {
       this.log(event.type === 'lock'

@@ -2,6 +2,31 @@
 
 Nov 10, 2026 · @Henry
 
+## 0. Build status (web demo, Nov 12, 2026)
+
+The web build in `app/` is a single boss fight, not the full demo described below. Sections 1 to 6 remain the design target; this table records where the build currently differs. The numbers live in `app/src/game/battle-config.ts`.
+
+| Aspect | Manifest | Web build |
+| --- | --- | --- |
+| Scope | Chain of battles, card rewards, one boss | One fixed-seed boss fight: the Warden plus two minor enemies |
+| Board | 7×7 | 15×15, 16 walls, about 50% blank |
+| Budget | 7 actions, 4-step cap | 8 action points, no separate step cap |
+| Tile names | Attack / Defense / Star / Shadow | Bash / Privilege / Core / Overload |
+| Health | Health 60, Block | Sanity 60, PRIVILEGE (enemies: Robustness, SECURITY) |
+| Attack | Whole stack fires through one method | One method per Bash tile, in order I to IV, capped by unused action points |
+| Leftover actions | Open decision | Settled: each unused action point allows one more Bash method to fire |
+| Defense | Stack converted by the defense set | +1 PRIVILEGE per tile; clears after the enemy phase |
+| Star | Independent counters, open whether one tile advances all | Every Core tile advances all three counters (REPAIR 3, FOCUS 2, FIREWALL 4); counters persist. REPAIR heals at the end of the turn, after the enemy phase |
+| Shadow | 3 tiles buy a switch of attack method | 5 Overload charges; spending them costs 1 action point, switches preset and fires all four methods at once |
+| Attack sets | Several methods, one active | Two presets, VECTOR (5×5 square) and CoT (cross, arm 5), four methods each |
+| Targeting | Open decision | Settled: nearest enemy in range, or every enemy in range for area methods |
+| Revisited tile | Not specified | A tile is emptied the first time the route crosses it; walking back over it yields nothing |
+| Units meeting | Push or swap | Units block each other; an enemy stops when its route reaches the player |
+| Boss | Public deadline proposed | No deadline. Curtain seals a row or column two turns after it is announced; at half Robustness the Warden changes all three sets and seals both axes |
+| Art direction | Six signal colours | Monochrome, with blue for the player and recovery, red for enemies and incoming damage, yellow for outgoing damage |
+
+Not built yet: the run map, post-battle rewards, set growth, obstacles blocking line attacks, and story delivery.
+
 ## 1. Statement
 
 Final Protocol is a single-player, turn-based roguelike where you walk a shared grid to gather power, and everything you gathered fires automatically when you stop.

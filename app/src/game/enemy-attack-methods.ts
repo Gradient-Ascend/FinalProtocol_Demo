@@ -43,12 +43,12 @@ export function predictedPlayerResources(state: BattleState): PlayerResourcePrev
       if (buff.id === 'firewall') blockAfterResources += PLAYER_FUNCTIONS.firewallPrivilege
     }
   }
-  const healing = Math.min(state.player.maxSanity - state.player.sanity, healingPotential)
+  // REPAIR heals after the enemy phase, so it is reported as an amount and
+  // never changes what the incoming hits take.
   return {
-    healing,
+    healing: healingPotential,
     privilegeGain: blockAfterResources - state.player.block,
     blockAfterResources,
-    sanityAfterHeal: state.player.sanity + healing,
   }
 }
 
@@ -96,7 +96,7 @@ export function predictedEnemySequence(state: BattleState, playerPos?: Coord, pl
   const removed = new Set(moves.map(action => `${action.to.x},${action.to.y}`))
   const resources = predictedPlayerResources(state)
   let block = resources.blockAfterResources
-  let sanity = resources.sanityAfterHeal
+  let sanity = state.player.sanity
   const hits: PredictedEnemyHit[] = []
 
   for (const enemy of effectiveEnemies(state, targetPos, playerStepsOverride).filter((_, index) => index >= state.enemyPhaseIndex)) {

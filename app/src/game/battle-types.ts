@@ -167,7 +167,6 @@ export type PlayerResourcePreview = {
   healing: number
   privilegeGain: number
   blockAfterResources: number
-  sanityAfterHeal: number
 }
 
 export type EnemyResourcePreview = {
@@ -201,4 +200,13 @@ export type BattleState = {
   attackPreview: AttackPreview | null
   enemyAttackPreview: EnemyAttackPreview | null
   overloadArmed: boolean
+  // Hits still to land this turn. Fixed when the turn starts and consumed as
+  // each one resolves, so the HP bars never re-predict mid-animation.
+  incomingForecast: PredictedEnemyHit[] | null
+  outgoingForecast: PredictedHit[] | null
+  // REPAIR earned this turn; it heals after the enemy phase.
+  pendingRepair: number
+  // False while the route is still being walked, so the panel keeps showing
+  // the forecast PRIVILEGE and REPAIR until they are actually granted.
+  resourcesResolved: boolean
 }

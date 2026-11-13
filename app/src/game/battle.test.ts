@@ -43,6 +43,17 @@ describe('battle rules', () => {
     expect(store.getSnapshot().actions).toHaveLength(7)
   })
 
+  it('empties a Warp the first time the route crosses it', () => {
+    const store = readyStore()
+    store.addStep(0, -1)
+    store.addStep(0, -1)
+    store.addStep(0, 1)
+    store.addStep(0, -1)
+    const flags = store.getSnapshot().actions.map(action => action.type === 'move' ? action.flag : null)
+    expect(flags).toEqual(['bash', 'bash', 'blank', 'blank'])
+    expect(store.plannedFlagCounts().bash).toBe(2)
+  })
+
   it('predicts Bash damage from the planned endpoint', () => {
     const store = readyStore()
     store.addStep(0, -1)
@@ -383,7 +394,6 @@ describe('live HP resource previews', () => {
     const preview = predictedPlayerResources(state)
     expect(preview.privilegeGain).toBe(1)
     expect(preview.healing).toBe(2)
-    expect(preview.sanityAfterHeal).toBe(52)
     expect(preview.blockAfterResources).toBe(1)
     expect(state.player.buffs.find(buff => buff.id === 'repair')!.counter).toBe(2)
   })
@@ -403,6 +413,25 @@ describe('live HP resource previews', () => {
   })
 })
 
+
+it('applies REPAIR after the enemy phase and keeps it out of the damage forecast', async () => {
+  const store = readyStore()
+  const state = store.getSnapshot()
+  state.player.sanity = 50
+  state.player.buffs.find(buff => buff.id === 'repair')!.counter = 2
+  state.flags[6][7] = 'core'
+  store.addStep(0, -1)
+  const predicted = predictedEnemySequence(store.getSnapshot())
+  expect(predicted.length).toBeGreaterThan(0)
+  expect(predicted[0].before).toBe(50)
+  const lost = predicted.reduce((total, hit) => total + hit.dealt, 0)
+  await store.executeTurn()
+  const after = store.getSnapshot()
+  expect(after.player.sanity).toBe(50 - lost + 2)
+  expect(after.pendingRepair).toBe(0)
+  expect(after.incomingForecast).toBeNull()
+  expect(after.outgoingForecast).toBeNull()
+})
 
 it('guarantees only the Warden a baseline Desire step without Bash', () => {
   const state = createInitialState()

@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
-  Activity, ArrowRight, BookOpen, Check, ChevronRight, Circle, Cpu, Gauge,
+  ArrowRight, BookOpen, Check, ChevronRight, Circle, Cpu, Gauge,
   Hexagon, Maximize2, Minimize2, Play, RotateCcw, Settings, Shield, ShieldAlert, SquareTerminal,
   X, Zap,
 } from 'lucide-react'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { startGame, stopGame, zoomMap } from '@/game/boot'
 import { battleStore } from '@/game/battle-store'
-import { BASH_PRESETS, MAX_ACTIONS, OVERLOAD_THRESHOLD } from '@/game/battle-config'
+import { BASH_PRESETS, ENEMY_DEFINITIONS, MAX_ACTIONS, OVERLOAD_THRESHOLD } from '@/game/battle-config'
 import { coordKey, curtainLabel } from '@/game/battle-rules'
 import { mechanicText, predictedSequence, rangeText, releaseCount } from '@/game/attack-methods'
 import { predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from '@/game/enemy-attack-methods'
-import type { PredictedEnemyHit } from '@/game/enemy-attack-methods'
-import type { PredictedHit } from '@/game/attack-methods'
-import type { EnemyState, FlagKind } from '@/game/battle-types'
+import type { FlagKind } from '@/game/battle-types'
 
 const ROMAN = ['I', 'II', 'III', 'IV']
+const WARDEN = ENEMY_DEFINITIONS.find(enemy => enemy.bossStages?.length)
+const breakdownAt = WARDEN ? Math.ceil(WARDEN.robustness * (WARDEN.breakdownAt ?? 0.5)) : 0
 
 function FlagIcon({ kind, size = 16 }: { kind: FlagKind; size?: number }) {
   if (kind === 'bash') return <SquareTerminal size={size} strokeWidth={1.7} />
@@ -25,68 +25,78 @@ function FlagIcon({ kind, size = 16 }: { kind: FlagKind; size?: number }) {
   return <Circle size={size * 0.45} strokeWidth={1.7} />
 }
 
-function Bar({ value, max, hits, recovery, privilege, onPreview, onLeave }: {
-  value: number
-  max: number
-  hits: PredictedEnemyHit[]
-  recovery: number
-  privilege: number
-  onPreview: (enemyId: string, stepIndex: number) => void
-  onLeave: () => void
-}) {
-  const projected = hits.length ? hits[hits.length - 1].after : value
-  const rightBefore = Math.max(...hits.map(hit => hit.before))
-  return (
-    <div className={`stat-bar segmented-health player-sanity ${hits.length || recovery || privilege ? 'has-preview' : ''}`} aria-label={`Projected Sanity ${projected} of ${max}; +${recovery} recovery; +${privilege} PRIVILEGE`}>
-      <span className="health-current" style={{ width: `${Math.max(0, Math.min(100, projected / max * 100))}%` }} />
-      {recovery > 0 && <i className="recover-segment" style={{ left: `${value / max * 100}%`, width: `${recovery / max * 100}%` }} />}
-      {privilege > 0 && <i className="privilege-segment" style={{ left: `${projected / max * 100}%`, width: `${Math.min(privilege, max - projected) / max * 100}%` }} />}
-      {hits.filter(hit => hit.before > hit.after).map((hit, index) => (
-        <button
-          type="button"
-          key={`${hit.enemyId}-${hit.stepIndex}-${index}`}
-          className={`health-segment incoming-segment ${hit.after === projected ? 'left-edge' : ''} ${hit.before === rightBefore ? 'right-edge' : ''}`}
-          style={{ left: `${hit.after / max * 100}%`, width: `${(hit.before - hit.after) / max * 100}%` }}
-          onMouseEnter={() => onPreview(hit.enemyId, hit.stepIndex)}
-          onMouseLeave={onLeave}
-          onFocus={() => onPreview(hit.enemyId, hit.stepIndex)}
-          onBlur={onLeave}
-          onClick={() => onPreview(hit.enemyId, hit.stepIndex)}
-          aria-label={`Preview ${hit.enemyId} attack ${hit.stepIndex + 1}: ${hit.dealt} Sanity damage`}
-        />
-      ))}
-    </div>
-  )
+type HealthHit = {
+  key: string
+  amount: number
+  className: string
+  label: string
+  active?: boolean
+  onPreview: () => void
 }
 
-function SegmentedHealth({ enemy, hits, recovery, securityGain, previewStep, onPreview, onLeave }: {
-  enemy: EnemyState
-  hits: PredictedHit[]
-  recovery: number
-  securityGain: number
-  previewStep: number | null
-  onPreview: (step: number) => void
+// The bar shows raw damage only. `hits` are the hits still to land, in order;
+// each is a segment hanging off the right end of the current HP, and the white
+// fill is what would remain if all of them landed unblocked. Block and repair
+// are shown beneath the bar and never reshape the segments. As a turn
+// resolves, a landed hit leaves the list: whatever block absorbed returns to
+// the fill, and the HP actually lost lingers as a ghost before draining.
+function HealthBar({ value, max, hits, live, label, className = '', onLeave }: {
+  value: number
+  max: number
+  hits: HealthHit[]
+  live: boolean
+  label: string
+  className?: string
   onLeave: () => void
 }) {
-  const projected = hits.length ? hits[hits.length - 1].after : enemy.robustness
-  const rightBefore = Math.max(...hits.map(hit => hit.before))
+  const previous = useRef(value)
+  const ghostFrom = useRef<number | null>(null)
+  const [ghostTop, setGhostTop] = useState<number | null>(null)
+  const [grown, setGrown] = useState<{ from: number; to: number } | null>(null)
+  useEffect(() => {
+    const before = previous.current
+    if (value === before) return
+    previous.current = value
+    if (value < before) {
+      ghostFrom.current = Math.max(ghostFrom.current ?? before, before)
+      setGhostTop(ghostFrom.current)
+      setGrown(null)
+      const timer = window.setTimeout(() => { ghostFrom.current = null; setGhostTop(null) }, 520)
+      return () => window.clearTimeout(timer)
+    }
+    ghostFrom.current = null
+    setGhostTop(null)
+    setGrown({ from: before, to: value })
+    const timer = window.setTimeout(() => setGrown(null), 620)
+    return () => window.clearTimeout(timer)
+  }, [value])
+
+  const pct = (amount: number) => `${Math.max(0, Math.min(100, amount / max * 100))}%`
+  const placed: (HealthHit & { left: number; right: number })[] = []
+  let cursor = value
+  for (const hit of hits) {
+    const left = Math.max(0, cursor - hit.amount)
+    if (left < cursor) placed.push({ ...hit, left, right: cursor })
+    cursor = left
+  }
+
   return (
-    <div className={`segmented-health ${hits.length || recovery || securityGain ? 'has-preview' : ''}`} aria-label={`Projected Robustness ${projected} of ${enemy.maxRobustness}; +${recovery} recovery; +${securityGain} SECURITY`}>
-      <span className="health-current" style={{ width: `${Math.max(0, Math.min(100, projected / enemy.maxRobustness * 100))}%` }} />
-      {recovery > 0 && <i className="recover-segment" style={{ left: `${enemy.robustness / enemy.maxRobustness * 100}%`, width: `${recovery / enemy.maxRobustness * 100}%` }} />}
-      {securityGain > 0 && <i className="privilege-segment" style={{ left: `${projected / enemy.maxRobustness * 100}%`, width: `${Math.min(securityGain, enemy.maxRobustness - projected) / enemy.maxRobustness * 100}%` }} />}
-      {hits.filter(hit => hit.before > hit.after).map(hit => (
+    <div className={`segmented-health ${className} ${placed.length ? 'has-preview' : ''} ${live ? 'live' : ''} ${grown ? 'growing' : ''}`} style={{ '--pip': `${5 / max * 100}%` } as React.CSSProperties} aria-label={label}>
+      <span className="health-current" style={{ width: pct(cursor) }} />
+      {grown && <i className="gain-chunk" style={{ left: pct(grown.from), width: pct(grown.to - grown.from) }} />}
+      <i className={`loss-ghost ${ghostTop === null ? 'draining' : ''}`} style={{ left: pct(value), width: pct(Math.max(0, (ghostTop ?? value) - value)) }} />
+      {placed.map((hit, index) => (
         <button
           type="button"
-          key={hit.stepIndex}
-          className={`health-segment segment-${hit.stepIndex} ${previewStep === hit.stepIndex ? 'previewing' : ''} ${hit.after === projected ? 'left-edge' : ''} ${hit.before === rightBefore ? 'right-edge' : ''}`}
-          style={{ left: `${hit.after / enemy.maxRobustness * 100}%`, width: `${(hit.before - hit.after) / enemy.maxRobustness * 100}%` }}
-          onMouseEnter={() => onPreview(hit.stepIndex)}
+          key={hit.key}
+          className={`health-segment ${hit.className} ${hit.active ? 'previewing' : ''} ${index === placed.length - 1 ? 'left-edge' : ''} ${index === 0 ? 'right-edge' : ''}`}
+          style={{ left: pct(hit.left), width: pct(hit.right - hit.left) }}
+          onMouseEnter={hit.onPreview}
           onMouseLeave={onLeave}
-          onFocus={() => onPreview(hit.stepIndex)}
+          onFocus={hit.onPreview}
           onBlur={onLeave}
-          onClick={() => onPreview(hit.stepIndex)}
-          aria-label={`Preview action ${hit.stepIndex + 1}: ${hit.dealt} damage`}
+          onClick={hit.onPreview}
+          aria-label={hit.label}
         />
       ))}
     </div>
@@ -138,31 +148,29 @@ export default function Home() {
         actions: [...state.actions, { type: 'overload' as const }],
       }
     : plannedState
-  const realtimeForecastState = state.phase === 'resolving'
-    ? { ...state, actions: state.actions.slice(0, state.resolvedMoves) }
-    : previewState
-  const incomingSequence = state.phase === 'planning' || state.phase === 'resolving'
-    ? predictedEnemySequence(realtimeForecastState, undefined, state.overloadArmed ? 4 : undefined)
-    : []
-  const incomingDamage = incomingSequence.reduce((total, hit) => total + hit.dealt, 0)
-  const playerResources = predictedPlayerResources(realtimeForecastState)
+  const live = state.phase === 'resolving'
+  const incomingSequence = live
+    ? state.incomingForecast ?? []
+    : state.phase === 'planning' ? predictedEnemySequence(previewState, undefined, state.overloadArmed ? 4 : undefined) : []
+  const incomingDamage = incomingSequence.reduce((total, hit) => total + hit.damage, 0)
+  const playerResources = predictedPlayerResources(previewState)
+  const sanityAfterHits = incomingSequence.length ? incomingSequence[incomingSequence.length - 1].after : state.player.sanity
+  const projectedSanity = sanityAfterHits > 0 ? Math.min(state.player.maxSanity, sanityAfterHits + playerResources.healing) : 0
+  const granted = live && state.resourcesResolved
+  const repair = granted ? state.pendingRepair : playerResources.healing
+  const privilegeGain = granted ? 0 : playerResources.privilegeGain
   const attackSequenceState = previewState
-  const sequence = state.playerAttackResolved
+  const sequence = state.outgoingForecast ?? (state.playerAttackResolved
     ? []
-    : state.overloadArmed ? predictedSequence(previewState, displayActiveBash, 4) : predictedSequence(attackSequenceState)
+    : state.overloadArmed ? predictedSequence(previewState, displayActiveBash, 4) : predictedSequence(attackSequenceState))
   const singleStep = methodInspector && state.attackPreview
     ? state.attackPreview.stepIndex
     : state.overloadArmed ? null : state.attackPreview?.stepIndex ?? null
   const visibleSequence = singleStep === null ? sequence : sequence.filter(hit => hit.stepIndex === singleStep)
   const overloadDamage = visibleSequence.reduce((total, hit) => total + hit.dealt, 0)
   const overloadHasTargets = visibleSequence.length > 0
-  const expected: Record<string, number> = {}
-  for (const hit of visibleSequence) expected[hit.enemyId] = (expected[hit.enemyId] ?? 0) + hit.dealt
   const aliveEnemies = state.enemies.filter(enemy => enemy.robustness > 0)
   const boss = aliveEnemies.find(enemy => enemy.bossStages?.length)
-  const affectedEnemies = aliveEnemies.filter(enemy => visibleSequence.some(hit => hit.enemyId === enemy.id)
-    || (state.enemyResourcePreviews[enemy.id]?.recovery ?? 0) > 0
-    || (state.enemyResourcePreviews[enemy.id]?.securityGain ?? 0) > 0)
   const canAct = state.phase === 'planning'
   const releases = state.overloadArmed ? 4 : releaseCount(previewState)
   const bashDisplayIndex = state.overloadArmed ? displayActiveBash : bashView
@@ -239,15 +247,32 @@ export default function Home() {
             <div className="identity-stats">
               <div className="hp-number">
                 {state.player.sanity}<span> / {state.player.maxSanity}</span>
-                {incomingDamage > 0 && <em className="player-to-be">→ {incomingSequence[incomingSequence.length - 1]?.after}</em>}
+                {!live && projectedSanity !== state.player.sanity && <em className="player-to-be">→ {projectedSanity}</em>}
               </div>
               <div className="stat-label">Desires' Scissors</div>
-              {incomingDamage > 0 && <div className="incoming-preview">INCOMING −{incomingDamage}</div>}
             </div>
           </section>
-          <Bar value={state.player.sanity} max={state.player.maxSanity} hits={incomingSequence} recovery={playerResources.healing} privilege={playerResources.privilegeGain} onPreview={previewEnemyAttack} onLeave={clearEnemyAttackPreview} />
+          <HealthBar
+            className="player-sanity"
+            value={state.player.sanity}
+            max={state.player.maxSanity}
+            hits={incomingSequence.filter(hit => hit.damage > 0).map(hit => ({
+              key: `${hit.enemyId}-${hit.stepIndex}`,
+              amount: hit.damage,
+              className: 'incoming-segment',
+              label: `Preview ${hit.enemyId} attack ${hit.stepIndex + 1}: ${hit.damage} raw damage`,
+              active: state.enemyAttackPreview?.enemyId === hit.enemyId && state.enemyAttackPreview.stepIndex === hit.stepIndex,
+              onPreview: () => previewEnemyAttack(hit.enemyId, hit.stepIndex),
+            }))}
+            live={live}
+            label={`Sanity ${state.player.sanity} of ${state.player.maxSanity}; ${incomingDamage} raw damage incoming`}
+            onLeave={clearEnemyAttackPreview}
+          />
           <div className="status-row">
-            <span className={state.player.block ? 'status-chip active' : 'status-chip'}><Shield size={12} /> PRIVILEGE {state.player.block}</span>
+            <span className={state.player.block || privilegeGain ? 'status-chip active' : 'status-chip'}>
+              <Shield size={12} /> PRIVILEGE {state.player.block}{privilegeGain > 0 && ` +${privilegeGain}`}
+            </span>
+            {repair > 0 && <span className="status-chip active"><Cpu size={12} /> REPAIR +{repair}</span>}
             {state.player.focusReady && <span className="status-chip active"><Zap size={12} /> CORE +1</span>}
           </div>
 
@@ -393,50 +418,54 @@ export default function Home() {
           </section>}
 
           <section className="enemy-list-section">
-            <div className="section-heading"><span>{boss ? 'WARDEN TARGET' : 'AFFECTED GEEKS'}</span><strong>{affectedEnemies.length}</strong></div>
+            <div className="section-heading"><span>HOSTILES</span><strong>{aliveEnemies.length}</strong></div>
             <div className="enemy-list">
-              {affectedEnemies.map(enemy => {
+              {aliveEnemies.map(enemy => {
+                const allHits = sequence.filter(hit => hit.enemyId === enemy.id)
                 const hits = visibleSequence.filter(hit => hit.enemyId === enemy.id)
                 const projected = hits.length ? hits[hits.length - 1].after : enemy.robustness
                 const resources = state.enemyResourcePreviews[enemy.id] ?? predictedEnemyResources(attackSequenceState, enemy.id, state.overloadArmed ? 4 : undefined)
-                const previewEnemy = enemy
+                const showForecast = hits.length > 0
                 return (
-                  <article className="enemy-card affected" key={enemy.id}>
+                  <article className={`enemy-card ${showForecast ? 'affected' : ''}`} key={enemy.id}>
                     <div className="enemy-card-head">
                       <div className="enemy-avatar"><Hexagon size={27} strokeWidth={1.4} /><span>{enemy.id}</span></div>
-                      <div className="enemy-name"><strong>{enemy.name}</strong><span className="damage-preview">{singleStep !== null ? 'THIS ACTION' : 'DAMAGE PREVIEW'} −{expected[enemy.id]}</span></div>
+                      <div className="enemy-name">
+                        <strong>{enemy.name}</strong>
+                        <span>{enemy.behavior.toUpperCase()}</span>
+                      </div>
                     </div>
                     <div className="enemy-hp">
-                      <strong>{enemy.robustness} <em className="to-be">→ {projected}</em><small> / {enemy.maxRobustness}</small></strong>
+                      <strong>{enemy.robustness}{showForecast && !live && <em className="to-be"> → {projected}</em>}<small> / {enemy.maxRobustness}</small></strong>
                       <span>ROBUSTNESS</span>
                     </div>
-                    <SegmentedHealth
-                      enemy={previewEnemy}
-                      hits={hits}
-                      recovery={resources.recovery}
-                      securityGain={resources.securityGain}
-                      previewStep={state.attackPreview?.stepIndex ?? null}
-                      onPreview={step => previewMethod(displayActiveBash, step)}
+                    <HealthBar
+                      value={enemy.robustness}
+                      max={enemy.maxRobustness}
+                      hits={allHits.filter(hit => hit.damage > 0).map(hit => ({
+                        key: `${hit.stepIndex}`,
+                        amount: hit.damage,
+                        className: `segment-${hit.stepIndex}`,
+                        label: `Preview action ${hit.stepIndex + 1}: ${hit.damage} raw damage`,
+                        active: state.attackPreview?.stepIndex === hit.stepIndex,
+                        onPreview: () => previewMethod(displayActiveBash, hit.stepIndex),
+                      }))}
+                      live={live}
+                      label={`Robustness ${enemy.robustness} of ${enemy.maxRobustness}; ${allHits.reduce((total, hit) => total + hit.damage, 0)} raw damage incoming`}
                       onLeave={clearMethodPreview}
                     />
                     <div className="enemy-status">
-                      <span>SECURITY {enemy.block}</span><span>SOUL {enemy.soulCounter}/{enemy.soulThreshold}</span>
-                    </div>
-                    <div className="enemy-functions">
-                      <span title={`${enemy.desireShape} Desire range ${enemy.desireRange}`}><Activity size={12} /> {enemy.desireName ?? 'DESIRE'}</span>
-                      <span title="Security defense set"><Shield size={12} /> {enemy.securityName ?? 'SECURITY'}</span>
-                      <span title="Soul buff set"><Cpu size={12} /> {enemy.soulName ?? 'SOUL'}</span>
-                      {enemy.bossStages && <span title="Breakdown stage transition"><ShieldAlert size={12} /> BREAKDOWN</span>}
+                      <span className={enemy.block ? 'has-block' : ''}>SECURITY {enemy.block}{!live && resources.securityGain > 0 && <em className="gain"> +{resources.securityGain}</em>}</span>
+                      <span>SOUL {enemy.soulCounter}/{enemy.soulThreshold}{!live && resources.recovery > 0 && <em className="gain"> +{resources.recovery} HP</em>}</span>
                     </div>
                     <div className="enemy-route">
-                      <span>{enemy.behavior.toUpperCase()} / ROUTE</span>
+                      <span>ROUTE</span>
                       <p>{[enemy.pos, ...enemy.route].map(coordKey).join(' → ')}</p>
                       {enemy.effectCell && <p className="enemy-purge">PURGE → {coordKey(enemy.effectCell)}</p>}
                     </div>
                   </article>
                 )
               })}
-              {!affectedEnemies.length && <div className="empty-geeks">{boss ? 'NO WARDEN IN EFFECT' : 'NO GEEKS IN EFFECT'}</div>}
             </div>
           </section>
         </aside>
@@ -481,11 +510,11 @@ export default function Home() {
             <section><h3>TURN</h3><p>Enemy routes and Curtain targets are exposed first. Plan up to eight operations, execute your Functions, then enemies move and attack one step at a time. Warps reindex last.</p></section>
             <section><h3>BOARD FORECAST</h3><p>The small symbols above the coordinates are the next Warps entering each column. Only columns changed by a pickup or purge drop, so untouched routes remain stable.</p></section>
             <section><h3>CURTAIN</h3><p>Red dashed rows or columns are fixed two turns ahead. When their countdown reaches zero, they seal for your next planning turn. Sealed Warps cannot be entered or collected by either side.</p></section>
-            <section><h3>BREAKDOWN</h3><p>At 18 Robustness, the Warden enters Stage II: REHEARSAL becomes OVERTURE, CLOSE becomes DEADLOCK, and REPAIR becomes REWRITE. Future Curtains cover both axes around the position you occupied when they were scheduled.</p></section>
+            <section><h3>BREAKDOWN</h3><p>At {breakdownAt} Robustness, the Warden enters Stage II: REHEARSAL becomes OVERTURE, CLOSE becomes DEADLOCK, and REPAIR becomes REWRITE. Future Curtains cover both axes around the position you occupied when they were scheduled.</p></section>
             <section><h3>DESIRE</h3><p>The Warden always releases Desire I each turn, even without Bash Flags. Collected Bash Flags unlock its remaining methods. Every release is previewed before execution.</p></section>
             <section><h3><SquareTerminal size={15} /> BASH</h3><p>Release length is the lower of Bash collected, remaining AP, and IV. VECTOR uses a 5×5 square; CoT uses a cross with arm length 5. Each Roman numeral is a different attack method.</p></section>
-            <section><h3><Shield size={15} /> PRIVILEGE</h3><p>SHELL automatically adds 1 PRIVILEGE per collected Privilege Flag. PRIVILEGE absorbs incoming damage for the following enemy phase.</p></section>
-            <section><h3><Cpu size={15} /> CORE</h3><p>Every Core Flag advances all three independent counters. REPAIR restores Sanity, FOCUS empowers one Bash hit, and FIREWALL adds PRIVILEGE.</p></section>
+            <section><h3><Shield size={15} /> PRIVILEGE</h3><p>SHELL automatically adds 1 PRIVILEGE per collected Privilege Flag. PRIVILEGE absorbs incoming damage for the following enemy phase. HP bars show raw damage; PRIVILEGE and REPAIR are listed beneath the bar.</p></section>
+            <section><h3><Cpu size={15} /> CORE</h3><p>Every Core Flag advances all three independent counters. REPAIR restores Sanity at the end of the turn, after enemies attack; FOCUS empowers one Bash hit, and FIREWALL adds PRIVILEGE.</p></section>
             <section><h3><Gauge size={15} /> OVERLOAD</h3><p>Five charges enable the only manual Function. The first click or O previews all four methods from the planned endpoint; the second spends one AP, switches preset, and releases them without consuming Bash Flags. Normal end-of-turn Bash still releases afterward. Escape cancels the preview.</p></section>
           </div>
           <div className="controls-table"><span>WASD / ARROWS</span><strong>Plan route</strong><span>DRAG / ONE FINGER</span><strong>Pan map</strong><span>PINCH / WHEEL</span><strong>Zoom map</strong><span>BACKSPACE</span><strong>Undo move</strong><span>SPACE</span><strong>Execute</strong><span>O</span><strong>Overload</strong><span>ESC</span><strong>Pause</strong></div>
