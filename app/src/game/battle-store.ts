@@ -4,7 +4,7 @@ import { predictedSequence, releaseCount } from './attack-methods'
 import { desireInRange, desireReleaseCount, desireStepsFor, predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from './enemy-attack-methods'
 import {
   activePreset, advanceCurtains, coordKey, createInitialState, curtainLabel, enemyRoutes,
-  isWarpLocked, livingEnemies, manhattan, mulberry32, refillBoard, sameCoord,
+  isWarpLocked, livingEnemies, manhattan, mulberry32, refillBoard, routeStops, sameCoord,
 } from './battle-rules'
 import type {
   AttackEffect, AttackPreview, BattleAction, BattleState, Coord, EnemyAttackPreview,
@@ -27,6 +27,8 @@ export class BattleStore {
   private listeners = new Set<Listener>()
   private random = mulberry32(0xB17B1E)
   private runId = 0
+  // Columns whose Warps changed this turn; only these drop when it ends.
+  private changedColumns = new Set<number>()
   private logId = 10
   sfx: Sfx = () => undefined
   startMusic: () => void = () => undefined
@@ -82,6 +84,7 @@ export class BattleStore {
     this.random = mulberry32(0xB17B1E)
     this.logId = 10
     this.state = createInitialState(muted, reducedMotion, this.loadout)
+    this.changedColumns.clear()
     this.sfx('ui')
     this.commit()
   }
@@ -101,6 +104,7 @@ export class BattleStore {
     this.random = mulberry32(0xB17B1E)
     this.logId = 10
     this.state = createInitialState(muted, reducedMotion, this.loadout)
+    this.changedColumns.clear()
     this.state.phase = 'planning'
     this.state.message = ''
     this.sfx('ui')
@@ -298,7 +302,7 @@ export class BattleStore {
           this.log(`CORE / REPAIR queued ${PLAYER_FUNCTIONS.repairHeal} Sanity for the end of the turn.`, 'good')
         } else if (buff.id === 'focus') {
           this.state.player.focusReady = true
-          this.log('CORE / FOCUS empowers the next Bash hit.', 'good')
+          this.log('CORE / FOCUS: the next Bash hit tags its target LIVE.', 'good')
         } else {
           this.state.player.block += PLAYER_FUNCTIONS.firewallPrivilege
           this.log(`CORE / FIREWALL added ${PLAYER_FUNCTIONS.firewallPrivilege} PRIVILEGE.`, 'good')
@@ -310,13 +314,28 @@ export class BattleStore {
   private applyPlayerHit(presetName: string, hit: ReturnType<typeof predictedSequence>[number]): void {
     const enemy = this.state.enemies.find(candidate => candidate.id === hit.enemyId)
     if (!enemy) return
-    enemy.block = Math.max(0, enemy.block - hit.absorbed)
     enemy.robustness = hit.after
+    // The hit carries the Geek as the planner left it: where it now stands,
+    // the route it took with it, its Security and its tags.
+    const { pos, route, effectCell, ...marks } = hit.marks
+    Object.assign(enemy, marks, {
+      pos: { ...pos }, route: route.map(cell => ({ ...cell })), effectCell: effectCell ? { ...effectCell } : null,
+    })
     this.noteAbsorbed(enemy.id, hit.absorbed)
     if (hit.focus) this.state.player.focusReady = false
+    if (hit.blank) {
+      this.state.flags[hit.blank.y][hit.blank.x] = 'blank'
+      this.changedColumns.add(hit.blank.x)
+    }
+    if (hit.charge) {
+      this.state.interactionCharge += hit.charge
+      this.state.player.overload = Math.min(OVERLOAD_THRESHOLD, this.state.player.overload + hit.charge)
+    }
     const step = activePreset(this.state).steps[hit.stepIndex]
     const shieldText = hit.absorbed ? ` / ${hit.absorbed} blocked` : ''
-    this.log(`${presetName} / ${step.name} → ${enemy.id} / ${hit.dealt} Desire damage${shieldText}.`, 'good')
+    const eventText = hit.events.length ? ` / ${hit.events.join(' · ')}` : ''
+    const chargeText = hit.charge ? ` / +${hit.charge} Overload` : ''
+    this.log(`${presetName} / ${step.name} → ${enemy.id} / ${hit.dealt} Desire damage${shieldText}${eventText}${chargeText}.`, 'good')
     this.sfx('hit')
   }
 
@@ -328,7 +347,7 @@ export class BattleStore {
       origin: { ...origin }, target: { ...(enemy?.pos ?? this.state.player.pos) },
       stepIndex: hit.stepIndex, shape: step.shape, range: step.range, width: step.width, fx: step.fx,
       amount: hit.damage, cap: step.mode === 'random' ? step.amount : undefined,
-      dealt: hit.dealt, absorbed: hit.absorbed,
+      dealt: hit.dealt, absorbed: hit.absorbed, events: hit.events,
     }
   }
 
@@ -336,7 +355,7 @@ export class BattleStore {
     if (!steps) return
     const preset = activePreset(this.state)
     const attackState = { ...this.state, player: { ...this.state.player, pos: origin } }
-    const hits = predictedSequence(attackState, this.state.player.activeBash, steps)
+    const hits = predictedSequence(attackState, this.state.player.activeBash, steps, true)
     // Overload is shown as a single cascade, so each Geek gets one effect
     // carrying everything the four methods did to it.
     const effects = new Map<string, AttackEffect>()
@@ -347,6 +366,7 @@ export class BattleStore {
         total.amount = (total.amount ?? 0) + hit.damage
         total.dealt = (total.dealt ?? 0) + hit.dealt
         total.absorbed = (total.absorbed ?? 0) + hit.absorbed
+        total.events = [...new Set([...(total.events ?? []), ...hit.events])]
       } else effects.set(hit.enemyId, { ...effect, fx: 'overload', cap: undefined, overload: true })
       this.applyPlayerHit(preset.name, hit)
     }
@@ -359,12 +379,15 @@ export class BattleStore {
     const hits = predictedSequence(this.state, this.state.player.activeBash, steps)
     this.state.outgoingForecast = hits
     this.commit()
-    for (const [index, hit] of hits.entries()) {
+    for (let index = 0; index < hits.length; index++) {
+      const hit = hits[index]
       const effect = this.playerEffect(hit)
       const timing = effectTiming(effect)
       this.emitEffect(effect)
       await this.pause(timing.strike)
       this.applyPlayerHit(preset.name, hit)
+      // A Geek bumped into takes its damage in the same beat.
+      while (hits[index + 1]?.silent) this.applyPlayerHit(preset.name, hits[++index])
       this.state.outgoingForecast = hits.slice(index + 1)
       this.state.playerAttackResolved = true
       this.commit()
@@ -389,6 +412,11 @@ export class BattleStore {
       this.state.player.block -= absorbed
       this.noteAbsorbed('player', absorbed)
       this.state.player.sanity = Math.max(0, this.state.player.sanity - dealt)
+      // A Desire step that PRIVILEGE swallows whole exposes the attacker.
+      if (absorbed === step.amount && step.amount > 0 && !enemy.live) {
+        enemy.live = this.state.turn
+        this.log(`${enemy.id} fully blocked: tagged LIVE.`, 'good')
+      }
       this.state.incomingForecast = this.state.incomingForecast
         ?.filter(hit => hit.enemyId !== enemy.id || hit.stepIndex !== stepIndex) ?? null
       this.log(`${enemy.id} / ${enemy.desireName ?? 'DESIRE'} → ${dealt} Sanity damage.`, 'bad')
@@ -399,11 +427,13 @@ export class BattleStore {
     }
   }
 
-  private async resolveEnemy(enemy: EnemyState, changedColumns: Set<number>): Promise<void> {
+  private async resolveEnemy(enemy: EnemyState): Promise<void> {
+    const changedColumns = this.changedColumns
     enemy.block = 0
     const counts: Record<FlagKind, number> = { bash: 0, privilege: 0, core: 0, overload: 0, blank: 0 }
     for (const pos of enemy.route) {
-      if (sameCoord(pos, this.state.player.pos) || isWarpLocked(this.state, pos)) break
+      const others = livingEnemies(this.state).filter(other => other !== enemy).map(other => other.pos)
+      if (routeStops(this.state, pos, this.state.player.pos, others)) break
       enemy.pos = { ...pos }
       const flag = this.state.flags[pos.y][pos.x]
       counts[flag]++
@@ -413,6 +443,10 @@ export class BattleStore {
       await this.wait()
     }
     enemy.block += counts.privilege * enemy.securityPerFlag
+    if (counts.privilege && enemy.live) {
+      enemy.live = 0
+      this.log(`${enemy.id} collected Privilege: LIVE scrubbed.`, 'bad')
+    }
     enemy.soulCounter += counts.core
     let recovery = 0
     if (enemy.soulCounter >= enemy.soulThreshold) {
@@ -507,7 +541,7 @@ export class BattleStore {
     if (this.state.phase === 'title') this.start()
     if (this.state.phase !== 'planning') return
     const id = ++this.runId
-    const changedColumns = new Set<number>()
+    const changedColumns = this.changedColumns
     this.state.enemyPhaseIndex = 0
     this.state.playerAttackResolved = false
     this.state.enemyResourcePreviews = {}
@@ -539,6 +573,8 @@ export class BattleStore {
     this.resolvePlayerResources()
     this.state.resourcesResolved = true
     await this.firePlayerAttack(releaseCount(this.state))
+    // LIVE lasts until the end of the release after the one that applied it.
+    for (const enemy of this.state.enemies) if (enemy.live && enemy.live < this.state.turn) enemy.live = 0
     this.commit()
     await this.wait()
     if (this.checkOutcome()) { this.commit(); return }
@@ -547,7 +583,7 @@ export class BattleStore {
     this.commit()
     for (const enemy of livingEnemies(this.state)) {
       if (id !== this.runId) return
-      await this.resolveEnemy(enemy, changedColumns)
+      await this.resolveEnemy(enemy)
       this.state.enemyPhaseIndex++
       this.commit()
       await this.wait()
@@ -566,6 +602,9 @@ export class BattleStore {
         : `CURTAIN / ${curtainLabel(event.curtain)} released.`, event.type === 'lock' ? 'bad' : 'neutral')
     }
     refillBoard(this.state, this.random, changedColumns)
+    changedColumns.clear()
+    for (const enemy of this.state.enemies) Object.assign(enemy, { breached: false, shifted: false, struck: false, dropped: 0 })
+    this.state.interactionCharge = 0
     this.state.playerTrail = [{ ...this.state.player.pos }]
     this.state.turn++
     this.state.player.block = 0

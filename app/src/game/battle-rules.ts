@@ -53,6 +53,13 @@ export function canEnter(state: BattleState, from: Coord, to: Coord): boolean {
   return inside(to) && manhattan(from, to) === 1 && !state.walls[to.y][to.x] && !isWarpLocked(state, to) && !isOccupied(state, to)
 }
 
+// Where a Geek's walk along its route ends. A pushed or pulled Geek carries
+// its route with it, so the walk also stops at walls and at other Geeks.
+export function routeStops(state: BattleState, pos: Coord, playerPos: Coord, others: Coord[]): boolean {
+  return !inside(pos) || state.walls[pos.y][pos.x] || sameCoord(pos, playerPos) || isWarpLocked(state, pos)
+    || others.some(other => sameCoord(other, pos))
+}
+
 export function curtainLabel(curtain: Curtain): string {
   return `${curtain.axis === 'column' ? 'C' : 'R'}${curtain.index.toString(16).toUpperCase().padStart(2, '0')}`
 }
@@ -195,7 +202,7 @@ export function createInitialState(muted = false, reducedMotion = false, loadout
       activeBash: 0, focusReady: false,
       buffs: [
         { id: 'repair', name: 'REPAIR', counter: 0, threshold: 3, description: `+${PLAYER_FUNCTIONS.repairHeal} Sanity` },
-        { id: 'focus', name: 'FOCUS', counter: 0, threshold: 2, description: `+${PLAYER_FUNCTIONS.focusBonus} next Bash` },
+        { id: 'focus', name: 'FOCUS', counter: 0, threshold: 2, description: 'Next Bash hit tags LIVE' },
         { id: 'firewall', name: 'FIREWALL', counter: 0, threshold: 4, description: `+${PLAYER_FUNCTIONS.firewallPrivilege} PRIVILEGE` },
       ],
     },
@@ -217,8 +224,9 @@ export function createInitialState(muted = false, reducedMotion = false, loadout
       route: [],
       effectCell: null,
       statuses: definition.bossStages ? ['DESIRE', 'SECURITY', 'SOUL', 'BREAKDOWN'] : ['DESIRE', 'SECURITY', 'SOUL'],
+      live: 0, breached: false, shifted: false, struck: false, dropped: 0,
     })),
-    actions: [], resolvedMoves: 0, enemyPhaseIndex: 0, playerAttackResolved: false, enemyResourcePreviews: {}, absorbedTotals: {}, log: [],
+    actions: [], resolvedMoves: 0, enemyPhaseIndex: 0, playerAttackResolved: false, enemyResourcePreviews: {}, absorbedTotals: {}, interactionCharge: 0, log: [],
     muted, reducedMotion, message: '', attackPreview: null, enemyAttackPreview: null, overloadArmed: false,
     incomingForecast: null, outgoingForecast: null, pendingRepair: 0, resourcesResolved: false,
   }

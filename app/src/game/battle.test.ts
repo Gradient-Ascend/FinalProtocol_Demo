@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BattleStore } from './battle-store'
 import { coordKey, createInitialState, enemyRoutes, refillBoard, scheduleCurtains } from './battle-rules'
-import { attackRoll, inAttackRange, predictedDamage, predictedSequence, releaseCount, stepDamage } from './attack-methods'
+import { attackRoll, inAttackRange, predictedDamage, predictedSequence, releaseCount, simulateRelease, stepDamage } from './attack-methods'
 import { desireInRange, desireReleaseCount, predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from './enemy-attack-methods'
 import { BASH_PRESETS, FLAG_WEIGHTS } from './battle-config'
 import { DEFAULT_LOADOUT, SKILLS, assignSkill, buildPresets, sanitizeLoadout, skillById, slotLabel } from './skills'
@@ -62,7 +62,8 @@ describe('battle rules', () => {
     store.addStep(0, -1)
     const state = store.getSnapshot()
     const preview = { ...state, player: { ...state.player, pos: store.plannedPosition() } }
-    expect(predictedDamage(preview).B01).toBe(2)
+    // BASE deals 1 and pushes the Warden a cell away, so MANHATTAN measures 2.
+    expect(predictedDamage(preview).B01).toBe(3)
   })
 })
 
@@ -73,7 +74,7 @@ describe('turn resolution', () => {
     store.addStep(0, -1)
     await store.executeTurn()
     const state = store.getSnapshot()
-    expect(state.enemies[0].robustness).toBe(62)
+    expect(state.enemies[0].robustness).toBe(61)
     expect(state.turn).toBe(2)
     expect(state.actions).toHaveLength(0)
     expect(state.phase).toBe('planning')
@@ -196,6 +197,9 @@ it('releases the complete I–IV VECTOR sequence with four Bash and four AP rema
   state.flags[5][8] = 'bash'
   state.flags[5][9] = 'bash'
   state.enemies[0].route = []
+  // Diagonally adjacent to the route's end: BASE pushes the Warden to the edge
+  // of the square, MANHATTAN reads that distance and ARRAY pulls it back in.
+  state.enemies[0].pos = { x: 8, y: 4 }
   state.flags[4][7] = 'blank'
   store.addStep(0, -1)
   store.addStep(0, -1)
@@ -545,5 +549,109 @@ describe('decks and skills', () => {
     store.addStep(0, -1)
     expect(store.getSnapshot().phase).toBe('title')
     expect(store.getSnapshot().actions).toHaveLength(0)
+  })
+})
+
+describe('skill interactions', () => {
+  // A quiet board: one Geek, no routes, the player at the centre.
+  function arena(skills: Loadout[0]['skills'], frame: Loadout[0]['frame'] = 'cot') {
+    const rest = SKILLS.map(skill => skill.id).filter(id => !skills.includes(id)).slice(0, 4) as Loadout[0]['skills']
+    const state = createInitialState(false, true, [{ frame, skills }, { frame: 'vector', skills: rest }])
+    state.phase = 'planning'
+    state.enemies = state.enemies.slice(0, 2)
+    const [geek, other] = state.enemies
+    for (const enemy of state.enemies) { enemy.route = []; enemy.effectCell = null }
+    geek.pos = { x: 9, y: 7 }
+    other.pos = { x: 0, y: 14 }
+    return { state, geek, other }
+  }
+
+  it('BASE pushes its target and the target carries its route', () => {
+    const { state, geek } = arena(['base', 'manhattan', 'spike', 'on'])
+    geek.route = [{ x: 9, y: 6 }, { x: 9, y: 5 }]
+    const sim = simulateRelease(state, 0, 2)
+    expect(sim.hits[0].events).toEqual(['PUSH'])
+    expect(sim.hits[0].marks.pos).toEqual({ x: 10, y: 7 })
+    expect(sim.hits[0].marks.route).toEqual([{ x: 10, y: 6 }, { x: 10, y: 5 }])
+    // MANHATTAN then reads the new distance: 3 instead of 2.
+    expect(sim.hits[1].damage).toBe(3)
+  })
+
+  it('a blocked push is a bump that hurts both Geeks, pins the target and earns charge', () => {
+    const { state, geek, other } = arena(['base', 'spike', 'manhattan', 'on'])
+    other.pos = { x: 10, y: 7 }
+    const sim = simulateRelease(state, 0, 2)
+    const [push, collateral, spike] = sim.hits
+    expect(push.events).toEqual(['BUMP'])
+    expect(push.dealt).toBe(2)
+    expect(push.charge).toBe(1)
+    expect(push.marks.pos).toEqual(geek.pos)
+    expect(collateral).toMatchObject({ enemyId: other.id, dealt: 1, silent: true })
+    expect(spike.events).toContain('PINNED')
+    expect(spike.damage).toBe(skillById('spike').amounts[1] + 2)
+  })
+
+  it('ZERO strips Security into a Breach that later hits exploit', () => {
+    const { state, geek } = arena(['zero', 'manhattan', 'spike', 'on'])
+    geek.block = 2
+    const sim = simulateRelease(state, 0, 2)
+    expect(sim.hits[0].events).toContain('BREACH')
+    expect(sim.hits[0].marks.block).toBe(0)
+    expect(sim.hits[1].damage).toBe(2 + 1)
+  })
+
+  it('ON tags LIVE, and OFF spends it in a later release to drop a Desire step', () => {
+    const { state, geek } = arena(['on', 'off', 'spike', 'base'])
+    const first = simulateRelease(state, 0, 2)
+    expect(first.hits[0].events).toContain('LIVE')
+    // The tag is set up by this release, so OFF cannot cash it in yet.
+    expect(first.hits[1].events).not.toContain('DROP')
+    expect(first.hits[1].marks.live).toBe(state.turn)
+    geek.live = state.turn
+    state.turn++
+    const second = simulateRelease(state, 0, 2)
+    expect(second.hits[1].damage).toBe(skillById('off').amounts[1])
+    expect(second.hits[1].events).toContain('DROP')
+    expect(second.hits[1].marks).toMatchObject({ live: 0, dropped: 1 })
+    geek.dropped = 1
+    expect(desireReleaseCount(geek, 1)).toBe(0)
+  })
+
+  it('FLOOD blanks the next Flag on the route of a Geek it hits', () => {
+    const { state, geek } = arena(['flood', 'manhattan', 'spike', 'on'])
+    state.flags[6][9] = 'blank'
+    state.flags[5][9] = 'bash'
+    geek.route = [{ x: 9, y: 6 }, { x: 9, y: 5 }]
+    const sim = simulateRelease(state, 0, 1)
+    expect(sim.hits[0].blank).toEqual({ x: 9, y: 5 })
+    expect(sim.blanked.has('9,5')).toBe(true)
+  })
+
+  it('ULTRA counts the tags on its target', () => {
+    const { state, geek } = arena(['ultra', 'manhattan', 'spike', 'on'])
+    Object.assign(geek, { live: 1, breached: true, shifted: true })
+    expect(simulateRelease(state, 0, 1).hits[0].damage).toBe(skillById('ultra').amounts[0] + 3 + 1)
+  })
+
+  it('resolves a turn exactly as forecast, moves included', async () => {
+    const store = new BattleStore()
+    store.setLoadout([{ frame: 'cot', skills: ['base', 'on', 'off', 'manhattan'] }, { frame: 'vector', skills: ['array', 'spike', 'zero', 'ultra'] }])
+    const state = store.getSnapshot()
+    state.reducedMotion = true
+    store.start()
+    state.flags[6][7] = 'bash'
+    state.flags[5][7] = 'bash'
+    state.flags[5][8] = 'blank'
+    store.addStep(0, -1)
+    store.addStep(0, -1)
+    const planned = { ...store.getSnapshot(), player: { ...store.getSnapshot().player, pos: store.plannedPosition() } }
+    const forecast = simulateRelease(planned)
+    const incoming = predictedEnemySequence(planned)
+    const sanity = state.player.sanity
+    expect(forecast.hits.length).toBeGreaterThan(0)
+    await store.executeTurn()
+    const warden = store.getSnapshot().enemies[0]
+    expect(warden.robustness).toBe(forecast.hits.filter(hit => hit.enemyId === 'B01').pop()?.after)
+    expect(store.getSnapshot().player.sanity).toBe(incoming.length ? incoming[incoming.length - 1].after : sanity)
   })
 })

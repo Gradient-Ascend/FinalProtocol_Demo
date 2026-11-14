@@ -74,12 +74,20 @@ export class BattleRenderer {
       }
       if (this.dragged) {
         this.origin = this.clampOrigin({ x: this.dragStart.originX + dx, y: this.dragStart.originY + dy })
-        this.hover = null
+        this.setHover(null)
         window.dispatchEvent(new CustomEvent('map-pan-changed', { detail: { ...this.origin } }))
         return
       }
     }
-    this.hover = this.cellAt(event.clientX, event.clientY)
+    this.setHover(this.cellAt(event.clientX, event.clientY))
+  }
+
+  // The panel lights the card of the Geek under the cursor, so it is told
+  // whenever the hovered Warp changes.
+  private setHover(cell: Coord | null): void {
+    const changed = cell?.x !== this.hover?.x || cell?.y !== this.hover?.y
+    this.hover = cell
+    if (changed) window.dispatchEvent(new CustomEvent('map-hover-changed', { detail: cell }))
   }
 
   private onPointerDown = (event: PointerEvent): void => {
@@ -124,7 +132,7 @@ export class BattleRenderer {
   }
 
   private onPointerLeave = (): void => {
-    this.hover = null
+    this.setHover(null)
   }
 
   private onWheel = (event: WheelEvent): void => {

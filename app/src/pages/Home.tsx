@@ -11,9 +11,9 @@ import { ENEMY_DEFINITIONS, MAX_ACTIONS, OVERLOAD_THRESHOLD, PLAYER_FUNCTIONS } 
 import { DEFAULT_LOADOUT, FRAMES, SKILLS, assignSkill, cloneLoadout, frameById, skillById, slotLabel } from '@/game/skills'
 import type { Loadout } from '@/game/skills'
 import { coordKey, curtainLabel } from '@/game/battle-rules'
-import { mechanicText, predictedSequence, rangeText, releaseCount } from '@/game/attack-methods'
+import { mechanicText, predictedSequence, rangeText, releaseCount, riderText } from '@/game/attack-methods'
 import { predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from '@/game/enemy-attack-methods'
-import type { CoreBuff, FlagKind } from '@/game/battle-types'
+import type { Coord, CoreBuff, EnemyMarks, FlagKind } from '@/game/battle-types'
 
 const ROMAN = ['I', 'II', 'III', 'IV']
 const BLOCK_COLOR = '#f5f5f5'
@@ -187,6 +187,16 @@ function HealthBar({ value, max, hits, live, label, className = '', lossColor, a
   )
 }
 
+// The tags a Geek carries, in the order they are listed beside its HP bar.
+function tagList(marks: EnemyMarks): string[] {
+  return [
+    ...(marks.live ? ['LIVE'] : []),
+    ...(marks.breached ? ['BREACH'] : []),
+    ...(marks.shifted ? ['SHIFT'] : []),
+    ...(marks.dropped ? [`DROP${marks.dropped > 1 ? ` ×${marks.dropped}` : ''}`] : []),
+  ]
+}
+
 type DrawerId = 'a' | 'b' | 'defense' | 'core'
 
 // One collapsible row of the menu's deck list. A closed drawer keeps its
@@ -292,18 +302,25 @@ function LoadoutEditor({ loadout, buffs, onChange }: { loadout: Loadout; buffs: 
                 return (
                   <button
                     type="button"
-                    className={`pool-row pool-skill ${skill.id === selectedSkill ? 'current' : ''} ${where ? 'placed' : ''}`}
+                    className={`pool-skill ${skill.id === selectedSkill ? 'current' : ''} ${where ? 'placed' : ''}`}
                     key={skill.id}
                     onClick={() => onChange(assignSkill(loadout, deckIndex, slot, skill.id))}
-                    aria-label={`Put ${skill.name} in deck ${letter} slot ${ROMAN[slot]}`}
+                    aria-label={`Put ${skill.name} in deck ${letter} slot ${ROMAN[slot]}. ${skill.rider}`}
                   >
-                    <strong>{skill.name}</strong>
-                    {skill.amounts.map((_, index) => <span className={index === slot ? 'at-slot' : ''} key={index}>{slotLabel(skill, index)}</span>)}
-                    <em>{where ?? '—'}</em>
+                    <span className="pool-row">
+                      <strong>{skill.name}</strong>
+                      {skill.amounts.map((_, index) => <span className={index === slot ? 'at-slot' : ''} key={index}>{slotLabel(skill, index)}</span>)}
+                      <em>{where ?? '—'}</em>
+                    </span>
+                    <span className="pool-rider">
+                      <i>{skill.writes ? 'WRITES' : 'READS'}</i>
+                      <b>{skill.writes ?? skill.reads}</b>
+                      <span>{skill.rider}</span>
+                    </span>
                   </button>
                 )
               })}
-              <p className="pool-legend">Slot N fires with N Bash Flags and N unused action points. ALL hits every Geek in range · P pierces Security · D is the distance to the target.</p>
+              <p className="pool-legend">Slot N fires with N Bash Flags and N unused action points. ALL hits every Geek in range · P pierces Security · D is the distance to the target. The second line of each skill is its interaction, the same in every slot: it writes a state other skills read (position, LIVE, Security, routes) or reads one.</p>
             </div>
           </Drawer>
         )
@@ -374,16 +391,21 @@ export default function Home() {
   const [devicePanel, setDevicePanel] = useState<'operator' | 'geeks'>('operator')
   const [mapZoom, setMapZoom] = useState(1)
   const clearTimer = useRef<number | null>(null)
+  const [mapHover, setMapHover] = useState<Coord | null>(null)
+  const enemyList = useRef<HTMLDivElement>(null)
 
   // The Bash panel follows the active set, so an Overload shows its switch at once.
   useEffect(() => setBashView(state.player.activeBash), [state.player.activeBash])
 
   useEffect(() => {
     const onZoom = (event: Event) => setMapZoom((event as CustomEvent<number>).detail)
+    const onHover = (event: Event) => setMapHover((event as CustomEvent<Coord | null>).detail)
     window.addEventListener('map-zoom-changed', onZoom)
+    window.addEventListener('map-hover-changed', onHover)
     if (canvasRef.current) startGame(canvasRef.current)
     return () => {
       window.removeEventListener('map-zoom-changed', onZoom)
+      window.removeEventListener('map-hover-changed', onHover)
       stopGame()
     }
   }, [])
@@ -414,7 +436,7 @@ export default function Home() {
   const attackSequenceState = previewState
   const sequence = state.outgoingForecast ?? (state.playerAttackResolved
     ? []
-    : state.overloadArmed ? predictedSequence(previewState, displayActiveBash, 4) : predictedSequence(attackSequenceState))
+    : state.overloadArmed ? predictedSequence(previewState, displayActiveBash, 4, true) : predictedSequence(attackSequenceState))
   const singleStep = methodInspector && state.attackPreview
     ? state.attackPreview.stepIndex
     : state.overloadArmed ? null : state.attackPreview?.stepIndex ?? null
@@ -431,6 +453,12 @@ export default function Home() {
   const releases = state.overloadArmed ? 4 : releaseCount(previewState)
   const bashDisplayIndex = state.overloadArmed ? displayActiveBash : bashView
   const inspector = methodInspector ?? state.attackPreview
+  // The Geek under the cursor on the map lights its card in the list.
+  const hoveredEnemy = mapHover ? aliveEnemies.find(enemy => enemy.pos.x === mapHover.x && enemy.pos.y === mapHover.y)?.id ?? null : null
+  useEffect(() => {
+    if (!hoveredEnemy) return
+    enemyList.current?.querySelector(`[data-enemy="${hoveredEnemy}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [hoveredEnemy])
 
   const previewMethod = (presetIndex: number, stepIndex: number) => {
     cancelMethodClear()
@@ -531,7 +559,7 @@ export default function Home() {
               <Shield size={12} /> PRIVILEGE {state.player.block}{privilegeGain > 0 && ` +${privilegeGain}`}
             </span>
             {repair > 0 && <span className="status-chip active"><Cpu size={12} /> REPAIR +{repair}</span>}
-            {state.player.focusReady && <span className="status-chip active"><Zap size={12} /> CORE +1</span>}
+            {state.player.focusReady && <span className="status-chip active"><Zap size={12} /> FOCUS → LIVE</span>}
           </div>
 
           <section className="panel-section">
@@ -610,6 +638,7 @@ export default function Home() {
                   <button type="button" className="method-close" onMouseDown={event => event.preventDefault()} onClick={clearMethodPreview} aria-label="Close method preview">×</button>
                   <strong>{presets[inspector.presetIndex].name} / {ROMAN[inspector.stepIndex]} {step.name}</strong>
                   <p>{mechanicText(step)}</p>
+                  {riderText(step) && <p className="method-rider">{riderText(step)}</p>}
                   <span>{rangeText(step)}</span>
                 </>
               })()}
@@ -689,15 +718,20 @@ export default function Home() {
 
           <section className="enemy-list-section">
             <div className="section-heading"><span>HOSTILES</span><strong>{aliveEnemies.length}</strong></div>
-            <div className="enemy-list">
+            <div className="enemy-list" ref={enemyList}>
               {aliveEnemies.map(enemy => {
                 const allHits = sequence.filter(hit => hit.enemyId === enemy.id)
                 const hits = visibleSequence.filter(hit => hit.enemyId === enemy.id)
                 const projected = hits.length ? hits[hits.length - 1].after : enemy.robustness
                 const resources = state.enemyResourcePreviews[enemy.id] ?? predictedEnemyResources(attackSequenceState, enemy.id, state.overloadArmed ? 4 : undefined)
                 const showForecast = hits.length > 0
+                // Tags the Geek has now, and how the hits still to land change them.
+                const tags = tagList(enemy)
+                const tagsAfter = hits.length && !live ? tagList(hits[hits.length - 1].marks) : tags
+                const events = live ? [] : [...new Set(hits.flatMap(hit => hit.events))]
+                  .filter(word => !['LIVE', 'BREACH', 'DROP'].includes(word))
                 return (
-                  <article className={`enemy-card ${showForecast ? 'affected' : ''}`} key={enemy.id}>
+                  <article className={`enemy-card ${showForecast ? 'affected' : ''} ${hoveredEnemy === enemy.id ? 'map-hover' : ''}`} key={enemy.id} data-enemy={enemy.id}>
                     <div className="enemy-card-head">
                       <div className="enemy-avatar"><Hexagon size={27} strokeWidth={1.4} /><span>{enemy.id}</span></div>
                       <div className="enemy-name">
@@ -726,6 +760,12 @@ export default function Home() {
                       label={`Robustness ${enemy.robustness} of ${enemy.maxRobustness}; ${allHits.reduce((total, hit) => total + hit.damage, 0)} raw damage incoming`}
                       onLeave={clearMethodPreview}
                     />
+                    <div className="enemy-tags" aria-label={`Tags on ${enemy.id}`}>
+                      {tags.map(tag => <span className={`enemy-tag ${tagsAfter.includes(tag) ? '' : 'spent'}`} key={tag}>{tag}</span>)}
+                      {tagsAfter.filter(tag => !tags.includes(tag)).map(tag => <span className="enemy-tag pending" key={tag}>→ {tag}</span>)}
+                      {events.map(word => <span className="enemy-tag event pending" key={word}>{word}</span>)}
+                      {!tags.length && tagsAfter.length === 0 && !events.length && <span className="enemy-tag none">NO TAGS</span>}
+                    </div>
                     <div className="enemy-status">
                       <span className={enemy.block ? 'has-block' : ''}>SECURITY {enemy.block}{!live && resources.securityGain > 0 && <em className="gain"> +{resources.securityGain}</em>}</span>
                       <span>SOUL {enemy.soulCounter}/{enemy.soulThreshold}{!live && resources.recovery > 0 && <em className="gain"> +{resources.recovery} HP</em>}</span>
@@ -794,7 +834,8 @@ export default function Home() {
             <section><h3>DESIRE</h3><p>The Warden always releases Desire I each turn, and Desire I and II in Stage II, even without Bash Flags. Collected Bash Flags unlock its remaining methods. Every release is previewed before execution.</p></section>
             <section><h3><SquareTerminal size={15} /> BASH</h3><p>Release length is the lower of Bash collected, remaining AP, and IV. Each deck has a frame that sets its range (VECTOR is a 5×5 square, CoT a cross with arm length 5) and four skills, one per Roman numeral. A skill is stronger the later its slot. Decks are built on the main menu.</p></section>
             <section><h3><Shield size={15} /> PRIVILEGE</h3><p>SHELL automatically adds {PLAYER_FUNCTIONS.privilegePerFlag} PRIVILEGE per collected Privilege Flag. PRIVILEGE absorbs incoming damage for the following enemy phase. HP bars show raw damage; PRIVILEGE and REPAIR are listed beneath the bar.</p></section>
-            <section><h3><Cpu size={15} /> CORE</h3><p>Every Core Flag advances all three independent counters. REPAIR restores Sanity at the end of the turn, after enemies attack; FOCUS empowers one Bash hit, and FIREWALL adds PRIVILEGE.</p></section>
+            <section><h3><Cpu size={15} /> CORE</h3><p>Every Core Flag advances all three independent counters. REPAIR restores Sanity at the end of the turn, after enemies attack; FOCUS makes the next Bash hit tag its target LIVE, and FIREWALL adds PRIVILEGE.</p></section>
+            <section><h3><Zap size={15} /> INTERACTIONS</h3><p>Every skill has a rider that works in any slot. <strong>PUSH</strong> and <strong>PULL</strong> move a Geek one cell, and it carries its route with it; blocked by a wall, a Geek, the edge or a sealed Curtain it is a <strong>BUMP</strong>: 1 damage to it and to a Geek it hits. <strong>BREACH</strong>: a hit that takes Security to 0 makes later hits that turn deal +1. <strong>LIVE</strong> is a tag set up by one release and read by the next release or an Overload; a Geek that collects a Privilege Flag scrubs it, and a Desire step your PRIVILEGE blocks in full tags the attacker. Bumps, Breaches and spent LIVE tags each give 1 Overload charge, up to 2 a turn. Tags are listed under each Geek’s Robustness bar.</p></section>
             <section><h3><Gauge size={15} /> OVERLOAD</h3><p>Five charges enable the only manual Function. The first click or O previews all four methods from the planned endpoint; the second spends one AP, switches to the other deck at once, and releases that deck’s four methods without consuming Bash Flags. Normal end-of-turn Bash still releases afterward. Escape cancels the preview.</p></section>
           </div>
           <div className="controls-table"><span>WASD / ARROWS</span><strong>Plan route</strong><span>DRAG / ONE FINGER</span><strong>Pan map</strong><span>PINCH / WHEEL</span><strong>Zoom map</strong><span>BACKSPACE</span><strong>Undo move</strong><span>SPACE</span><strong>Execute</strong><span>O</span><strong>Overload</strong><span>ESC</span><strong>Pause</strong></div>

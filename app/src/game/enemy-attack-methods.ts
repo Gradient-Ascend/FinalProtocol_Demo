@@ -1,6 +1,6 @@
-import { predictedSequence } from './attack-methods'
+import { simulateRelease } from './attack-methods'
 import { PLAYER_FUNCTIONS } from './battle-config'
-import { isWarpLocked, livingEnemies, sameCoord } from './battle-rules'
+import { livingEnemies, routeStops } from './battle-rules'
 import type {
   BattleState, Coord, DesireStep, EnemyResourcePreview, EnemyState, PlayerResourcePreview, PredictedEnemyHit,
 } from './battle-types'
@@ -14,8 +14,10 @@ export function desireStepsFor(enemy: EnemyState): DesireStep[] {
   }))
 }
 
+// A Desire step dropped by a skill is taken off the end of the release, even
+// below the Warden's guaranteed steps.
 export function desireReleaseCount(enemy: EnemyState, bashCount: number): number {
-  return Math.max(enemy.desireFloor ?? 0, bashCount)
+  return Math.max(0, Math.max(enemy.desireFloor ?? 0, bashCount) - (enemy.dropped ?? 0))
 }
 
 export function desireInRange(origin: Coord, target: Coord, step: DesireStep): boolean {
@@ -52,40 +54,64 @@ export function predictedPlayerResources(state: BattleState): PlayerResourcePrev
   }
 }
 
-function effectiveEnemies(state: BattleState, playerPos: Coord, playerStepsOverride?: number): EnemyState[] {
-  const playerHits = predictedSequence({ ...state, player: { ...state.player, pos: playerPos } }, undefined, playerStepsOverride)
-  return livingEnemies(state).map(enemy => {
-    if (!enemy.bossStages?.length || enemy.stage >= enemy.bossStages.length) return enemy
-    const hits = playerHits.filter(hit => hit.enemyId === enemy.id)
-    const projected = hits.length ? hits[hits.length - 1].after : enemy.robustness
-    if (projected <= 0 || projected / enemy.maxRobustness > (enemy.breakdownAt ?? 0.5)) return enemy
+// The board as the player's release will leave it: who is still alive, where
+// they stand, the routes they carry, the Desire steps they dropped and the
+// route Flags that were blanked. Once the release has resolved, the live state
+// already is that board.
+function projectedBoard(state: BattleState, playerPos: Coord, playerStepsOverride?: number): { enemies: EnemyState[]; blanked: Set<string> } {
+  if (state.phase === 'resolving' && (state.playerAttackResolved || state.outgoingForecast)) {
+    return { enemies: livingEnemies(state), blanked: new Set() }
+  }
+  const sim = simulateRelease({ ...state, player: { ...state.player, pos: playerPos } }, undefined, playerStepsOverride, playerStepsOverride !== undefined)
+  const enemies = livingEnemies(state).flatMap(enemy => {
+    const after = sim.enemies.find(candidate => candidate.id === enemy.id)
+    if (!after || after.hp <= 0) return []
+    const moved: EnemyState = {
+      ...enemy, pos: after.pos, route: after.route, effectCell: after.effectCell, robustness: after.hp,
+      live: after.live, dropped: after.dropped,
+    }
+    if (!enemy.bossStages?.length || enemy.stage >= enemy.bossStages.length) return [moved]
+    if (after.hp / enemy.maxRobustness > (enemy.breakdownAt ?? 0.5)) return [moved]
     const next = enemy.bossStages.find(stage => stage.stage === enemy.stage + 1)
-    return next ? { ...enemy, ...next, stage: next.stage } : enemy
+    return [next ? { ...moved, ...next, stage: next.stage } : moved]
+  })
+  return { enemies, blanked: sim.blanked }
+}
+
+// Walks every Geek still to act along its route, in order, and reports where
+// each ends and what it collects.
+function projectedWalks(state: BattleState, targetPos: Coord, playerStepsOverride?: number) {
+  const moves = state.actions.filter(action => action.type === 'move')
+  const board = projectedBoard(state, targetPos, playerStepsOverride)
+  const removed = new Set([...moves.map(action => `${action.to.x},${action.to.y}`), ...board.blanked])
+  const positions = new Map(board.enemies.map(enemy => [enemy.id, enemy.pos]))
+  return board.enemies.filter((_, index) => index >= state.enemyPhaseIndex).map(enemy => {
+    let cursor = { ...enemy.pos }
+    const counts = { bash: 0, privilege: 0, core: 0, overload: 0, blank: 0 }
+    for (const pos of enemy.route) {
+      const others = [...positions].filter(([id]) => id !== enemy.id).map(([, other]) => other)
+      if (routeStops(state, pos, targetPos, others)) break
+      cursor = { ...pos }
+      const key = `${pos.x},${pos.y}`
+      counts[removed.has(key) ? 'blank' : state.flags[pos.y][pos.x]]++
+      removed.add(key)
+    }
+    positions.set(enemy.id, cursor)
+    return { enemy, cursor, counts }
   })
 }
 
 export function predictedEnemyResources(state: BattleState, enemyId: string, playerStepsOverride?: number): EnemyResourcePreview {
   const moves = state.actions.filter(action => action.type === 'move')
   const targetPos = moves.length ? moves[moves.length - 1].to : state.player.pos
-  const enemy = effectiveEnemies(state, targetPos, playerStepsOverride).find(candidate => candidate.id === enemyId)
-  if (!enemy) return { securityGain: 0, recovery: 0, soulCounterAfter: 0 }
-  const removed = new Set(moves.map(action => `${action.to.x},${action.to.y}`))
-  const counts = { bash: 0, privilege: 0, core: 0, overload: 0, blank: 0 }
-  for (const pos of enemy.route) {
-    if (sameCoord(pos, targetPos) || isWarpLocked(state, pos)) break
-    const key = `${pos.x},${pos.y}`
-    const flag = removed.has(key) ? 'blank' : state.flags[pos.y][pos.x]
-    counts[flag]++
-    removed.add(key)
-  }
+  const walk = projectedWalks(state, targetPos, playerStepsOverride).find(candidate => candidate.enemy.id === enemyId)
+  if (!walk) return { securityGain: 0, recovery: 0, soulCounterAfter: 0 }
+  const { enemy, counts } = walk
   let soulCounterAfter = enemy.soulCounter + counts.core
   let recovery = 0
   if (soulCounterAfter >= enemy.soulThreshold) {
     soulCounterAfter = 0
-    const projectedHits = predictedSequence({ ...state, player: { ...state.player, pos: targetPos } }, undefined, playerStepsOverride)
-      .filter(hit => hit.enemyId === enemy.id)
-    const projectedRobustness = projectedHits.length ? projectedHits[projectedHits.length - 1].after : enemy.robustness
-    recovery = Math.min(enemy.soulHeal, enemy.maxRobustness - projectedRobustness)
+    recovery = Math.min(enemy.soulHeal, enemy.maxRobustness - enemy.robustness)
   }
   return { securityGain: counts.privilege * enemy.securityPerFlag, recovery, soulCounterAfter }
 }
@@ -93,24 +119,11 @@ export function predictedEnemyResources(state: BattleState, enemyId: string, pla
 export function predictedEnemySequence(state: BattleState, playerPos?: Coord, playerStepsOverride?: number): PredictedEnemyHit[] {
   const moves = state.actions.filter(action => action.type === 'move')
   const targetPos = playerPos ?? (moves.length ? moves[moves.length - 1].to : state.player.pos)
-  const removed = new Set(moves.map(action => `${action.to.x},${action.to.y}`))
-  const resources = predictedPlayerResources(state)
-  let block = resources.blockAfterResources
+  let block = predictedPlayerResources(state).blockAfterResources
   let sanity = state.player.sanity
   const hits: PredictedEnemyHit[] = []
-
-  for (const enemy of effectiveEnemies(state, targetPos, playerStepsOverride).filter((_, index) => index >= state.enemyPhaseIndex)) {
-    let cursor = { ...enemy.pos }
-    const enemyCounts = { bash: 0, privilege: 0, core: 0, overload: 0, blank: 0 }
-    for (const pos of enemy.route) {
-      if (sameCoord(pos, targetPos) || isWarpLocked(state, pos)) break
-      cursor = { ...pos }
-      const key = `${pos.x},${pos.y}`
-      const flag = removed.has(key) ? 'blank' : state.flags[pos.y][pos.x]
-      enemyCounts[flag]++
-      removed.add(key)
-    }
-    const steps = desireStepsFor(enemy).slice(0, desireReleaseCount(enemy, enemyCounts.bash))
+  for (const { enemy, cursor, counts } of projectedWalks(state, targetPos, playerStepsOverride)) {
+    const steps = desireStepsFor(enemy).slice(0, desireReleaseCount(enemy, counts.bash))
     for (const [stepIndex, step] of steps.entries()) {
       if (!desireInRange(cursor, targetPos, step)) continue
       const absorbed = Math.min(block, step.amount)

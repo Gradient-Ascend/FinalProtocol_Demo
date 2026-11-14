@@ -16,6 +16,8 @@ export type AttackStep = {
   mode?: AttackMode
   pierce?: number
   fx?: string
+  // Which skill the step comes from; its rider is resolved by that id.
+  skill?: string
 }
 
 export type AttackPreset = {
@@ -104,6 +106,17 @@ export type EnemyState = EnemyDefinition & {
   route: Coord[]
   effectCell: Coord | null
   statuses: string[]
+} & EnemyMarks
+
+// What skills write on a Geek and other skills read. `live` is the turn the
+// LIVE tag was applied (0 = none); it lasts until spent or until the end of
+// the player's next release. The rest reset when the turn ends.
+export type EnemyMarks = {
+  live: number
+  breached: boolean
+  shifted: boolean
+  struck: boolean
+  dropped: number
 }
 
 export type Curtain = {
@@ -137,6 +150,8 @@ export type AttackEffect = {
   absorbed?: number
   // Released by an Overload rather than at the end of the turn.
   overload?: boolean
+  // Interaction words to print with the hit: PUSH, BUMP, PINNED, BREACH, LIVE…
+  events?: string[]
 }
 
 export type BattleAction =
@@ -159,6 +174,15 @@ export type PredictedHit = {
   focus: number
   before: number
   after: number
+  // Interactions this hit triggered, and the target as the hit leaves it.
+  events: string[]
+  marks: EnemyMarks & { pos: Coord; block: number; route: Coord[]; effectCell: Coord | null }
+  // A route Flag this hit overwrote with Blank.
+  blank?: Coord
+  // Overload charge earned by the interactions of this hit.
+  charge: number
+  // Collateral from a bump: applied with the hit before it, with no effect of its own.
+  silent?: boolean
 }
 
 export type PredictedEnemyHit = {
@@ -211,6 +235,8 @@ export type BattleState = {
   // Running totals of what block has absorbed for each unit ('player' or a
   // Geek id), so its HP bar can show a blocked hit as blocked.
   absorbedTotals: Record<string, number>
+  // Overload charge already earned from interactions this turn (capped).
+  interactionCharge: number
   log: LogEntry[]
   muted: boolean
   reducedMotion: boolean

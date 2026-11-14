@@ -14,6 +14,18 @@ export const PLAYER_FUNCTIONS = {
   firewallPrivilege: 3,
 }
 
+// Skill interactions. A push or pull that is blocked deals `bump` to the Geek
+// moved and to any Geek it hits; a Breached Geek takes `breachBonus` more from
+// every later hit that turn; interactions earn at most `chargeCap` Overload
+// charge per turn.
+export const INTERACTIONS = {
+  bump: 1,
+  pinnedBonus: 2,
+  breachBonus: 1,
+  zeroStrip: 2,
+  chargeCap: 2,
+}
+
 // The default decks. A battle uses the presets stored on its state, which
 // come from the loadout picked on the menu.
 export const BASH_PRESETS: AttackPreset[] = buildPresets(DEFAULT_LOADOUT)

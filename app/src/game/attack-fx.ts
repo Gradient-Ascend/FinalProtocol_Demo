@@ -179,6 +179,16 @@ export class AttackFx {
     this.tags.push({ x: at.x, y: at.y, text, color, t: 0, dur: 1.15 })
   }
 
+  // The interactions a hit triggered (PUSH, PINNED, BREACH, LIVE…), in white
+  // on a second line under the term so they never read as one more number.
+  private note(at: Coord, fx: AttackEffect): void {
+    if (!fx.events?.length) return
+    const y = at.y + 0.36
+    this.tags = this.tags.filter(tag => tag.x !== at.x || tag.y !== y)
+    this.tags.push({ x: at.x, y, text: fx.events.join(' · '), color: '#f4f4f4', t: 0, dur: 1.5 })
+    this.ring(at, 0.3, 1.25, 0.5, '#f4f4f4', 1.5)
+  }
+
   // The damage the hit does, popping above the target as it lands.
   private number(at: Coord, fx: AttackEffect, col: string[]): void {
     const dealt = fx.dealt ?? fx.amount ?? 0
@@ -244,9 +254,10 @@ export class AttackFx {
       this.poly([p, t], 0.12, col[0], 1.5)
       this.ring(t, 0.2, 0.7, 0.12, col[0], 2)
       this.number(t, fx, col)
+      this.note(t, fx)
       return
     }
-    this.after(at, () => this.number(t, fx, col))
+    this.after(at, () => { this.number(t, fx, col); this.note(t, fx) })
     if (fx.source === 'enemy') { this.swarm(c); return }
     if (fx.overload) { this.overloadBeam(c); return }
     const signature: Record<string, (c: Ctx) => void> = {
@@ -695,7 +706,7 @@ export class AttackFx {
     for (const tag of this.tags) {
       const x = origin.x + tag.x * cell
       const y = origin.y + (tag.y + 0.78) * cell
-      ctx.globalAlpha = tag.t < 0.8 ? 1 : 1 - (tag.t - 0.8) / 0.35
+      ctx.globalAlpha = Math.max(0, Math.min(1, (tag.dur - tag.t) / 0.35))
       ctx.lineWidth = 3
       ctx.strokeStyle = '#050505'
       ctx.strokeText(tag.text, x, y)

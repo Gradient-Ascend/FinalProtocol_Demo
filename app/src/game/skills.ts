@@ -17,6 +17,11 @@ export type Skill = {
   pierce?: [number, number, number, number]
   // Which attack animation the renderer plays.
   fx: string
+  // The interaction: what the skill writes for others or reads from them. It
+  // is the same in every slot.
+  rider: string
+  writes?: string
+  reads?: string
 }
 
 export type FrameId = 'vector' | 'cot'
@@ -27,17 +32,17 @@ export type Loadout = [Deck, Deck]
 export const IGNORES_SECURITY = 99
 
 export const SKILLS: Skill[] = [
-  { id: 'base', name: 'BASE', area: 'nearest', amounts: [1, 2, 3, 4], fx: 'base' },
-  { id: 'on', name: 'ON', area: 'nearest', amounts: [2, 2, 3, 3], fx: 'on' },
-  { id: 'spike', name: 'SPIKE', area: 'nearest', amounts: [0, 1, 3, 6], fx: 'spike' },
-  { id: 'manhattan', name: 'MANHATTAN', area: 'nearest', mode: 'manhattan', amounts: [-1, 0, 1, 2], fx: 'manhattan' },
-  { id: 'off', name: 'OFF', area: 'nearest', mode: 'random', amounts: [3, 4, 5, 6], fx: 'off' },
-  { id: 'array', name: 'ARRAY', area: 'all', amounts: [1, 2, 2, 3], fx: 'array' },
-  { id: 'high', name: 'HIGH', area: 'all', amounts: [0, 1, 3, 5], fx: 'high' },
-  { id: 'flood', name: 'FLOOD', area: 'all', amounts: [1, 1, 1, 2], pierce: [1, 1, 2, 2], fx: 'flood' },
-  { id: 'zero', name: 'ZERO', area: 'nearest', amounts: [1, 2, 3, 4], pierce: [2, 2, 2, 2], fx: 'zero' },
-  { id: 'ultra', name: 'ULTRA', area: 'nearest', amounts: [1, 1, 3, 5], pierce: [0, 0, 1, 3], fx: 'ultra' },
-  { id: 'probe', name: 'PROBE', area: 'nearest', amounts: [1, 1, 2, 2], pierce: [IGNORES_SECURITY, IGNORES_SECURITY, IGNORES_SECURITY, IGNORES_SECURITY], fx: 'probe' },
+  { id: 'base', name: 'BASE', area: 'nearest', amounts: [1, 2, 3, 4], fx: 'base', rider: 'PUSH the target 1 cell away. Blocked = BUMP: 1 to it and to a Geek behind it.', writes: 'POSITION' },
+  { id: 'on', name: 'ON', area: 'nearest', amounts: [2, 2, 3, 3], fx: 'on', rider: 'Applies LIVE if any damage gets past Security. Readable from the next release or Overload.', writes: 'LIVE', reads: 'SECURITY' },
+  { id: 'spike', name: 'SPIKE', area: 'nearest', amounts: [0, 1, 3, 6], fx: 'spike', rider: '+2 against a PINNED target: wall, Geek, edge or sealed Curtain right behind it.', reads: 'POSITION' },
+  { id: 'manhattan', name: 'MANHATTAN', area: 'nearest', mode: 'manhattan', amounts: [-1, 0, 1, 2], fx: 'manhattan', rider: 'D is measured after earlier PUSH and PULL in the same release.', reads: 'POSITION' },
+  { id: 'off', name: 'OFF', area: 'nearest', mode: 'random', amounts: [3, 4, 5, 6], fx: 'off', rider: 'Against LIVE: rolls its maximum, the target DROPs one Desire step, LIVE is spent.', writes: 'DESIRE', reads: 'LIVE' },
+  { id: 'array', name: 'ARRAY', area: 'all', amounts: [1, 2, 2, 3], fx: 'array', rider: 'PULL every Geek hit 1 cell closer. Blocked = BUMP.', writes: 'POSITION' },
+  { id: 'high', name: 'HIGH', area: 'all', amounts: [0, 1, 3, 5], fx: 'high', rider: '+1 for every Geek hit beyond the first.', reads: 'POSITION' },
+  { id: 'flood', name: 'FLOOD', area: 'all', amounts: [1, 1, 1, 2], pierce: [1, 1, 2, 2], fx: 'flood', rider: 'FILL: blanks the next Flag on the route of each Geek hit.', writes: 'ROUTE', reads: 'ROUTE' },
+  { id: 'zero', name: 'ZERO', area: 'nearest', amounts: [1, 2, 3, 4], pierce: [2, 2, 2, 2], fx: 'zero', rider: 'First hit on a target this turn strips 2 Security. Security to 0 = BREACH: +1 from later hits.', writes: 'SECURITY', reads: 'SECURITY' },
+  { id: 'ultra', name: 'ULTRA', area: 'nearest', amounts: [1, 1, 3, 5], pierce: [0, 0, 1, 3], fx: 'ultra', rider: '+1 for each of LIVE, BREACH and SHIFT on the target.', reads: 'ALL TAGS' },
+  { id: 'probe', name: 'PROBE', area: 'nearest', amounts: [1, 1, 2, 2], pierce: [IGNORES_SECURITY, IGNORES_SECURITY, IGNORES_SECURITY, IGNORES_SECURITY], fx: 'probe', rider: 'Applies LIVE through any Security. Readable from the next release or Overload.', writes: 'LIVE' },
 ]
 
 export const FRAMES: Frame[] = [
@@ -68,6 +73,7 @@ export function skillStep(skill: Skill, slot: number, frame: Frame): AttackStep 
     mode: skill.mode ?? 'fixed',
     pierce: skill.pierce?.[slot] || undefined,
     fx: skill.fx,
+    skill: skill.id,
   }
 }
 
