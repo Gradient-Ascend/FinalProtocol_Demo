@@ -1,6 +1,6 @@
 import { simulateRelease } from './attack-methods'
-import { PLAYER_FUNCTIONS } from './battle-config'
 import { livingEnemies, routeStops } from './battle-rules'
+import { broods, securityAfterResolve } from './mechanics'
 import type {
   BattleState, Coord, DesireStep, EnemyResourcePreview, EnemyState, PlayerResourcePreview, PredictedEnemyHit,
 } from './battle-types'
@@ -15,7 +15,7 @@ export function desireStepsFor(enemy: EnemyState): DesireStep[] {
 }
 
 // A Desire step dropped by a skill is taken off the end of the release, even
-// below the Warden's guaranteed steps.
+// below a boss's guaranteed steps.
 export function desireReleaseCount(enemy: EnemyState, bashCount: number): number {
   return Math.max(0, Math.max(enemy.desireFloor ?? 0, bashCount) - (enemy.dropped ?? 0))
 }
@@ -33,7 +33,8 @@ export function predictedPlayerResources(state: BattleState): PlayerResourcePrev
   const moves = state.actions.filter(action => action.type === 'move')
   const counts = { bash: 0, privilege: 0, core: 0, overload: 0, blank: 0 }
   for (const action of moves) counts[action.flag]++
-  let blockAfterResources = state.player.block + counts.privilege * PLAYER_FUNCTIONS.privilegePerFlag
+  const { tuning } = state
+  let blockAfterResources = state.player.block + counts.privilege * tuning.privilegePerFlag
   let healingPotential = 0
   const counters = Object.fromEntries(state.player.buffs.map(buff => [buff.id, buff.counter]))
   for (let i = 0; i < counts.core; i++) {
@@ -41,8 +42,8 @@ export function predictedPlayerResources(state: BattleState): PlayerResourcePrev
       counters[buff.id]++
       if (counters[buff.id] < buff.threshold) continue
       counters[buff.id] = 0
-      if (buff.id === 'repair') healingPotential += PLAYER_FUNCTIONS.repairHeal
-      if (buff.id === 'firewall') blockAfterResources += PLAYER_FUNCTIONS.firewallPrivilege
+      if (buff.id === 'repair') healingPotential += tuning.repairHeal
+      if (buff.id === 'firewall') blockAfterResources += tuning.firewallPrivilege
     }
   }
   // REPAIR heals after the enemy phase, so it is reported as an amount and
@@ -73,7 +74,8 @@ function projectedBoard(state: BattleState, playerPos: Coord, playerStepsOverrid
     if (!enemy.bossStages?.length || enemy.stage >= enemy.bossStages.length) return [moved]
     if (after.hp / enemy.maxRobustness > (enemy.breakdownAt ?? 0.5)) return [moved]
     const next = enemy.bossStages.find(stage => stage.stage === enemy.stage + 1)
-    return [next ? { ...moved, ...next, stage: next.stage } : moved]
+    // A Breakdown also empties the Soul counter and drops Security, as the store does.
+    return [next ? { ...moved, ...next, stage: next.stage, soulCounter: 0, block: 0 } : moved]
   })
   return { enemies, blanked: sim.blanked }
 }
@@ -101,19 +103,24 @@ function projectedWalks(state: BattleState, targetPos: Coord, playerStepsOverrid
   })
 }
 
+// What a Geek's resolve does with the Privilege and Core Flags on its route.
+// The store resolves through this same function, so the forecast and the turn
+// cannot drift apart: a full Soul counter heals, or on a BROOD Geek queues a
+// birth; MYSTERY tops Security up to its fixed value.
+export function enemyResourceOutcome(state: BattleState, enemy: EnemyState, privilege: number, core: number): EnemyResourcePreview {
+  const securityGain = securityAfterResolve(enemy, privilege * enemy.securityPerFlag)
+  const soulCounterAfter = enemy.soulCounter + core
+  if (soulCounterAfter < enemy.soulThreshold) return { securityGain, recovery: 0, soulCounterAfter }
+  if (broods(state, enemy)) return { securityGain, recovery: 0, soulCounterAfter: 0, brood: true }
+  return { securityGain, recovery: Math.min(enemy.soulHeal, enemy.maxRobustness - enemy.robustness), soulCounterAfter: 0 }
+}
+
 export function predictedEnemyResources(state: BattleState, enemyId: string, playerStepsOverride?: number): EnemyResourcePreview {
   const moves = state.actions.filter(action => action.type === 'move')
   const targetPos = moves.length ? moves[moves.length - 1].to : state.player.pos
   const walk = projectedWalks(state, targetPos, playerStepsOverride).find(candidate => candidate.enemy.id === enemyId)
   if (!walk) return { securityGain: 0, recovery: 0, soulCounterAfter: 0 }
-  const { enemy, counts } = walk
-  let soulCounterAfter = enemy.soulCounter + counts.core
-  let recovery = 0
-  if (soulCounterAfter >= enemy.soulThreshold) {
-    soulCounterAfter = 0
-    recovery = Math.min(enemy.soulHeal, enemy.maxRobustness - enemy.robustness)
-  }
-  return { securityGain: counts.privilege * enemy.securityPerFlag, recovery, soulCounterAfter }
+  return enemyResourceOutcome(state, walk.enemy, walk.counts.privilege, walk.counts.core)
 }
 
 export function predictedEnemySequence(state: BattleState, playerPos?: Coord, playerStepsOverride?: number): PredictedEnemyHit[] {

@@ -3,25 +3,18 @@
  * No audio asset files at all — everything is synthesized at runtime.
  */
 
+import { storage } from "./storage";
+
 export type SfxId = "move" | "hit" | "pickup" | "ui" | "explosion" | "win" | "lose";
 
-const MUTE_KEY = "game.muted";
-
-// localStorage can throw (storage disabled, private mode, third-party storage blocked
-// inside a preview iframe) — a game must never fail to start because of that.
+// The mute setting has one key and one encoding, the battle store's: a JSON boolean under
+// "muted". This file used to write "1"/"0" to the same key, so each side misread the other.
+// storage.ts never throws (storage disabled, private mode, blocked iframe), so neither do these.
 function readMuted(): boolean {
-  try {
-    return localStorage.getItem(MUTE_KEY) === "1";
-  } catch {
-    return false;
-  }
+  return storage.flag("muted");
 }
 function writeMuted(v: boolean): void {
-  try {
-    localStorage.setItem(MUTE_KEY, v ? "1" : "0");
-  } catch {
-    // not persisted this session; the in-memory flag still works
-  }
+  storage.set("muted", v);
 }
 
 export class AudioSystem {

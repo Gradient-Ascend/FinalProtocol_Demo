@@ -1,0 +1,17 @@
+// The story package: how text is chosen and how it is shown. The text itself
+// is script.json.
+export * from './script'
+export * from './line-engine'
+export * from './attention'
+export * from './seams'
+export { AttentionLine } from './AttentionLine'
+export type { AttentionLineProps } from './AttentionLine'
+export { VoiceLine, voiceLabel } from './VoiceLine'
+export type { VoiceLineProps } from './VoiceLine'
+export { StoryTicker, HOLD_MS, holdMs } from './StoryTicker'
+export type { StoryTickerProps, TickerLine } from './StoryTicker'
+export { SeamText, ALONE_MS, pageStart } from './SeamText'
+export type { SeamTextProps, SeamItem } from './SeamText'
+export { Transcript } from './Transcript'
+export type { TranscriptProps, TranscriptEntry } from './Transcript'
+export { useReducedMotion } from './use-reduced-motion'

@@ -1,0 +1,420 @@
+import script from '../story/script.json'
+import { mulberry32 } from '../game/battle-rules'
+import { ENCOUNTERS } from '../game/encounters'
+import type { Encounter } from '../game/encounters'
+import { storage } from '../game/storage'
+import { DEFAULT_TUNING, applyWeight, tuningFor, weightSanity } from '../game/tuning'
+import type { Carry, Tuning } from '../game/tuning'
+
+// The run between battles: which scene is showing, what the run holds, and
+// the log the reset does not reach. No UI and no battle rules live here; the
+// shell loads the encounter `selectNode` returns into the battle store and
+// reports back how the battle ended.
+
+export type Scene = 'attach' | 'intro' | 'title' | 'map' | 'entrance' | 'battle'
+                  | 'reward' | 'interlude' | 'reset' | 'gate' | 'ending'
+
+export type RunState = {
+  seed: number; layer: 0 | 1 | 2 | 3 | 4          // 4 = at the gate
+  broken: string[]; current: string | null
+  sanity: number; tuning: Tuning; weights: string[]
+  snapshot: { layer: number; tuning: Tuning; weights: string[] } | null
+  attempts: Record<string, number>
+}
+
+export type MetaState = {
+  introSeen: boolean; iteration: number; clears: number; deepest: number
+  seenLines: string[]; ghosts: string[]            // encounter ids where a run ended
+  door: 'closed' | 'kept' | 'open'
+  transcript: { voice: string; text: string }[]    // capped at 400
+}
+
+export type CampaignSnapshot = { scene: Scene; run: RunState | null; meta: MetaState; offer: string[] | null; interlude: number | null }
+
+export type CampaignStore = {
+  getSnapshot(): CampaignSnapshot; subscribe(listener: () => void): () => void
+  boot(search: string): void            // decides attach / title from storage and ?intro
+  attach(): void; finishIntro(): void; replayIntro(): void
+  startRun(): void; continueRun(): void; abandonRun(): void
+  nodeState(id: string): 'broken' | 'open' | 'locked' | 'closed'
+  selectNode(id: string): Encounter | null         // sets current; returns the encounter to load
+  beginBattle(): void                              // entrance finished → scene 'battle'
+  battleWon(sanity: number): void                  // → 'reward' | 'interlude'
+  battleLost(): void                               // → 'reset'
+  finishReset(): void; chooseWeight(id: string): void; finishInterlude(): void
+  chooseGate(choice: 'open' | 'keep'): void; finishEnding(): void
+  recordLine(voice: string, text: string, id?: string): void
+}
+
+const PROLOGUE = '0.B'
+const BOSS_HEAL = 12
+const TRANSCRIPT_CAP = 400
+const GHOST_CAP = 200
+const SEEN_CAP = 2000
+
+type WeightText = { id: string; kind: string }
+const WEIGHTS = script.weights as WeightText[]
+const CORE_WEIGHTS = WEIGHTS.filter(weight => weight.kind === 'CORE').map(weight => weight.id)
+const FUNCTION_WEIGHTS = WEIGHTS.filter(weight => weight.kind === 'FUNCTION').map(weight => weight.id)
+const PATCH = WEIGHTS.find(weight => weight.kind === 'PATCH')?.id ?? 'patch'
+
+function isEncounter(id: string): boolean {
+  return Object.hasOwn(ENCOUNTERS, id)
+}
+
+// PATCH restores Sanity and is gone; only the others are held by a run.
+function isHeldWeight(id: string): boolean {
+  return CORE_WEIGHTS.includes(id) || FUNCTION_WEIGHTS.includes(id)
+}
+
+function skirmishes(layer: number): string[] {
+  return Object.values(ENCOUNTERS).filter(encounter => encounter.layer === layer && encounter.kind === 'skirmish').map(encounter => encounter.id)
+}
+
+// What a run brings into the battle store: `battleStore.load(encounter, runCarry(run))`.
+export function runCarry(run: RunState): Carry {
+  return { sanity: run.sanity, tuning: { ...run.tuning } }
+}
+
+// Three offers: one CORE, one FUNCTION and PATCH, never a weight the run
+// already holds. Drawn from the run's seed and how many nodes it has broken,
+// so the same run is offered the same three if the screen is shown again.
+// When one kind is used up the other fills its row.
+export function offerFor(run: RunState): string[] {
+  const random = mulberry32((run.seed ^ Math.imul(run.broken.length + 1, 0x9E3779B1)) >>> 0)
+  const core = CORE_WEIGHTS.filter(id => !run.weights.includes(id))
+  const fn = FUNCTION_WEIGHTS.filter(id => !run.weights.includes(id))
+  const draw = (pool: string[]): string | undefined => pool.length ? pool.splice(Math.floor(random() * pool.length), 1)[0] : undefined
+  const first = draw(core) ?? draw(fn)
+  const second = draw(fn) ?? draw(core)
+  return [first, second, PATCH].filter((id): id is string => id !== undefined)
+}
+
+// A node fought again gets a new board. The first attempt keeps the
+// encounter's own seed: that is the board the content was tuned on.
+function reseed(seed: number, runSeed: number, attempt: number): number {
+  return (seed ^ Math.imul(runSeed + attempt, 0x9E3779B1)) >>> 0
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function whole(value: unknown, min: number, max: number, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, Math.round(value))) : fallback
+}
+
+function strings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
+function unique(items: string[]): string[] {
+  return [...new Set(items)]
+}
+
+function freshMeta(): MetaState {
+  return { introSeen: false, iteration: 1, clears: 0, deepest: 0, seenLines: [], ghosts: [], door: 'closed', transcript: [] }
+}
+
+// A missing log is a valid state: it reads as the first iteration.
+export function sanitizeMeta(raw: unknown): MetaState {
+  if (!isRecord(raw)) return freshMeta()
+  const transcript = Array.isArray(raw.transcript)
+    ? raw.transcript.flatMap(line => isRecord(line) && typeof line.voice === 'string' && typeof line.text === 'string'
+      ? [{ voice: line.voice.slice(0, 16), text: line.text.slice(0, 400) }]
+      : [])
+    : []
+  return {
+    introSeen: raw.introSeen === true,
+    iteration: whole(raw.iteration, 1, 999999, 1),
+    clears: whole(raw.clears, 0, 999999, 0),
+    deepest: whole(raw.deepest, 0, 4, 0),
+    seenLines: unique(strings(raw.seenLines).filter(id => id.length <= 64)).slice(-SEEN_CAP),
+    ghosts: strings(raw.ghosts).filter(isEncounter).slice(-GHOST_CAP),
+    door: raw.door === 'kept' || raw.door === 'open' ? raw.door : 'closed',
+    transcript: transcript.slice(-TRANSCRIPT_CAP),
+  }
+}
+
+// A stored run is rebuilt rather than believed: its numbers come from the
+// weights it lists, its broken nodes have to fit its layer, and the battle
+// that was open when the tab closed is not resumed. `reward` says a skirmish
+// was won and its weight not yet chosen.
+export function sanitizeRun(raw: unknown): { run: RunState; reward: boolean } | null {
+  if (!isRecord(raw) || typeof raw.seed !== 'number' || !Number.isFinite(raw.seed)) return null
+  const layer = whole(raw.layer, 0, 4, 0) as RunState['layer']
+  // The prologue is never stored: a run is saved from its first map on.
+  if (layer === 0) return null
+  const weights = unique(strings(raw.weights).filter(isHeldWeight))
+  const tuning = tuningFor(weights)
+  const stored = unique(strings(raw.broken).filter(isEncounter))
+  const behind = stored.filter(id => ENCOUNTERS[id].layer < layer)
+  // Every boss behind this layer fell, or the run would not be here.
+  const bosses = Object.values(ENCOUNTERS).filter(encounter => encounter.kind !== 'skirmish' && encounter.layer < layer).map(encounter => encounter.id)
+  const here = stored.filter(id => ENCOUNTERS[id].layer === layer && ENCOUNTERS[id].kind === 'skirmish').slice(0, 2)
+  const kept = isRecord(raw.snapshot)
+    ? unique(strings(raw.snapshot.weights).filter(isHeldWeight)).filter(id => weights.includes(id))
+    : weights
+  const attempts: Record<string, number> = {}
+  if (isRecord(raw.attempts)) {
+    for (const [id, count] of Object.entries(raw.attempts)) if (isEncounter(id)) attempts[id] = whole(count, 1, 9999, 1)
+  }
+  return {
+    run: {
+      seed: raw.seed >>> 0, layer,
+      broken: unique([...behind, ...bosses, ...here]), current: null,
+      sanity: whole(raw.sanity, 1, tuning.maxSanity, tuning.maxSanity), tuning, weights,
+      snapshot: { layer, tuning: tuningFor(kept), weights: kept },
+      attempts,
+    },
+    reward: raw.reward === true && layer < 4 && here.length > 0,
+  }
+}
+
+export function createCampaignStore(options: { seed?: () => number } = {}): CampaignStore {
+  const nextSeed = options.seed ?? (() => Math.floor(Math.random() * 0x100000000))
+  const listeners = new Set<() => void>()
+  // A skirmish is won and its weight not yet chosen; kept with the stored run
+  // so a closed tab does not cost the reward.
+  let reward = false
+  let state = read('title')
+
+  function read(scene: Scene): CampaignSnapshot {
+    const stored = sanitizeRun(storage.get<unknown>('run', null))
+    reward = stored?.reward ?? false
+    return { scene, run: stored?.run ?? null, meta: sanitizeMeta(storage.get<unknown>('meta', null)), offer: null, interlude: null }
+  }
+
+  function commit(patch: Partial<CampaignSnapshot>): void {
+    state = { ...state, ...patch }
+    listeners.forEach(listener => listener())
+  }
+
+  function saveRun(run: RunState | null): void {
+    if (!run || run.layer === 0) storage.remove('run')
+    else storage.set('run', { ...run, reward })
+  }
+
+  function saveMeta(meta: MetaState): void {
+    storage.set('meta', meta)
+  }
+
+  function prologueRun(seed: number, attempts: Record<string, number>): RunState {
+    return {
+      seed, layer: 0, broken: [], current: PROLOGUE,
+      sanity: DEFAULT_TUNING.maxSanity, tuning: { ...DEFAULT_TUNING }, weights: [],
+      snapshot: null, attempts: { ...attempts, [PROLOGUE]: (attempts[PROLOGUE] ?? 0) + 1 },
+    }
+  }
+
+  // A battle reported with no run behind it can only be the Warden fought
+  // straight from the title, so that run is the one it belongs to.
+  function runInBattle(): RunState | null {
+    const run = state.run ?? prologueRun(nextSeed(), {})
+    return run.current ? run : null
+  }
+
+  function nodeState(id: string): 'broken' | 'open' | 'locked' | 'closed' {
+    const { run } = state
+    if (!run || !isEncounter(id)) return 'locked'
+    if (run.broken.includes(id)) return 'broken'
+    const encounter = ENCOUNTERS[id]
+    // The third node of a layer closed when its boss opened.
+    if (encounter.layer < run.layer) return 'closed'
+    if (encounter.layer > run.layer) return 'locked'
+    const brokenHere = skirmishes(run.layer).filter(node => run.broken.includes(node)).length
+    if (encounter.kind === 'skirmish') return brokenHere >= 2 ? 'closed' : 'open'
+    return encounter.kind === 'prologue' || brokenHere >= 2 ? 'open' : 'locked'
+  }
+
+  return {
+    getSnapshot: () => state,
+
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => { listeners.delete(listener) }
+    },
+
+    // Reads the log and the stored run again and lands on the attach screen
+    // or the title. `?intro=0` skips attach and the opening; `?intro=1`
+    // forces them. Calling it again mid-run is a return to the title: the run
+    // is as it was last saved.
+    boot(search) {
+      const intro = /(?:^|[?&#/])intro=([01])(?:[&#]|$)/.exec(search)?.[1]
+      const next = read('title')
+      const scene = intro === '0' ? 'title' : intro === '1' || !next.meta.introSeen ? 'attach' : 'title'
+      state = { ...next, scene }
+      listeners.forEach(listener => listener())
+    },
+
+    // The first gesture: it unlocks audio and starts the opening.
+    attach() {
+      if (state.scene === 'attach') commit({ scene: 'intro' })
+    },
+
+    finishIntro() {
+      if (state.scene !== 'intro') return
+      const meta = { ...state.meta, introSeen: true }
+      saveMeta(meta)
+      commit({ meta, scene: 'title' })
+    },
+
+    replayIntro() {
+      if (state.scene === 'title') commit({ scene: 'intro' })
+    },
+
+    // A new instance: the prologue, straight into battle. It replaces any
+    // run that was in progress.
+    startRun() {
+      if (state.scene !== 'title') return
+      reward = false
+      saveRun(null)
+      commit({ run: prologueRun(nextSeed(), {}), scene: 'battle', offer: null, interlude: null })
+    },
+
+    continueRun() {
+      const { run } = state
+      if (state.scene !== 'title' || !run) return
+      if (run.layer === 4) commit({ scene: 'gate' })
+      else if (run.layer === 0) commit({ scene: 'battle' })
+      else if (reward) commit({ scene: 'reward', offer: offerFor(run) })
+      else commit({ scene: 'map' })
+    },
+
+    abandonRun() {
+      reward = false
+      saveRun(null)
+      commit({ run: null, scene: 'title', offer: null, interlude: null })
+    },
+
+    nodeState,
+
+    selectNode(id) {
+      const { run } = state
+      if (!run || state.scene !== 'map' || nodeState(id) !== 'open') return null
+      const encounter = ENCOUNTERS[id]
+      const attempt = (run.attempts[id] ?? 0) + 1
+      const next = { ...run, current: id, attempts: { ...run.attempts, [id]: attempt } }
+      // Saved now, so closing the tab mid-battle still counts the attempt.
+      saveRun(next)
+      commit({ run: next, scene: encounter.kind === 'boss' ? 'entrance' : 'battle' })
+      return attempt === 1 ? encounter : { ...encounter, seed: reseed(encounter.seed, run.seed, attempt) }
+    },
+
+    beginBattle() {
+      if (state.scene === 'entrance') commit({ scene: 'battle' })
+    },
+
+    battleWon(sanity) {
+      const run = runInBattle()
+      if (!run || !run.current) return
+      const encounter = ENCOUNTERS[run.current]
+      const kept = whole(sanity, 1, run.tuning.maxSanity, run.sanity)
+      const broken = unique([...run.broken, encounter.id])
+      if (encounter.kind === 'skirmish') {
+        const next = { ...run, broken, current: null, sanity: kept }
+        reward = true
+        saveRun(next)
+        commit({ run: next, scene: 'reward', offer: offerFor(next), interlude: null })
+        return
+      }
+      // A boss, or the Warden: Sanity back, the next layer, and the snapshot
+      // a defeat in that layer rolls back to.
+      const layer = Math.min(4, encounter.layer + 1) as RunState['layer']
+      const next: RunState = {
+        ...run, broken, current: null, layer,
+        sanity: Math.min(run.tuning.maxSanity, kept + BOSS_HEAL),
+        snapshot: { layer, tuning: { ...run.tuning }, weights: [...run.weights] },
+      }
+      const meta = { ...state.meta, deepest: Math.max(state.meta.deepest, layer) }
+      reward = false
+      saveRun(next)
+      saveMeta(meta)
+      commit({ run: next, meta, scene: 'interlude', interlude: encounter.layer, offer: null })
+    },
+
+    battleLost() {
+      const run = runInBattle()
+      if (!run || !run.current) return
+      const meta = {
+        ...state.meta, iteration: state.meta.iteration + 1,
+        ghosts: [...state.meta.ghosts, run.current].slice(-GHOST_CAP),
+      }
+      // Inside a layer: back to its snapshot, weights as they were, Sanity
+      // full, its nodes unbroken. In the prologue: the prologue again.
+      const next: RunState = run.layer === 0 || !run.snapshot
+        ? prologueRun(run.seed, run.attempts)
+        : {
+          ...run, current: null,
+          tuning: { ...run.snapshot.tuning }, weights: [...run.snapshot.weights],
+          sanity: run.snapshot.tuning.maxSanity,
+          broken: run.broken.filter(id => ENCOUNTERS[id].layer !== run.layer),
+        }
+      reward = false
+      saveRun(next)
+      saveMeta(meta)
+      commit({ run: next, meta, scene: 'reset', offer: null, interlude: null })
+    },
+
+    finishReset() {
+      if (state.scene !== 'reset') return
+      commit({ scene: !state.run ? 'title' : state.run.layer === 0 ? 'battle' : 'map' })
+    },
+
+    chooseWeight(id) {
+      const { run, offer } = state
+      if (!run || !offer?.includes(id)) return
+      const tuning = applyWeight(run.tuning, id)
+      const next = {
+        ...run, tuning,
+        weights: isHeldWeight(id) ? [...run.weights, id] : run.weights,
+        sanity: Math.min(tuning.maxSanity, run.sanity + weightSanity(id)),
+      }
+      reward = false
+      saveRun(next)
+      commit({ run: next, offer: null, scene: 'map' })
+    },
+
+    finishInterlude() {
+      if (state.scene !== 'interlude') return
+      commit({ interlude: null, scene: !state.run ? 'title' : state.run.layer === 4 ? 'gate' : 'map' })
+    },
+
+    // The door opens only from the player's side. Opening it ends the run;
+    // keeping it closed leaves the run standing at the gate.
+    chooseGate(choice) {
+      const { run } = state
+      if (state.scene !== 'gate' || !run || run.layer !== 4) return
+      if (choice === 'open') {
+        const meta: MetaState = { ...state.meta, door: 'open', clears: state.meta.clears + 1 }
+        saveMeta(meta)
+        // Removed from storage at once, so the ending cannot be claimed twice.
+        storage.remove('run')
+        commit({ meta, scene: 'ending' })
+      } else {
+        const meta: MetaState = { ...state.meta, door: 'kept' }
+        saveMeta(meta)
+        saveRun(run)
+        commit({ meta, scene: 'title' })
+      }
+    },
+
+    finishEnding() {
+      if (state.scene === 'ending') commit({ run: null, scene: 'title' })
+    },
+
+    // Every line shown goes into the transcript; a line with an id is also
+    // remembered as seen, across runs and resets.
+    recordLine(voice, text, id) {
+      const meta = {
+        ...state.meta,
+        transcript: [...state.meta.transcript, { voice, text }].slice(-TRANSCRIPT_CAP),
+        seenLines: id && !state.meta.seenLines.includes(id) ? [...state.meta.seenLines, id].slice(-SEEN_CAP) : state.meta.seenLines,
+      }
+      saveMeta(meta)
+      commit({ meta })
+    },
+  }
+}
+
+export const campaignStore = createCampaignStore()

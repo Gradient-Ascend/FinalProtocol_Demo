@@ -1,7 +1,12 @@
-import { BOARD_SIZE, ENEMY_DEFINITIONS, EXPLICIT_FLAGS, FLAG_WEIGHTS, PLAYER_FUNCTIONS, PLAYER_SANITY, WALLS } from './battle-config'
+import { BOARD_SIZE, FLAG_WEIGHTS } from './battle-config'
+import { WARDEN_ENCOUNTER } from './encounters'
+import type { Encounter } from './encounters'
+import { createMechanic, traceLeft } from './mechanics'
 import { DEFAULT_LOADOUT, buildPresets } from './skills'
 import type { Loadout } from './skills'
-import type { AttackPreset, BattleState, Coord, Curtain, EnemyBehavior, EnemyState, FlagKind } from './battle-types'
+import { DEFAULT_TUNING } from './tuning'
+import type { Carry } from './tuning'
+import type { AttackPreset, BattleState, Coord, Curtain, EnemyBehavior, EnemyDefinition, EnemyState, FlagKind } from './battle-types'
 
 export function mulberry32(seed: number): () => number {
   return () => {
@@ -28,9 +33,9 @@ export function inside(pos: Coord): boolean {
   return pos.x >= 0 && pos.y >= 0 && pos.x < BOARD_SIZE && pos.y < BOARD_SIZE
 }
 
-export function randomFlag(random: () => number): FlagKind {
-  let roll = random() * 100
-  for (const [kind, weight] of FLAG_WEIGHTS) {
+export function randomFlag(random: () => number, weights: [FlagKind, number][] = FLAG_WEIGHTS): FlagKind {
+  let roll = random() * weights.reduce((total, [, weight]) => total + weight, 0)
+  for (const [kind, weight] of weights) {
     roll -= weight
     if (roll <= 0) return kind
   }
@@ -39,6 +44,11 @@ export function randomFlag(random: () => number): FlagKind {
 
 export function livingEnemies(state: BattleState): EnemyState[] {
   return state.enemies.filter(enemy => enemy.robustness > 0)
+}
+
+// The encounter's boss, standing or fallen; a skirmish has none.
+export function bossOf(state: BattleState): EnemyState | undefined {
+  return state.enemies.find(enemy => enemy.bossStages?.length)
 }
 
 export function isOccupied(state: BattleState, pos: Coord): boolean {
@@ -68,7 +78,8 @@ export function curtainLabel(curtain: Curtain): string {
 // fixed at scheduling time and cannot follow the player's later route.
 export function scheduleCurtains(state: BattleState, fireTurn: number): void {
   const boss = livingEnemies(state).find(enemy => enemy.bossStages?.length)
-  if (!boss) { state.curtains = []; return }
+  // Curtains are the Warden's rule: no other boss draws one.
+  if (!boss || state.encounter.mechanic !== 'curtain') { state.curtains = []; return }
   const stage = boss.bossStages?.find(candidate => candidate.stage === boss.stage) ?? boss.bossStages?.[0]
   const primaryAxis = state.curtainCycle % 2 === 0 ? 'column' as const : 'row' as const
   const lines: Curtain[] = [{
@@ -115,6 +126,8 @@ const FLAG_PRIORITY: Record<EnemyBehavior, FlagKind[]> = {
   collector: ['overload', 'bash', 'core', 'privilege', 'blank'],
   disruptor: ['core', 'bash', 'overload', 'privilege', 'blank'],
   warden: ['bash', 'privilege', 'core', 'overload', 'blank'],
+  // Led by Flags like a collector, but it wants Core: its Soul is its rule.
+  grazer: ['core', 'bash', 'privilege', 'overload', 'blank'],
 }
 
 function flagScore(behavior: EnemyBehavior, flag: FlagKind): number {
@@ -183,52 +196,73 @@ export function enemyRoutes(state: BattleState): void {
   }
 }
 
-export function createInitialState(muted = false, reducedMotion = false, loadout: Loadout = DEFAULT_LOADOUT): BattleState {
-  const random = mulberry32(0xF1A6)
-  const flags = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => randomFlag(random)))
+// A Geek as it stands when it enters the board, from the roster or from a birth.
+export function createEnemy(definition: EnemyDefinition): EnemyState {
+  return {
+    ...definition,
+    pos: { ...definition.pos },
+    desire: [...definition.desire],
+    desireSteps: definition.desireSteps?.map(step => ({ ...step })),
+    bossStages: definition.bossStages?.map(stage => ({
+      ...stage,
+      desire: [...stage.desire],
+      desireSteps: stage.desireSteps?.map(step => ({ ...step })),
+    })),
+    maxRobustness: definition.robustness,
+    // MYSTERY is already in place on the first turn.
+    block: definition.mystery ?? 0,
+    soulCounter: 0,
+    stage: 1,
+    route: [],
+    effectCell: null,
+    statuses: definition.bossStages ? ['DESIRE', 'SECURITY', 'SOUL', 'BREAKDOWN'] : ['DESIRE', 'SECURITY', 'SOUL'],
+    live: 0, breached: false, shifted: false, struck: false, dropped: 0,
+  }
+}
+
+// With no encounter this is the Warden battle. A run passes the encounter it
+// selected and what it carries in: Sanity and the numbers its weights changed.
+export function createInitialState(
+  muted = false, reducedMotion = false, loadout: Loadout = DEFAULT_LOADOUT,
+  encounter: Encounter = WARDEN_ENCOUNTER, carry?: Carry,
+): BattleState {
+  const random = mulberry32(encounter.seed)
+  const weights = encounter.flagWeights ?? FLAG_WEIGHTS
+  const flags = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => randomFlag(random, weights)))
   const walls = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => false))
-  for (const [x, y] of WALLS) walls[y][x] = true
-  for (const [key, flag] of Object.entries(EXPLICIT_FLAGS)) {
+  for (const [x, y] of encounter.walls) walls[y][x] = true
+  for (const [key, flag] of Object.entries(encounter.explicitFlags ?? {})) {
     const [x, y] = key.split(',').map(Number)
     flags[y][x] = flag
   }
-  const incoming = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => randomFlag(random)))
+  const incoming = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => randomFlag(random, weights)))
+  const tuning = { ...(carry?.tuning ?? DEFAULT_TUNING) }
+  const sanity = carry && Number.isFinite(carry.sanity)
+    ? Math.max(1, Math.min(tuning.maxSanity, Math.round(carry.sanity)))
+    : tuning.maxSanity
+  const enemies = encounter.enemies.map(createEnemy)
   const state: BattleState = {
     presets: buildPresets(loadout),
     phase: 'title', resumePhase: null, turn: 1, boardSize: BOARD_SIZE,
     flags, incoming, walls, curtains: [], curtainCycle: 0,
     player: {
-      pos: { x: 7, y: 7 }, sanity: PLAYER_SANITY, maxSanity: PLAYER_SANITY, block: 0, overload: 0,
+      pos: { ...encounter.playerStart }, sanity, maxSanity: tuning.maxSanity, block: 0, overload: 0,
       activeBash: 0, focusReady: false,
       buffs: [
-        { id: 'repair', name: 'REPAIR', counter: 0, threshold: 3, description: `+${PLAYER_FUNCTIONS.repairHeal} Sanity` },
-        { id: 'focus', name: 'FOCUS', counter: 0, threshold: 2, description: 'Next Bash hit tags LIVE' },
-        { id: 'firewall', name: 'FIREWALL', counter: 0, threshold: 4, description: `+${PLAYER_FUNCTIONS.firewallPrivilege} PRIVILEGE` },
+        { id: 'repair', name: 'REPAIR', counter: 0, threshold: tuning.repairThreshold, description: `+${tuning.repairHeal} Sanity` },
+        {
+          id: 'focus', name: 'FOCUS', counter: Math.max(0, Math.min(tuning.focusStart, tuning.focusThreshold - 1)),
+          threshold: tuning.focusThreshold, description: 'Next Bash hit tags LIVE',
+        },
+        { id: 'firewall', name: 'FIREWALL', counter: 0, threshold: tuning.firewallThreshold, description: `+${tuning.firewallPrivilege} PRIVILEGE` },
       ],
     },
-    playerTrail: [{ x: 7, y: 7 }],
-    enemies: ENEMY_DEFINITIONS.map(definition => ({
-      ...definition,
-      pos: { ...definition.pos },
-      desire: [...definition.desire],
-      desireSteps: definition.desireSteps?.map(step => ({ ...step })),
-      bossStages: definition.bossStages?.map(stage => ({
-        ...stage,
-        desire: [...stage.desire],
-        desireSteps: stage.desireSteps?.map(step => ({ ...step })),
-      })),
-      maxRobustness: definition.robustness,
-      block: 0,
-      soulCounter: 0,
-      stage: 1,
-      route: [],
-      effectCell: null,
-      statuses: definition.bossStages ? ['DESIRE', 'SECURITY', 'SOUL', 'BREAKDOWN'] : ['DESIRE', 'SECURITY', 'SOUL'],
-      live: 0, breached: false, shifted: false, struck: false, dropped: 0,
-    })),
+    playerTrail: [{ ...encounter.playerStart }],
+    enemies,
     actions: [], resolvedMoves: 0, enemyPhaseIndex: 0, playerAttackResolved: false, enemyResourcePreviews: {}, absorbedTotals: {}, interactionCharge: 0, log: [],
     muted, reducedMotion, message: '', attackPreview: null, enemyAttackPreview: null, overloadArmed: false,
     incomingForecast: null, outgoingForecast: null, pendingRepair: 0, resourcesResolved: false,
+    encounter, tuning, mechanic: createMechanic(encounter, enemies), trace: traceLeft(encounter, 1),
   }
   scheduleCurtains(state, 3)
   enemyRoutes(state)
@@ -236,6 +270,7 @@ export function createInitialState(muted = false, reducedMotion = false, loadout
 }
 
 export function refillBoard(state: BattleState, random: () => number, changedColumns?: ReadonlySet<number>): void {
+  const weights = state.encounter.flagWeights ?? FLAG_WEIGHTS
   for (let x = 0; x < BOARD_SIZE; x++) {
     if (changedColumns && !changedColumns.has(x)) continue
     let bottom = BOARD_SIZE - 1
@@ -252,9 +287,9 @@ export function refillBoard(state: BattleState, random: () => number, changedCol
       for (let y = bottom; y > top; y--) {
         state.flags[y][x] = index < remaining.length
           ? remaining[index++]
-          : state.incoming[x].shift() ?? randomFlag(random)
+          : state.incoming[x].shift() ?? randomFlag(random, weights)
       }
-      while (state.incoming[x].length < BOARD_SIZE) state.incoming[x].push(randomFlag(random))
+      while (state.incoming[x].length < BOARD_SIZE) state.incoming[x].push(randomFlag(random, weights))
       bottom = top - 1
     }
   }

@@ -785,3 +785,320 @@ button:disabled { cursor: not-allowed; opacity: 0.38; }
   100% { clip-path: inset(0 0 0 100%); }
 }
 .reduced-motion .block-strip { display: none; }
+
+/* ==========================================================================
+   The scene flow: everything that is not the battle. One full-screen scene
+   at a time over the board, which stays mounted underneath. Near-black, white
+   monospace, thin lines; no panels beyond a rule and a column.
+   ========================================================================== */
+.scene { position: fixed; inset: 0; z-index: 25; background: var(--bg); color: var(--text); }
+.attach-scene, .intro-scene, .reset-scene, .ending-scene { background: #000; }
+/* A display moment draws in an element of its own, above every scene. */
+.moment-host { position: fixed; inset: 0; z-index: 70; overflow: hidden; }
+/* The three spectators. Anchored where the opening draws them. */
+.spectators { position: fixed; z-index: 26; width: 0; height: 0; pointer-events: none; }
+.spectators i { position: absolute; display: block; }
+
+/* Attach: a prompt, a notice and what the log says. */
+.attach-scene { display: grid; align-items: center; padding: clamp(24px, 10vw, 150px); outline: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.attach-block { max-width: 64ch; }
+.attach-prompt { margin: 0 0 2.6em; color: var(--white); font-size: clamp(15px, 10px + .6vw, 19px); letter-spacing: .04em; }
+.attach-prompt span { color: var(--muted); }
+/* A still cursor: nothing on this screen blinks. */
+.attach-prompt i { display: inline-block; width: .6em; height: 1.15em; margin-left: .35em; vertical-align: -.2em; background: var(--white); }
+.attach-notice, .attach-log { margin: 0 0 .8em; color: #a8a8a8; font-size: 12px; line-height: 1.7; letter-spacing: .03em; }
+.attach-log { color: var(--muted); }
+
+/* Title: the actions as two rows, and the line a kept or opened door leaves. */
+.title-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.title-actions .secondary-action { margin-top: 0; }
+.title-minor { margin-top: 12px; }
+.title-content .title-actions .reset-decks { margin-left: 0; }
+@media (min-width: 1021px) {
+  /* Centred when it fits; from the top, and scrollable, when the open deck is taller than the screen. */
+  .title-overlay { align-items: flex-start; }
+  .title-overlay > .title-content, .title-overlay > .loadout { margin-top: auto; margin-bottom: auto; }
+}
+.title-content .title-released { margin: -4px 0 22px; color: var(--muted); font-family: inherit; font-size: 10px; line-height: 1.6; letter-spacing: .14em; }
+
+/* The board, and under it one strip inside the same frame: the story's line
+   slot and the zoom controls. The strip has a fixed height, so the board never
+   moves when a line comes or goes, and the controls never sit on a Warp. */
+.board-area { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
+.board-stage { position: relative; min-width: 0; min-height: 0; }
+.board-ticker-slot { display: contents; }
+.board-foot { position: relative; height: 46px; border-top: 1px solid var(--line-soft); container-type: inline-size; }
+/* (Two classes: the story's own stylesheet loads after this one.) */
+.board-foot .board-ticker { height: 100%; min-height: 0; padding: 0 134px; overflow: hidden; }
+.board-foot .map-zoom-controls { top: 50%; right: 8px; bottom: auto; left: auto; transform: translateY(-50%); box-shadow: none; }
+/* A narrow board: the line gives up its centring before it gives up its size. */
+@container (max-width: 700px) { .board-foot .board-ticker { padding: 0 134px 0 12px; font-size: 12px; line-height: 1.35; } }
+@container (max-width: 430px) { .board-foot .board-ticker { font-size: 11px; line-height: 1.3; } }
+@media (max-width: 900px), (hover: none) {
+  .board-foot { height: 54px; }
+  .board-foot .board-ticker { padding-right: 164px; }
+}
+@media (max-width: 900px) and (min-height: 501px) {
+  /* The board keeps the height it had; the strip is added under it. */
+  .board-area { height: calc(min(64vw, 68dvh) + 54px); }
+}
+@media (max-width: 900px) and (max-height: 500px) and (orientation: landscape) {
+  /* No height to spare under the board: the line sits in the middle of the
+     top bar and the zoom controls go back onto the board's corner. */
+  .board-foot { position: static; height: 0; border-top: 0; container-type: normal; }
+  .board-foot .map-zoom-controls { top: auto; right: auto; bottom: 10px; left: 6px; transform: none; }
+  .board-foot .board-ticker { position: fixed; top: 0; left: 160px; right: 150px; z-index: 6; height: 56px; padding: 0 6px; font-size: 11px; line-height: 1.35; }
+  .sandbox-id > span:last-child, .top-divider { display: none; }
+}
+
+/* The battle is over: what it was, what was said, and CONTINUE. */
+.outcome-content .eyebrow { min-height: 1.4em; }
+.outcome-content h2 { margin-top: 10px; }
+.outcome-lines { min-height: 3.4em; max-width: min(56ch, 86vw); margin: 0 0 22px; font-size: 13px; line-height: 1.7; }
+.outcome-content .outcome-lines p { max-width: none; margin: 0 0 .35em; font-family: inherit; font-size: inherit; line-height: inherit; }
+.pause-menu button span { margin-left: auto; color: var(--muted); font-size: 8px; letter-spacing: .1em; }
+
+/* Map: the petals, and a narrow column. */
+.map-scene { display: grid; grid-template-columns: minmax(0, 1fr) clamp(286px, 25vw, 350px); }
+.map-stage { position: relative; min-width: 0; min-height: 0; }
+.map-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; font-family: inherit; touch-action: manipulation; }
+.map-column { display: flex; flex-direction: column; gap: 22px; min-height: 0; padding: 46px 30px 24px 26px; overflow-y: auto; border-left: 1px solid var(--line-soft); scrollbar-width: thin; scrollbar-color: #444 transparent; }
+.map-column > * { flex-shrink: 0; }
+.map-layer h2 { margin: 10px 0 16px; color: var(--white); font-size: 32px; font-weight: 700; line-height: 1; letter-spacing: -.01em; }
+.map-layer dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 9px 16px; margin: 0; }
+.map-layer dt { padding-top: 2px; color: var(--muted); font-size: 9px; letter-spacing: .15em; }
+.map-layer dd { display: grid; gap: 4px; margin: 0; }
+.map-layer dd strong { color: var(--layer-ink, var(--white)); font-size: 11px; font-weight: 600; letter-spacing: .1em; overflow-wrap: anywhere; }
+/* The layer's own hue as a small square: the colour is carried by a mark, the words stay readable. */
+.map-hue::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 8px; background: var(--story-accent, var(--white)); }
+.map-layer dd span { color: #a8a8a8; font-size: 10px; line-height: 1.55; }
+.map-section .section-heading strong { color: var(--muted); font-size: 8px; font-weight: 400; letter-spacing: .12em; }
+.map-nodes { display: grid; margin-top: 10px; border-top: 1px solid var(--line-soft); }
+.map-node { display: grid; grid-template-columns: 3.4ch minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 38px; padding: 4px 10px; border: 0; border-bottom: 1px solid var(--line-soft); background: transparent; color: var(--text); font-size: 11px; text-align: left; cursor: pointer; }
+.map-node span { color: var(--muted); font-size: 9px; }
+.map-node strong { font-weight: 500; letter-spacing: .06em; line-height: 1.35; }
+.map-node em { color: var(--muted); font-size: 8px; font-style: normal; letter-spacing: .14em; }
+.map-node.is-open em { color: var(--layer-ink, var(--white)); }
+.map-node.is-broken strong { color: var(--muted); text-decoration: line-through; }
+.map-node.is-closed strong, .map-node.is-locked strong { color: var(--muted); }
+.map-node:hover { background: rgba(255, 255, 255, .04); }
+.map-node.selected { background: rgba(255, 255, 255, .08); box-shadow: inset 2px 0 var(--white); }
+.map-node:focus-visible { outline-offset: -2px; }
+/* Three rows are kept for the node's line, so the column does not move. */
+.map-line { min-height: 4.8em; margin: 12px 0 0; color: #b4b4b4; font-size: 11px; line-height: 1.6; }
+.map-run { display: grid; gap: 13px; padding-top: 20px; border-top: 1px solid var(--line-soft); }
+.map-stat { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 6px 10px; }
+.map-stat > span, .map-weights > span { color: var(--muted); font-size: 9px; letter-spacing: .15em; }
+.map-stat strong { font-size: 15px; font-weight: 600; }
+.map-stat small { color: var(--muted); font-size: 10px; font-weight: 400; }
+.map-meter { grid-column: 1 / -1; height: 3px; background: #2c2c2c; }
+.map-meter i { display: block; height: 100%; background: var(--white); }
+.map-weights ul { display: grid; gap: 5px; margin: 8px 0 0; padding: 0; list-style: none; font-size: 10px; letter-spacing: .05em; }
+.map-weights em { display: block; margin-top: 8px; color: var(--muted); font-size: 9px; font-style: normal; letter-spacing: .1em; }
+.map-actions { display: grid; gap: 8px; margin-top: auto; padding-top: 6px; }
+.map-actions .primary-action { width: 100%; }
+.map-actions .primary-action svg { margin-left: -4px; }
+.map-minor { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.map-minor .secondary-action { margin-top: 0; }
+.map-minor .secondary-action span { padding-left: 4px; color: var(--muted); font-size: 8px; }
+.map-foot { display: flex; justify-content: space-between; gap: 12px; }
+.map-foot button { min-height: 32px; padding: 0; border: 0; background: none; color: var(--muted); font-size: 9px; letter-spacing: .14em; cursor: pointer; }
+.map-foot button:hover { color: #fff; }
+.map-scene .modal-panel { --story-transcript-height: min(56vh, 520px); }
+.map-scene .modal-panel .loadout { margin-top: 4px; }
+@media (max-width: 760px) {
+  .map-scene { grid-template-columns: minmax(0, 1fr); grid-template-rows: min(96vw, 40dvh) auto; overflow-y: auto; }
+  .map-column { gap: 20px; padding: 20px 18px 28px; overflow: visible; border-left: 0; border-top: 1px solid var(--line-soft); }
+  /* What to do comes before what the run holds, so BREAK is on the first screen. */
+  .map-actions { order: 3; margin-top: 0; padding-top: 0; }
+  .map-run { order: 4; }
+  .map-layer h2 { font-size: 26px; }
+  .map-node { min-height: 44px; }
+  .map-line { min-height: 3.2em; }
+  .map-foot button { min-height: 44px; }
+}
+
+/* Reward: three equal cards. Inspect, then install. */
+.reward-scene { display: grid; padding: clamp(20px, 5vw, 72px); overflow-y: auto; }
+.reward-frame { width: min(100%, 1000px); margin: auto; }
+.reward-head h2 { margin: 12px 0 10px; color: var(--white); font-size: clamp(28px, 4vw, 46px); line-height: 1; letter-spacing: -.03em; }
+.reward-head p { margin: 0; color: var(--muted); font-size: 10px; letter-spacing: .14em; }
+.reward-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 30px 0 22px; }
+.reward-card { position: relative; display: flex; flex-direction: column; gap: 14px; min-height: 260px; padding: 24px 22px 22px; border: 1px solid var(--line); border-radius: 3px; background: transparent; color: var(--text); text-align: left; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+.reward-card em { color: var(--muted); font-size: 9px; font-style: normal; letter-spacing: .18em; }
+.reward-card strong { padding-right: 28px; color: var(--white); font-size: 17px; font-weight: 600; line-height: 1.3; letter-spacing: .03em; }
+.reward-card p { margin: 0; color: #c8c8c8; font-size: 12px; line-height: 1.65; }
+.reward-card i { min-height: calc(3.2em + 15px); margin-top: auto; padding-top: 14px; border-top: 1px solid var(--line-soft); color: #a8a8a8; font-size: 11px; font-style: normal; line-height: 1.6; letter-spacing: .06em; }
+.reward-key { position: absolute; top: 18px; right: 18px; min-width: 22px; padding: 3px 0; border: 1px solid var(--line); color: var(--muted); font-size: 10px; text-align: center; }
+.reward-card:hover { border-color: rgba(255, 255, 255, .38); }
+/* Chosen for inspection: a double rule, not a colour. */
+.reward-card.selected { border-color: var(--white); background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1px var(--white); }
+.reward-card.selected .reward-key { border-color: var(--white); background: var(--white); color: #080808; }
+.reward-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--muted); font-size: 9px; letter-spacing: .14em; }
+.reduced-motion .reward-card { transition: none; }
+@media (max-width: 720px) {
+  .reward-cards { grid-template-columns: minmax(0, 1fr); margin: 22px 0 18px; }
+  .reward-card { min-height: 0; padding: 18px 18px 16px; gap: 10px; }
+  .reward-foot { flex-direction: column-reverse; align-items: stretch; gap: 12px; text-align: center; }
+}
+
+/* Buttons at the end of a seam are square, like the rules around them. The
+   gate's two choices weigh the same. */
+.story-seam-actions .primary-action, .story-seam-actions .secondary-action { min-height: 46px; margin-top: 0; padding: 0 22px; border-radius: 3px; font-size: 11px; letter-spacing: .1em; }
+.story-seam-page[data-kind='notes'] .story-seam-actions { padding-left: 0; }
+.gate-choice { border-color: rgba(255, 255, 255, .42); border-radius: 3px; }
+.gate-choice:hover, .gate-choice:focus-visible { border-color: var(--white); background: rgba(255, 255, 255, .08); }
+
+/* The log on a phone: a line without a speaker's mark must not fall into the
+   mark's narrow column, so each entry is a block there, as in the seams. */
+@media (max-width: 560px) {
+  .story-transcript .story-transcript-list li { display: block; }
+}
+
+/* A short, wide screen (a phone on its side): less air, the same order. */
+@media (max-height: 500px) and (min-width: 761px) {
+  .map-column { gap: 14px; padding: 18px 22px 18px 20px; }
+  .map-layer h2 { margin: 6px 0 10px; font-size: 22px; }
+  .map-line { min-height: 3.2em; margin-top: 8px; }
+  .map-actions { order: 3; margin-top: 0; padding-top: 0; }
+  .map-run { order: 4; }
+}
+@media (max-height: 500px) {
+  .reward-scene { padding: 14px clamp(16px, 4vw, 48px); }
+  .reward-head h2 { margin: 6px 0 6px; font-size: 24px; }
+  .reward-cards { gap: 10px; margin: 14px 0 12px; }
+  .reward-card { min-height: 0; gap: 8px; padding: 14px 16px 12px; }
+  .reward-card strong { font-size: 14px; }
+  .reward-card i { min-height: 0; padding-top: 8px; }
+  .reward-key { top: 10px; right: 12px; }
+}
+
+/* ==========================================================================
+   The battle panels in a campaign: each boss's protocol, TRACE, what the
+   sandbox withholds, and a Geek's Desire steps. Same small type and thin
+   rules as the rest of the right column; the layer's hue is a mark, not ink.
+   ========================================================================== */
+.boss-protocol .section-heading > span::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 8px; background: var(--story-accent, var(--white)); }
+.trace-line { margin-top: 5px; }
+.trace-line span b { margin-left: 6px; color: var(--text); font-size: 8px; font-weight: 600; letter-spacing: .06em; }
+.trace-line.trace-near span b, .trace-line.trace-rising span b { color: #ff8b8b; }
+.trace-line.trace-near strong, .trace-line.trace-rising strong { color: #ff8b8b; }
+.protocol-block { margin-top: 9px; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: 7px; }
+.protocol-count { color: var(--layer-ink, var(--white)); font-size: 15px; font-weight: 650; letter-spacing: .04em; }
+.protocol-facts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-top: 6px; color: var(--muted); font-size: 7px; letter-spacing: .08em; }
+.protocol-facts b { color: var(--text); font-weight: 500; }
+.protocol-facts em { font-size: 7px; font-style: normal; letter-spacing: .1em; }
+/* The rule, in the script's words. Set like the method detail: read once, then known. */
+.protocol-rule { margin-top: 7px; }
+.protocol-rule button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 18px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 7px; letter-spacing: .12em; cursor: pointer; }
+.protocol-rule button b { color: var(--text); font-weight: 500; }
+.protocol-rule button:hover span, .protocol-rule button:focus-visible span { color: var(--white); }
+.protocol-rule p { margin: 3px 0 0; color: #a0a0a0; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 9px; line-height: 1.5; }
+
+/* What the boss says, or the stage direction of the one that does not speak.
+   It stands under the heading until the next one replaces it. */
+.protocol-voice { margin: 8px 0 2px; padding-left: 8px; border-left: 2px solid var(--story-accent, var(--line)); font-size: 9px; line-height: 1.5; }
+.protocol-voice .story-stage { font-size: 1em; }
+
+/* DOCKET: in force is a solid rule, pending a dashed one, as with Curtains. */
+.docket { display: grid; gap: 6px; padding: 0; border: 0; }
+.docket-article { padding: 7px 10px 8px; border: 1px solid var(--line); border-radius: 7px; }
+.docket-article.pending { border-style: dashed; }
+.docket-article.due { border-color: rgba(255,139,139,.6); }
+.docket-article.empty { border-color: var(--line-soft); }
+.docket-article header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 7px; letter-spacing: .12em; }
+.docket-article header b { margin-left: 5px; color: var(--text); font-weight: 600; }
+.docket-article.due header b { color: #ff8b8b; }
+.docket-article header em { color: var(--layer-ink, var(--text)); font-style: normal; }
+.docket-article.empty header em { color: var(--faint); }
+.docket-article strong { display: block; margin-top: 5px; color: var(--white); font-size: 9px; font-weight: 600; line-height: 1.35; letter-spacing: .04em; }
+.docket-article p { margin: 3px 0 0; color: #b4b4b4; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 9px; line-height: 1.45; }
+.docket-article q { display: block; margin-top: 3px; color: var(--muted); font-size: 8px; line-height: 1.45; quotes: none; }
+
+/* UNDISCLOSED: the card that names what is withheld. Hatched while it is. */
+.withheld-card:not(.open) { background: repeating-linear-gradient(115deg, rgba(255,255,255,.04) 0 2px, transparent 2px 6px); }
+.withheld-card header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: var(--text); font-size: 7px; letter-spacing: .12em; }
+.withheld-card header em { color: var(--muted); font-style: normal; }
+.withheld-items { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-top: 7px; color: var(--muted); font-size: 7px; letter-spacing: .06em; }
+.withheld-items b { display: block; margin-top: 2px; color: var(--white); font-size: 13px; font-weight: 650; line-height: 1.1; }
+.withheld-card.open .withheld-items b { font-size: 8px; font-weight: 500; line-height: 1.6; letter-spacing: .08em; }
+
+/* A hit whose size is withheld: one hatched stretch over what is left of the
+   bar, fading out, so it has no edge to read a number from. */
+.health-unknown { position: absolute; top: 0; bottom: 0; left: 0; z-index: 2; display: flex; border-radius: 4px; background: repeating-linear-gradient(115deg, #ff7070 0 2px, rgba(255,112,112,0) 2px 5px); -webkit-mask-image: linear-gradient(90deg, transparent, #000); mask-image: linear-gradient(90deg, transparent, #000); }
+.health-unknown button { position: relative; flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.health-unknown button::before { content: ''; position: absolute; inset: -4px 0; }
+.health-unknown.previewing { background: repeating-linear-gradient(115deg, #ff7070 0 3px, rgba(255,112,112,.3) 3px 5px); }
+.has-preview:not(.live) .health-unknown { animation: loss-pulse 1.1s ease-in-out infinite; }
+.has-preview .health-unknown.previewing, .has-preview .health-unknown:hover { animation: none; }
+.reduced-motion .health-unknown { animation: none; }
+@media (prefers-reduced-motion: reduce) { .has-preview .health-unknown { animation: none; } }
+@media (max-width: 900px), (hover: none) { .health-unknown button::before { inset: -8px 0; } }
+/* A Robustness that is withheld: no fill and no pips, so nothing on it can be counted. */
+.health-withheld { height: 5px; border-radius: 4px; background: repeating-linear-gradient(115deg, #707070 0 2px, #2c2c2c 2px 5px); }
+.health-withheld.struck { background: repeating-linear-gradient(115deg, #f2d16b 0 2px, #2c2c2c 2px 5px); animation: loss-pulse 1.1s ease-in-out infinite; }
+.reduced-motion .health-withheld.struck { animation: none; }
+@media (prefers-reduced-motion: reduce) { .health-withheld.struck { animation: none; } }
+.enemy-avatar:empty { align-self: stretch; }
+
+/* A Geek's Desire steps. A solid chip is released every turn; a dashed one
+   needs a Bash Flag on its route. */
+.enemy-desire { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; color: var(--muted); font-size: 7px; letter-spacing: .08em; }
+.enemy-desire > span { margin-right: 3px; }
+.enemy-desire i { display: inline-flex; gap: 4px; padding: 2px 5px; border: 1px dashed var(--line); border-radius: 3px; font-style: normal; line-height: 1.3; }
+.enemy-desire i b { color: var(--text); font-weight: 600; }
+.enemy-desire i.sure { border-style: solid; border-color: rgba(255,255,255,.5); color: var(--text); }
+.enemy-desire i.sure b { color: var(--white); }
+.enemy-desire em { margin-left: 3px; color: var(--text); font-style: normal; letter-spacing: .1em; }
+.enemy-status .brood { color: var(--layer-ink, var(--white)); }
+@media (max-width: 900px), (hover: none) {
+  .enemy-desire, .protocol-facts, .withheld-items, .docket-article header { font-size: 8px; }
+  .protocol-rule p, .docket-article p, .protocol-voice { font-size: 10px; }
+  .protocol-rule button { min-height: 44px; font-size: 8px; }
+}
+
+/* Pause: the menu, and beside it everything that has been said. */
+.pause-overlay { align-items: flex-start; padding: 24px 0; overflow-y: auto; }
+.pause-content.with-context { display: grid; grid-template-columns: auto minmax(0, 520px); align-items: center; gap: clamp(28px, 5vw, 72px); width: min(100% - 48px, 900px); margin: auto; text-align: left; }
+.pause-controls { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.pause-context { --story-transcript-height: min(52dvh, 440px); min-width: 0; }
+@media (max-width: 760px) {
+  .pause-content.with-context { grid-template-columns: minmax(0, 1fr); gap: 22px; width: min(100% - 32px, 520px); }
+  .pause-context { --story-transcript-height: 32dvh; }
+  .pause-content.with-context h2 { margin: 0 0 18px; font-size: 36px; }
+}
+@media (max-height: 500px) {
+  .pause-content.with-context h2 { margin: 0 0 14px; font-size: 30px; }
+  .pause-context { --story-transcript-height: calc(100dvh - 110px); }
+}
+
+/* The manual's boss section: the rule, then what its Breakdown changes. */
+.manual-boss p + p { margin-top: 8px; }
+.trace-line > span { white-space: nowrap; }
+
+/* Phone portrait: the board at the width of the screen, then one panel at a
+   time behind the same two tabs the phone uses on its side. Two half-width
+   panels cannot hold eight action slots or a boss's protocol. */
+.device-tabs button { flex: 1; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; background: #151515; color: var(--muted); font-size: 10px; letter-spacing: .08em; }
+.device-tabs button.active { border-color: #eee; background: #eee; color: #080808; }
+@media (max-width: 620px) and (min-height: 501px) {
+  .battle-layout { grid-template-columns: minmax(0, 1fr); }
+  .board-area { grid-column: 1; grid-row: 1; height: calc(min(100vw - 20px, 62dvh) + 54px); }
+  .device-tabs { display: flex; grid-column: 1; grid-row: 2; gap: 5px; }
+  .player-panel, .enemy-panel { grid-column: 1; grid-row: 3; }
+  .device-panel-operator .enemy-panel { display: none; }
+  .device-panel-geeks .player-panel { display: none; }
+}
+
+/* The right column with a Desire row on every card: a little less air above
+   the hostiles, so the Warden's three still fit a 900-pixel-high window. Where
+   a boss's protocol is longer than that, the column scrolls, and says so with
+   a thin bar instead of hiding it. */
+.enemy-panel .enemy-list-section { margin-top: min(var(--layout-gap), 16px); }
+.enemy-panel .enemy-list { margin-top: 10px; }
+.enemy-panel .enemy-desire { margin-top: 5px; }
+.enemy-panel { scrollbar-width: thin; scrollbar-color: #3a3a3a transparent; }
+.enemy-panel .enemy-hp { margin: 6px 0 4px; }
+.enemy-panel .enemy-tags { margin-top: 6px; }
+/* Two lines hold the longest route (nine Warps). */
+@media (min-height: 801px) and (min-width: 901px) { .enemy-panel .route-text { min-height: 38px; } }

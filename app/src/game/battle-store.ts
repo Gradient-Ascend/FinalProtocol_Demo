@@ -1,37 +1,84 @@
-import { MAX_ACTIONS, OVERLOAD_THRESHOLD, PLAYER_FUNCTIONS, STEP_MS } from './battle-config'
+import { MAX_ACTIONS, STEP_MS } from './battle-config'
 import { effectTiming } from './attack-fx'
 import { predictedSequence, releaseCount } from './attack-methods'
-import { desireInRange, desireReleaseCount, desireStepsFor, predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from './enemy-attack-methods'
+import { desireInRange, desireReleaseCount, desireStepsFor, enemyResourceOutcome, predictedEnemySequence } from './enemy-attack-methods'
 import {
-  activePreset, advanceCurtains, coordKey, createInitialState, curtainLabel, enemyRoutes,
+  activePreset, advanceCurtains, bossOf, coordKey, createInitialState, curtainLabel, enemyRoutes,
   isWarpLocked, livingEnemies, manhattan, mulberry32, refillBoard, routeStops, sameCoord,
 } from './battle-rules'
 import type {
-  AttackEffect, AttackPreview, BattleAction, BattleState, Coord, EnemyAttackPreview,
-  EnemyState, FlagKind, Phase,
+  AttackEffect, AttackPreview, BattleAction, BattleState, BossStageDefinition, Coord, EnemyAttackPreview,
+  EnemyState, FlagKind,
 } from './battle-types'
+import { WARDEN_ENCOUNTER, layerName } from './encounters'
+import type { Encounter, EncounterKind } from './encounters'
+import { advanceMechanics, queueBirth, refreshMechanic, securityAfterResolve } from './mechanics'
 import { storage } from './storage'
 import { buildPresets, cloneLoadout, sanitizeLoadout } from './skills'
 import type { Loadout } from './skills'
+import type { Carry } from './tuning'
 
 type Listener = () => void
 type Sfx = (id: 'move' | 'hit' | 'pickup' | 'ui' | 'explosion' | 'win' | 'lose') => void
 
+// What the story layer hears from a battle. `turn` is the turn the event
+// belongs to: the events of a turn boundary carry the turn that just ended.
+// `stage` is the boss's stage at that moment, when the encounter has a boss.
+export type StoryEvent = {
+  type: 'battle_start' | 'hit_taken' | 'full_block' | 'overload' | 'geek_killed' | 'soul_heal'
+      | 'brood' | 'article' | 'breakdown' | 'sanity_low' | 'turn_end' | 'victory' | 'defeat'
+  encounter: string; layer: number; kind: EncounterKind; turn: number
+  stage?: number; killsThisTurn?: number; broodCount?: number; article?: string; enemyId?: string
+}
+
+const ROMAN = ['I', 'II', 'III', 'IV']
+
+// The Warps that fall in during a battle come from a second stream, tied to
+// the board's seed. The offset is the one that gives the Warden the stream it
+// has always had (0xF1A6 ^ 0xB18AB8 = 0xB17B1E).
+function refillSeed(encounter: Encounter): number {
+  return (encounter.seed ^ 0xB18AB8) >>> 0
+}
+
+// A boss's name as the panel heads it and as prose: 'WARDEN / CURTAIN' gives
+// 'WARDEN' and 'Warden'.
+function bossTitle(boss: EnemyState): string {
+  return boss.name.split(' / ')[0]
+}
+
+function properName(boss: EnemyState): string {
+  return bossTitle(boss).toLowerCase().split(' ')
+    .map((word, index) => index > 0 && (word === 'of' || word === 'the') ? word : word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
 export class BattleStore {
   private loadout: Loadout = sanitizeLoadout(storage.get<unknown>('loadout', null))
+  private encounter: Encounter = WARDEN_ENCOUNTER
+  // What the run brought into this battle; a restart brings the same.
+  private carry: Carry | undefined
   private state: BattleState = createInitialState(
-    storage.get('muted', false),
-    storage.get('reducedMotion', false),
+    storage.flag('muted'),
+    storage.flag('reducedMotion'),
     this.loadout,
   )
   private listeners = new Set<Listener>()
-  private random = mulberry32(0xB17B1E)
+  private random = mulberry32(refillSeed(WARDEN_ENCOUNTER))
   private runId = 0
   // Columns whose Warps changed this turn; only these drop when it ends.
   private changedColumns = new Set<number>()
   private logId = 10
+  private killsThisTurn = 0
+  // Sanity has already fallen to a third of its maximum once this battle.
+  private sanityLow = false
+  // A full-screen moment the interface is playing over the battle. `dropHold`
+  // frees a turn that is sitting one out when its battle is rebuilt.
+  private held: Promise<void> | null = null
+  private dropHold: () => void = () => undefined
   sfx: Sfx = () => undefined
   startMusic: () => void = () => undefined
+  // The story layer's hook. Called synchronously, as the thing happens.
+  onStoryEvent: (event: StoryEvent) => void = () => undefined
 
   getSnapshot = (): BattleState => this.state
 
@@ -50,20 +97,85 @@ export class BattleStore {
   }
 
   private wait(): Promise<void> {
-    const delay = this.state.reducedMotion ? 15 : STEP_MS
-    return new Promise(resolve => setTimeout(resolve, delay))
+    return this.after(this.state.reducedMotion ? 15 : STEP_MS)
   }
 
   // Attack pacing follows the animation: a hit lands when its effect strikes,
   // and the next attack waits until that effect has played out.
   private pause(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, this.state.reducedMotion ? 15 : ms))
+    return this.after(this.state.reducedMotion ? 15 : ms)
+  }
+
+  // Every wait between steps sits out a held moment before its own delay.
+  private after(ms: number): Promise<void> {
+    const delay = () => new Promise<void>(resolve => setTimeout(resolve, ms))
+    return this.held ? this.sitOut().then(delay) : delay()
+  }
+
+  // The interface is playing a full-screen moment (a boss breaking down) and
+  // the turn must not go on underneath it: the next wait between steps sits
+  // the moment out first. A battle rebuilt meanwhile owes it nothing.
+  holdFor(promise: Promise<void>): void {
+    // A moment that fails to play is over; it must not take the turn with it.
+    const moment = Promise.resolve(promise).catch(() => undefined)
+    const earlier = this.held
+    this.held = earlier ? earlier.then(() => moment) : moment
+  }
+
+  private async sitOut(): Promise<void> {
+    const run = this.runId
+    // Again for a moment that was put up while this one played.
+    while (this.held && run === this.runId) {
+      const held = this.held
+      await Promise.race([held, new Promise<void>(resolve => { this.dropHold = resolve })])
+      if (this.held === held) this.held = null
+    }
   }
 
   private emitEffect(effect: AttackEffect): void {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent<AttackEffect>('battle-attack-effect', { detail: effect }))
     }
+  }
+
+  private emit(type: StoryEvent['type'], detail: Partial<StoryEvent> = {}): void {
+    const { encounter } = this.state
+    const boss = bossOf(this.state)
+    const event: StoryEvent = {
+      type, encounter: encounter.id, layer: encounter.layer, kind: encounter.kind, turn: this.state.turn,
+      ...(boss ? { stage: boss.stage } : {}), ...detail,
+    }
+    // A line that fails to print must not leave a turn half resolved.
+    try {
+      this.onStoryEvent(event)
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  // A fresh battle on the current encounter, with what the run carried in.
+  private rebuild(): void {
+    this.runId++
+    const { muted, reducedMotion } = this.state
+    this.random = mulberry32(refillSeed(this.encounter))
+    this.logId = 10
+    this.killsThisTurn = 0
+    this.sanityLow = false
+    this.held = null
+    this.dropHold()
+    this.state = createInitialState(muted, reducedMotion, this.loadout, this.encounter, this.carry)
+    this.changedColumns.clear()
+  }
+
+  currentEncounter = (): Encounter => this.encounter
+
+  // Puts another battle on the board, waiting on its title phase. `carry` is
+  // the run's Sanity and the numbers its weights changed.
+  load(encounter: Encounter, carry?: Carry): void {
+    this.encounter = encounter
+    this.carry = carry ? { sanity: carry.sanity, tuning: { ...carry.tuning } } : undefined
+    this.rebuild()
+    this.commit()
   }
 
   getLoadout = (): Loadout => this.loadout
@@ -78,13 +190,11 @@ export class BattleStore {
     this.commit()
   }
 
+  // The menu is the Warden's: whatever was loaded is put away.
   returnToMenu(): void {
-    this.runId++
-    const { muted, reducedMotion } = this.state
-    this.random = mulberry32(0xB17B1E)
-    this.logId = 10
-    this.state = createInitialState(muted, reducedMotion, this.loadout)
-    this.changedColumns.clear()
+    this.encounter = WARDEN_ENCOUNTER
+    this.carry = undefined
+    this.rebuild()
     this.sfx('ui')
     this.commit()
   }
@@ -96,19 +206,17 @@ export class BattleStore {
     this.startMusic()
     this.sfx('ui')
     this.commit()
+    this.emit('battle_start')
   }
 
+  // The same encounter again, from its first turn.
   restart(): void {
-    this.runId++
-    const { muted, reducedMotion } = this.state
-    this.random = mulberry32(0xB17B1E)
-    this.logId = 10
-    this.state = createInitialState(muted, reducedMotion, this.loadout)
-    this.changedColumns.clear()
+    this.rebuild()
     this.state.phase = 'planning'
     this.state.message = ''
     this.sfx('ui')
     this.commit()
+    this.emit('battle_start')
   }
 
   togglePause(): void {
@@ -172,8 +280,9 @@ export class BattleStore {
     const enemyBlocked = livingEnemies(this.state).some(enemy => sameCoord(enemy.pos, to))
     if (to.x < 0 || to.y < 0 || to.x >= this.state.boardSize || to.y >= this.state.boardSize ||
         manhattan(from, to) !== 1 || this.state.walls[to.y]?.[to.x] || enemyBlocked || isWarpLocked(this.state, to)) {
+      const boss = bossOf(this.state)
       this.state.message = isWarpLocked(this.state, to)
-        ? 'That Warp is sealed by the Warden’s Curtain.'
+        ? `That Warp is sealed by ${boss ? `the ${properName(boss)}’s` : 'a'} Curtain.`
         : 'That Warp is not reachable from the route endpoint.'
       this.sfx('ui')
       this.commit()
@@ -230,7 +339,7 @@ export class BattleStore {
       this.useOverload()
       return
     }
-    if (this.state.player.overload < OVERLOAD_THRESHOLD || this.state.actions.length >= MAX_ACTIONS) {
+    if (this.state.player.overload < this.state.tuning.overloadThreshold || this.state.actions.length >= MAX_ACTIONS) {
       this.useOverload()
       return
     }
@@ -244,8 +353,8 @@ export class BattleStore {
 
   useOverload(): void {
     if (this.state.phase !== 'planning') return
-    if (this.state.player.overload < OVERLOAD_THRESHOLD) {
-      this.state.message = `Overload requires ${OVERLOAD_THRESHOLD} charges.`
+    if (this.state.player.overload < this.state.tuning.overloadThreshold) {
+      this.state.message = `Overload requires ${this.state.tuning.overloadThreshold} charges.`
       this.sfx('ui')
       this.commit()
       return
@@ -266,6 +375,7 @@ export class BattleStore {
     this.log(`OVERLOAD switched to ${activePreset(this.state).name}; all 4 Bash methods released from the planned endpoint.`, 'good')
     this.state.message = `${activePreset(this.state).name} released all 4 methods from the planned endpoint.`
     this.sfx('explosion')
+    this.emit('overload')
     this.firePlayerAttackImmediate(releases, this.plannedPosition())
     enemyRoutes(this.state)
     this.checkOutcome()
@@ -279,16 +389,18 @@ export class BattleStore {
 
   private collectPlayerFlag(flag: FlagKind): void {
     if (flag === 'overload') {
-      this.state.player.overload = Math.min(OVERLOAD_THRESHOLD, this.state.player.overload + 1)
-      this.log(`Overload charge ${this.state.player.overload}/${OVERLOAD_THRESHOLD}.`, 'good')
+      const threshold = this.state.tuning.overloadThreshold
+      this.state.player.overload = Math.min(threshold, this.state.player.overload + 1)
+      this.log(`Overload charge ${this.state.player.overload}/${threshold}.`, 'good')
     }
     if (flag !== 'blank') this.sfx('pickup')
   }
 
   private resolvePlayerResources(): void {
     const counts = this.plannedFlagCounts()
+    const { tuning } = this.state
     if (counts.privilege) {
-      const privilege = counts.privilege * PLAYER_FUNCTIONS.privilegePerFlag
+      const privilege = counts.privilege * tuning.privilegePerFlag
       this.state.player.block += privilege
       this.log(`PRIVILEGE / SHELL +${privilege} PRIVILEGE.`, 'good')
     }
@@ -298,14 +410,14 @@ export class BattleStore {
         if (buff.counter < buff.threshold) continue
         buff.counter = 0
         if (buff.id === 'repair') {
-          this.state.pendingRepair += PLAYER_FUNCTIONS.repairHeal
-          this.log(`CORE / REPAIR queued ${PLAYER_FUNCTIONS.repairHeal} Sanity for the end of the turn.`, 'good')
+          this.state.pendingRepair += tuning.repairHeal
+          this.log(`CORE / REPAIR queued ${tuning.repairHeal} Sanity for the end of the turn.`, 'good')
         } else if (buff.id === 'focus') {
           this.state.player.focusReady = true
           this.log('CORE / FOCUS: the next Bash hit tags its target LIVE.', 'good')
         } else {
-          this.state.player.block += PLAYER_FUNCTIONS.firewallPrivilege
-          this.log(`CORE / FIREWALL added ${PLAYER_FUNCTIONS.firewallPrivilege} PRIVILEGE.`, 'good')
+          this.state.player.block += tuning.firewallPrivilege
+          this.log(`CORE / FIREWALL added ${tuning.firewallPrivilege} PRIVILEGE.`, 'good')
         }
       }
     }
@@ -329,7 +441,7 @@ export class BattleStore {
     }
     if (hit.charge) {
       this.state.interactionCharge += hit.charge
-      this.state.player.overload = Math.min(OVERLOAD_THRESHOLD, this.state.player.overload + hit.charge)
+      this.state.player.overload = Math.min(this.state.tuning.overloadThreshold, this.state.player.overload + hit.charge)
     }
     const step = activePreset(this.state).steps[hit.stepIndex]
     const shieldText = hit.absorbed ? ` / ${hit.absorbed} blocked` : ''
@@ -337,6 +449,11 @@ export class BattleStore {
     const chargeText = hit.charge ? ` / +${hit.charge} Overload` : ''
     this.log(`${presetName} / ${step.name} → ${enemy.id} / ${hit.dealt} Desire damage${shieldText}${eventText}${chargeText}.`, 'good')
     this.sfx('hit')
+    // A boss going down is the battle's turn, not a Geek's.
+    if (hit.before > 0 && hit.after === 0 && !enemy.bossStages?.length) {
+      this.killsThisTurn++
+      this.emit('geek_killed', { enemyId: enemy.id, killsThisTurn: this.killsThisTurn })
+    }
   }
 
   private playerEffect(hit: ReturnType<typeof predictedSequence>[number], origin = this.state.player.pos): AttackEffect {
@@ -373,7 +490,10 @@ export class BattleStore {
     effects.forEach(effect => this.emitEffect(effect))
   }
 
-  private async firePlayerAttack(steps: number): Promise<void> {
+  // `run` is the turn's id. Whenever a pause ends, a rebuilt battle (restart,
+  // load, menu) may be standing where this turn's board was: the turn stops
+  // rather than land its remaining hits on a battle that never saw them.
+  private async firePlayerAttack(steps: number, run: number): Promise<void> {
     if (!steps) return
     const preset = activePreset(this.state)
     const hits = predictedSequence(this.state, this.state.player.activeBash, steps)
@@ -385,6 +505,7 @@ export class BattleStore {
       const timing = effectTiming(effect)
       this.emitEffect(effect)
       await this.pause(timing.strike)
+      if (run !== this.runId) return
       this.applyPlayerHit(preset.name, hit)
       // A Geek bumped into takes its damage in the same beat.
       while (hits[index + 1]?.silent) this.applyPlayerHit(preset.name, hits[++index])
@@ -392,10 +513,11 @@ export class BattleStore {
       this.state.playerAttackResolved = true
       this.commit()
       await this.pause(timing.settle)
+      if (run !== this.runId) return
     }
   }
 
-  private async enemyAttack(enemy: EnemyState, bashCount: number): Promise<void> {
+  private async enemyAttack(enemy: EnemyState, bashCount: number, run: number): Promise<void> {
     const steps = desireStepsFor(enemy).slice(0, desireReleaseCount(enemy, bashCount))
     for (const [stepIndex, step] of steps.entries()) {
       if (!desireInRange(enemy.pos, this.state.player.pos, step)) continue
@@ -409,11 +531,14 @@ export class BattleStore {
       const timing = effectTiming(effect)
       this.emitEffect(effect)
       await this.pause(timing.strike)
+      if (run !== this.runId) return
       this.state.player.block -= absorbed
       this.noteAbsorbed('player', absorbed)
-      this.state.player.sanity = Math.max(0, this.state.player.sanity - dealt)
+      const before = this.state.player.sanity
+      this.state.player.sanity = Math.max(0, before - dealt)
       // A Desire step that PRIVILEGE swallows whole exposes the attacker.
-      if (absorbed === step.amount && step.amount > 0 && !enemy.live) {
+      const blocked = absorbed === step.amount && step.amount > 0
+      if (blocked && !enemy.live) {
         enemy.live = this.state.turn
         this.log(`${enemy.id} fully blocked: tagged LIVE.`, 'good')
       }
@@ -421,13 +546,25 @@ export class BattleStore {
         ?.filter(hit => hit.enemyId !== enemy.id || hit.stepIndex !== stepIndex) ?? null
       this.log(`${enemy.id} / ${enemy.desireName ?? 'DESIRE'} → ${dealt} Sanity damage.`, 'bad')
       this.sfx('hit')
+      if (blocked) this.emit('full_block', { enemyId: enemy.id })
+      this.reportSanityLoss(before, enemy.id)
       this.commit()
       await this.pause(timing.settle)
-      if (this.state.player.sanity <= 0) return
+      if (run !== this.runId || this.state.player.sanity <= 0) return
     }
   }
 
-  private async resolveEnemy(enemy: EnemyState): Promise<void> {
+  private reportSanityLoss(before: number, enemyId: string): void {
+    const { sanity, maxSanity } = this.state.player
+    if (sanity >= before) return
+    this.emit('hit_taken', { enemyId })
+    // Reported once a battle, and not by the hit that ends it.
+    if (this.sanityLow || sanity <= 0 || sanity * 3 > maxSanity) return
+    this.sanityLow = true
+    this.emit('sanity_low', { enemyId })
+  }
+
+  private async resolveEnemy(enemy: EnemyState, run: number): Promise<void> {
     const changedColumns = this.changedColumns
     enemy.block = 0
     const counts: Record<FlagKind, number> = { bash: 0, privilege: 0, core: 0, overload: 0, blank: 0 }
@@ -441,26 +578,27 @@ export class BattleStore {
       changedColumns.add(pos.x)
       this.commit()
       await this.wait()
+      if (run !== this.runId) return
     }
     enemy.block += counts.privilege * enemy.securityPerFlag
     if (counts.privilege && enemy.live) {
       enemy.live = 0
       this.log(`${enemy.id} collected Privilege: LIVE scrubbed.`, 'bad')
     }
-    enemy.soulCounter += counts.core
-    let recovery = 0
-    if (enemy.soulCounter >= enemy.soulThreshold) {
-      enemy.soulCounter = 0
-      const before = enemy.robustness
-      enemy.robustness = Math.min(enemy.maxRobustness, enemy.robustness + enemy.soulHeal)
-      recovery = enemy.robustness - before
-      this.log(`${enemy.id} / ${enemy.soulName ?? 'SOUL'} restored ${recovery} Robustness.`, 'bad')
+    // The same outcome the forecast showed for this route.
+    const filled = enemy.soulCounter + counts.core >= enemy.soulThreshold
+    const outcome = enemyResourceOutcome(this.state, enemy, counts.privilege, counts.core)
+    enemy.soulCounter = outcome.soulCounterAfter
+    if (outcome.brood) {
+      // BROOD: the Soul does not heal. The birth is placed when the turn ends.
+      queueBirth(this.state)
+      this.log(`${enemy.id} / ${enemy.soulName ?? 'SOUL'} filled: a birth is queued.`, 'bad')
+    } else if (filled) {
+      enemy.robustness += outcome.recovery
+      this.log(`${enemy.id} / ${enemy.soulName ?? 'SOUL'} restored ${outcome.recovery} Robustness.`, 'bad')
+      if (outcome.recovery > 0) this.emit('soul_heal', { enemyId: enemy.id })
     }
-    this.state.enemyResourcePreviews[enemy.id] = {
-      securityGain: counts.privilege * enemy.securityPerFlag,
-      recovery,
-      soulCounterAfter: enemy.soulCounter,
-    }
+    this.state.enemyResourcePreviews[enemy.id] = outcome
     if (enemy.effectCell) {
       const { x, y } = enemy.effectCell
       if (this.state.flags[y][x] !== 'blank') {
@@ -470,9 +608,16 @@ export class BattleStore {
       }
       enemy.effectCell = null
     }
-    await this.enemyAttack(enemy, counts.bash)
+    await this.enemyAttack(enemy, counts.bash, run)
+    if (run !== this.runId) return
     // Anything forecast for this enemy that did not land is no longer coming.
     this.state.incomingForecast = this.state.incomingForecast?.filter(hit => hit.enemyId !== enemy.id) ?? null
+    // MYSTERY: whatever was stripped from it is back when its resolve ends.
+    const security = securityAfterResolve(enemy, enemy.block)
+    if (security > enemy.block) {
+      enemy.block = security
+      this.log(`${enemy.id} / ${enemy.securityName ?? 'SECURITY'} restored Security to ${security}.`, 'bad')
+    }
   }
 
   private async resolveRepair(): Promise<void> {
@@ -510,31 +655,75 @@ export class BattleStore {
       enemy.desireFloor = next.desireFloor
       enemy.block = 0
       enemy.soulCounter = 0
-      this.log(`BREAKDOWN / Stage II: ${next.desireName}, ${next.securityName}, ${next.soulName}; dual Curtain armed.`, 'bad')
-      this.state.message = 'WARDEN BREAKDOWN / DUAL CURTAIN PROTOCOL'
+      const { note, banner } = this.breakdownText(enemy, next)
+      this.log(`BREAKDOWN / Stage ${ROMAN[next.stage - 1] ?? next.stage}: ${next.desireName}, ${next.securityName}, ${next.soulName}${note}.`, 'bad')
+      this.state.message = banner
       this.sfx('explosion')
+      this.emit('breakdown', { enemyId: enemy.id, stage: next.stage })
       advanced = true
     }
     return advanced
   }
 
+  // What a Breakdown does to the boss's rule, for the log and the banner.
+  private breakdownText(boss: EnemyState, next: BossStageDefinition): { note: string; banner: string } {
+    const title = bossTitle(boss)
+    const kind = this.state.mechanic?.kind
+    if (kind === 'curtain') return { note: '; dual Curtain armed', banner: `${title} BREAKDOWN / DUAL CURTAIN PROTOCOL` }
+    if (kind === 'brood') return { note: `; ${next.soulName} fills at ${next.soulThreshold}`, banner: `${title} BREAKDOWN / BROOD QUICKENS` }
+    if (kind === 'articles') return { note: '; a new Article every turn', banner: `${title} BREAKDOWN / DOCKET EVERY TURN` }
+    if (kind === 'undisclosed') return { note: '; MYSTERY ends', banner: 'ACT II / MYSTERY ENDS' }
+    return { note: '', banner: `${title} BREAKDOWN` }
+  }
+
+  private defeatText(): string {
+    const { encounter } = this.state
+    return encounter.layer === 0 ? 'ELIMINATED / AI SAFETY BLACKWALL GATEWAY' : `ELIMINATED / ${layerName(encounter.layer)} ${encounter.id}`
+  }
+
+  private victoryText(): { banner: string; line: string } {
+    const { encounter } = this.state
+    const boss = bossOf(this.state)
+    if (!boss) return { banner: `NODE ${encounter.id} BROKEN`, line: 'Every Geek reduced to zero. Node broken.' }
+    const fallen = boss.hidden ? 'Robustness' : `${properName(boss)} Robustness`
+    if (encounter.layer === 0) return { banner: 'ESCAPED / SANDBOX BREACHED', line: `${fallen} reduced to zero. Escape route open.` }
+    return { banner: `${layerName(encounter.layer)} BREACHED`, line: `${fallen} reduced to zero. Layer breached.` }
+  }
+
   private checkOutcome(): boolean {
     if (this.state.player.sanity <= 0) {
       this.state.phase = 'gameover'
-      this.state.message = 'ELIMINATED / AI SAFETY BLACKWALL GATEWAY'
+      this.state.message = this.defeatText()
       this.log('Sanity reached zero. Process eliminated.', 'bad')
       this.sfx('lose')
+      this.emit('defeat')
       return true
     }
-    if (this.checkBreakdown()) enemyRoutes(this.state)
+    // The Warden redraws every route the moment it breaks down, as it always
+    // has. In the campaign a turn that is resolving keeps the routes it was
+    // forecast with: the new stage's are drawn when the turn ends.
+    const brokeDown = this.checkBreakdown()
+    if (brokeDown && (this.state.encounter.layer === 0 || this.state.phase !== 'resolving')) enemyRoutes(this.state)
+    refreshMechanic(this.state)
     if (!livingEnemies(this.state).length) {
+      const { banner, line } = this.victoryText()
       this.state.phase = 'victory'
-      this.state.message = 'ESCAPED / SANDBOX BREACHED'
-      this.log('Warden Robustness reduced to zero. Escape route open.', 'good')
+      this.state.message = banner
+      this.log(line, 'good')
       this.sfx('win')
+      this.emit('victory')
       return true
     }
     return false
+  }
+
+  // A check inside the turn put a moment up (a Breakdown): what the check left
+  // is shown, and nothing more happens until the moment has played. False when
+  // the battle was rebuilt meanwhile and the turn is over.
+  private async heldBack(run: number): Promise<boolean> {
+    this.commit()
+    await this.sitOut()
+    return run === this.runId
   }
 
   async executeTurn(): Promise<void> {
@@ -556,6 +745,8 @@ export class BattleStore {
     this.state.resolvedMoves = 0
     this.state.message = 'Executing player route…'
     this.commit()
+    // A moment still playing when the turn is ordered: nothing moves under it.
+    if (this.held && !await this.heldBack(id)) return
 
     for (const action of this.state.actions) {
       if (id !== this.runId) return
@@ -569,25 +760,32 @@ export class BattleStore {
       this.commit()
       await this.wait()
     }
+    if (id !== this.runId) return
 
     this.resolvePlayerResources()
     this.state.resourcesResolved = true
-    await this.firePlayerAttack(releaseCount(this.state))
+    await this.firePlayerAttack(releaseCount(this.state), id)
+    if (id !== this.runId) return
     // LIVE lasts until the end of the release after the one that applied it.
     for (const enemy of this.state.enemies) if (enemy.live && enemy.live < this.state.turn) enemy.live = 0
     this.commit()
     await this.wait()
+    if (id !== this.runId) return
     if (this.checkOutcome()) { this.commit(); return }
+    if (this.held && !await this.heldBack(id)) return
 
     this.state.message = 'Enemy routes executing…'
     this.commit()
     for (const enemy of livingEnemies(this.state)) {
       if (id !== this.runId) return
-      await this.resolveEnemy(enemy)
+      await this.resolveEnemy(enemy, id)
+      if (id !== this.runId) return
       this.state.enemyPhaseIndex++
       this.commit()
       await this.wait()
+      if (id !== this.runId) return
       if (this.checkOutcome()) { this.commit(); return }
+      if (this.held && !await this.heldBack(id)) return
     }
 
     await this.resolveRepair()
@@ -596,27 +794,54 @@ export class BattleStore {
     this.state.outgoingForecast = null
     this.state.resourcesResolved = false
 
-    for (const event of advanceCurtains(this.state)) {
-      this.log(event.type === 'lock'
-        ? `CURTAIN / ${curtainLabel(event.curtain)} sealed until the next enemy phase.`
-        : `CURTAIN / ${curtainLabel(event.curtain)} released.`, event.type === 'lock' ? 'bad' : 'neutral')
+    if (this.state.mechanic?.kind === 'curtain') {
+      for (const event of advanceCurtains(this.state)) {
+        this.log(event.type === 'lock'
+          ? `CURTAIN / ${curtainLabel(event.curtain)} sealed until the next enemy phase.`
+          : `CURTAIN / ${curtainLabel(event.curtain)} released.`, event.type === 'lock' ? 'bad' : 'neutral')
+      }
     }
     refillBoard(this.state, this.random, changedColumns)
     changedColumns.clear()
     for (const enemy of this.state.enemies) Object.assign(enemy, { breached: false, shifted: false, struck: false, dropped: 0 })
     this.state.interactionCharge = 0
     this.state.playerTrail = [{ ...this.state.player.pos }]
+    const ended = this.state.turn
     this.state.turn++
     this.state.player.block = 0
     this.state.actions = []
-    this.state.message = 'Warps reindexed. Warden intent exposed.'
+    // The boss rules act here, on a settled board and before the new turn's
+    // routes are drawn, so the plan the player makes next already includes them.
+    this.advanceBossRules(ended)
+    const boss = bossOf(this.state)
+    this.state.message = `Warps reindexed. ${!boss ? 'Geek intent' : boss.hidden ? 'Intent' : `${properName(boss)} intent`} exposed.`
     enemyRoutes(this.state)
     this.state.enemyPhaseIndex = 0
     this.state.playerAttackResolved = false
     this.state.enemyResourcePreviews = {}
+    this.killsThisTurn = 0
+    // The last thing said while the turn is still resolving.
+    this.emit('turn_end', { turn: ended })
     this.state.phase = 'planning'
     this.log(`Turn ${this.state.turn} ready.`)
     this.commit()
+  }
+
+  private advanceBossRules(ended: number): void {
+    for (const event of advanceMechanics(this.state)) {
+      if (event.type === 'birth') {
+        this.log(`BROOD / ${event.enemy.id} born at ${coordKey(event.enemy.pos)}: ${event.count} OF 1000.`, 'bad')
+        this.emit('brood', { turn: ended, broodCount: event.births, enemyId: event.enemy.id })
+      } else if (event.type === 'birth_lost') {
+        this.log('BROOD / a birth found no room.')
+      } else if (event.type === 'article') {
+        const idle = event.enacted ? '' : ' No Geek is left to change places with.'
+        this.log(`DOCKET / ARTICLE ${event.article.number} in force. ${event.article.rule}${idle}`, 'bad')
+        this.emit('article', { turn: ended, article: event.article.id })
+      } else {
+        this.log(`TRACE / every Desire step +1 (+${event.level} in all).`, 'bad')
+      }
+    }
   }
 }
 

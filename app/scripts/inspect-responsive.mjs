@@ -6,13 +6,16 @@ import { extname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url))
-const DIST = join(ROOT, 'dist')
-const SHOTS = join(ROOT, 'verification-shots')
+// DIST_DIR and SHOTS_DIR point the check at a build, and its screenshots, somewhere else.
+const DIST = process.env.DIST_DIR ? resolve(process.env.DIST_DIR) : join(ROOT, 'dist')
+const SHOTS = process.env.SHOTS_DIR ? resolve(process.env.SHOTS_DIR) : join(ROOT, 'verification-shots')
 mkdirSync(SHOTS, { recursive: true })
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' }
 const server = createServer(async (req, res) => {
   try {
-    const raw = req.url === '/' ? '/index.html' : req.url.split('?')[0]
+    // The query is dropped first: '/?intro=0' is the index page too.
+    const pathname = req.url.split('?')[0]
+    const raw = pathname === '/' ? '/index.html' : pathname
     const file = resolve(DIST, '.' + decodeURIComponent(raw))
     if (file !== DIST && !file.startsWith(DIST + sep)) { res.writeHead(403).end(); return }
     res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' })
@@ -20,25 +23,28 @@ const server = createServer(async (req, res) => {
   } catch { res.writeHead(404).end() }
 })
 await new Promise(resolve => server.listen(0, resolve))
-const browser = await chromium.launch({
-  executablePath: process.env.CHROMIUM_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-  args: ['--no-sandbox'],
-})
+// CHROMIUM_PATH wins when set; otherwise the installed Chrome (there is no bundled browser here).
+const browser = await chromium.launch(process.env.CHROMIUM_PATH
+  ? { executablePath: process.env.CHROMIUM_PATH, args: ['--no-sandbox'] }
+  : { channel: 'chrome' })
+// `tabs`: one panel at a time behind the OPERATOR / GEEKS tabs. `touch`: driven by touch events.
 const cases = [
-  { name: 'phone-landscape', width: 844, height: 390 },
+  { name: 'phone-landscape', width: 844, height: 390, tabs: true, touch: true },
+  { name: 'phone-portrait', width: 390, height: 844, tabs: true },
   { name: 'tablet-portrait', width: 768, height: 1024 },
   { name: 'tablet-landscape', width: 1024, height: 768 },
 ]
 const results = []
 
+// The board is laid out inside the canvas, which shares the board area with the strip under it.
 function warpPoint(metrics, pos) {
-  const width = metrics.board.width
-  const height = metrics.board.height
+  const width = metrics.canvas.width
+  const height = metrics.canvas.height
   const cell = Math.max(12, Math.floor(Math.min((width - 80) / 15, (height - 92) / 15)))
   const boardPx = cell * 15
   return {
-    x: metrics.board.x + Math.round((width - boardPx) / 2 + 10) + (pos.x + 0.5) * cell,
-    y: metrics.board.y + Math.round((height - boardPx) / 2 + 20) + (pos.y + 0.5) * cell,
+    x: metrics.canvas.x + Math.round((width - boardPx) / 2 + 10) + (pos.x + 0.5) * cell,
+    y: metrics.canvas.y + Math.round((height - boardPx) / 2 + 20) + (pos.y + 0.5) * cell,
   }
 }
 
@@ -58,7 +64,8 @@ try {
     const page = await context.newPage()
     const errors = []
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
-    await page.goto(`http://127.0.0.1:${server.address().port}/`, { waitUntil: 'networkidle' })
+    // ?intro=0: straight to the title, without the attach screen and the opening sequence.
+    await page.goto(`http://127.0.0.1:${server.address().port}/?intro=0`, { waitUntil: 'networkidle' })
     await page.waitForFunction(() => window.__GAME_READY__ === true)
     await page.getByRole('button', { name: /BREACH SANDBOX/ }).click()
     await page.waitForTimeout(250)
@@ -83,6 +90,7 @@ try {
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
         verticalOverflow: document.documentElement.scrollHeight > innerHeight,
         board: box('.board-area'),
+        canvas: box('#game-canvas'),
         player: box('.player-panel'),
         enemy: box('.enemy-panel'),
         actionIndicator: box('.action-indicator'),
@@ -107,9 +115,9 @@ try {
     await page.getByRole('button', { name: 'Exit fullscreen' }).click()
     await page.waitForFunction(() => !document.fullscreenElement)
 
-    const centerX = metrics.board.x + metrics.board.width / 2
-    const centerY = metrics.board.y + metrics.board.height / 2
-    if (item.name === 'phone-landscape') {
+    const centerX = metrics.canvas.x + metrics.canvas.width / 2
+    const centerY = metrics.canvas.y + metrics.canvas.height / 2
+    if (item.touch) {
       const cdp = await context.newCDPSession(page)
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: centerX - 45, y: centerY }, { x: centerX + 45, y: centerY }] })
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: centerX - 90, y: centerY }, { x: centerX + 90, y: centerY }] })
@@ -162,12 +170,19 @@ try {
     await page.waitForFunction(() => window.__battleProbe()?.attackPreview?.stepIndex === 1)
     await page.getByRole('button', { name: 'Close method preview' }).click()
     if (await page.locator('.method-detail.active').count()) throw new Error(`${item.name}: method preview did not dismiss`)
-    if (item.name === 'phone-landscape') {
+    if (item.tabs) {
       await page.getByRole('button', { name: 'GEEKS', exact: true }).click()
-      if (!(await page.locator('.enemy-panel').isVisible())) throw new Error('Geeks tab did not display enemy panel')
+      if (!(await page.locator('.enemy-panel').isVisible())) throw new Error(`${item.name}: Geeks tab did not display enemy panel`)
+      if (await page.locator('.player-panel').isVisible()) throw new Error(`${item.name}: Geeks tab left the operator panel showing`)
+      // The panels a campaign adds live in this column: the route and its button stay reachable.
+      const execute = await page.locator('.execute-button').boundingBox()
+      if (!execute || execute.height < 44 || execute.x < 0 || execute.x + execute.width > item.width) {
+        throw new Error(`${item.name}: execute button is clipped or too small ${JSON.stringify(execute)}`)
+      }
       await page.getByRole('button', { name: 'OPERATOR', exact: true }).click()
-      if (!(await page.locator('.player-panel').isVisible())) throw new Error('Operator tab did not display player panel')
+      if (!(await page.locator('.player-panel').isVisible())) throw new Error(`${item.name}: Operator tab did not display player panel`)
     }
+    if (metrics.horizontalOverflow) throw new Error(`${item.name}: the page is wider than the screen ${JSON.stringify(metrics.document)}`)
     await page.locator('.player-panel').evaluate(element => { element.scrollTop = 0 })
     await page.locator('.enemy-panel').evaluate(element => { element.scrollTop = 0 })
     const mapView = await page.evaluate(() => window.__mapProbe())

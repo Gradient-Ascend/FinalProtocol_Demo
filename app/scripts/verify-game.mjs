@@ -19,7 +19,7 @@
 import { chromium } from "playwright";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,14 +29,17 @@ import { fileURLToPath } from "node:url";
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 // Build output location depends on whether a backend has been grafted on:
 // plain game template -> dist/ ; after backend-building -> dist/public/ (dist/boot.js is the server bundle).
-const DIST = existsSync(join(ROOT, "dist/public/index.html"))
-  ? join(ROOT, "dist/public")
-  : join(ROOT, "dist");
+// DIST_DIR points the check at a build somewhere else (a scratch build, so a shared dist/ is left alone).
+const DIST = process.env.DIST_DIR
+  ? resolve(process.env.DIST_DIR)
+  : existsSync(join(ROOT, "dist/public/index.html"))
+    ? join(ROOT, "dist/public")
+    : join(ROOT, "dist");
 if (!existsSync(join(DIST, "index.html"))) {
   console.error(`VERIFY FAIL: no build output at ${DIST} — run \`npm run build\` first`);
   process.exit(1);
 }
-const SHOTS = join(ROOT, "verification-shots");
+const SHOTS = process.env.SHOTS_DIR ? resolve(process.env.SHOTS_DIR) : join(ROOT, "verification-shots");
 mkdirSync(SHOTS, { recursive: true });
 
 // Must match <canvas id="..."> in src/pages/Home.tsx. Change both together.
@@ -46,7 +49,9 @@ const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css
 
 const server = createServer(async (req, res) => {
   try {
-    const raw = req.url === "/" ? "/index.html" : req.url.split("?")[0];
+    // The query is dropped first: "/?intro=0" is the index page too.
+    const pathname = req.url.split("?")[0];
+    const raw = pathname === "/" ? "/index.html" : pathname;
     // Decode: request paths are percent-encoded, so an asset named "level 1.png" arrives as
     // "level%201.png" and would 404 (surfacing later as a bogus console-error failure).
     let path;
@@ -65,19 +70,21 @@ const fail = (msg) => { console.error("VERIFY FAIL:", msg); server.close(); proc
 
 await new Promise((r) => server.listen(0, r));
 const port = server.address().port;
-// prefer the playwright-bundled browser; fall back to system chrome (CHROMIUM_PATH overrides)
+// CHROMIUM_PATH wins when set. Otherwise the installed Chrome (playwright's "chrome" channel:
+// there is no bundled browser on every machine), then the bundled one, then known paths.
 const CANDIDATES = [
-  process.env.CHROMIUM_PATH,
   "/opt/gchrome/opt/google/chrome/chrome",
   "/usr/bin/chromium-browser",
   "/usr/bin/google-chrome",
-].filter(Boolean);
+];
+const byPath = (exe) => ({ executablePath: exe, args: ["--no-sandbox", "--disable-gpu-sandbox", "--use-gl=swiftshader"] });
+const LAUNCHES = process.env.CHROMIUM_PATH
+  ? [byPath(process.env.CHROMIUM_PATH)]
+  : [{ channel: "chrome" }, {}, ...CANDIDATES.map(byPath)];
 let browser;
-for (const exe of [null, ...CANDIDATES]) {
+for (const options of LAUNCHES) {
   try {
-    browser = await chromium.launch(exe
-      ? { executablePath: exe, args: ["--no-sandbox", "--disable-gpu-sandbox", "--use-gl=swiftshader"] }
-      : {});
+    browser = await chromium.launch(options);
     break;
   } catch { /* try the next one */ }
 }
@@ -85,10 +92,16 @@ if (!browser) fail("no usable browser found (playwright bundled/chrome/chromium 
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 
 const consoleErrors = [];
-page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text()); });
+// Every console message in order, for the harness lines checked in step 5.
+const consoleLines = [];
+page.on("console", (m) => {
+  consoleLines.push({ type: m.type(), text: m.text() });
+  if (m.type() === "error") consoleErrors.push(m.text());
+});
 page.on("pageerror", (e) => consoleErrors.push(String(e)));
 
-await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+// ?intro=0: straight to the title, without the attach screen and the opening sequence.
+await page.goto(`http://127.0.0.1:${port}/?intro=0`, { waitUntil: "networkidle" });
 // The page boots through a React shell (src/main.tsx -> src/App.tsx -> src/pages/Home.tsx),
 // so the canvas only exists after the first effect runs: wait for the readiness flag the game
 // raises on its first rendered frame, then fall back to a fixed delay if it never appears.
@@ -210,9 +223,33 @@ await page.keyboard.press("Escape");
 await page.waitForTimeout(300);
 await page.screenshot({ path: join(SHOTS, "03-paused.png") });
 
-// 5) Zero console errors
+// 5) The small truths outside the frame, all from src/story/script.json "meta": the tab's title,
+//    one comment in the page source, and one folded console group holding the harness lines.
+//    index.html cannot read the JSON, so its comment and title are written out there; this is
+//    the check that keeps them the same text.
+const meta = JSON.parse(readFileSync(join(ROOT, "src/story/script.json"), "utf8")).meta;
+const html = readFileSync(join(DIST, "index.html"), "utf8");
+const comments = html.match(/<!--[\s\S]*?-->/g) ?? [];
+if (comments.length !== 1 || comments[0] !== `<!-- ${meta.sourceComment} -->`) {
+  fail(`index.html should carry exactly one comment, "<!-- ${meta.sourceComment} -->" (script.json meta.sourceComment); found ${JSON.stringify(comments)}`);
+}
+if (!html.includes(`<title>${meta.documentTitle}</title>`)) fail(`index.html <title> is not "${meta.documentTitle}" (script.json meta.documentTitle)`);
+const tabTitle = await page.title();
+if (tabTitle !== meta.documentTitle) fail(`document.title is "${tabTitle}", expected "${meta.documentTitle}"`);
+const groups = consoleLines.filter((line) => line.type === "startGroupCollapsed");
+if (groups.length !== 1 || groups[0].text !== meta.console[0]) {
+  fail(`expected one collapsed console group headed "${meta.console[0]}"; found ${JSON.stringify(groups)}`);
+}
+const start = consoleLines.indexOf(groups[0]);
+const inside = consoleLines.slice(start + 1, start + meta.console.length).map((line) => line.text);
+if (JSON.stringify(inside) !== JSON.stringify(meta.console.slice(1))) {
+  fail(`the console group should hold the remaining harness lines in order; found ${JSON.stringify(inside)}`);
+}
+if (consoleLines[start + meta.console.length]?.type !== "endGroup") fail("the harness console group is not closed after its last line");
+
+// 6) Zero console errors
 if (consoleErrors.length) fail(`${consoleErrors.length} console error(s): ${consoleErrors[0]}`);
 
 await browser.close();
 server.close();
-console.log("VERIFY OK: render/enter/direction/pause/console all passed; screenshots in verification-shots/");
+console.log(`VERIFY OK: render/enter/direction/pause/meta/console all passed; screenshots in ${SHOTS}`);

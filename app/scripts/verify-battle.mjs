@@ -6,13 +6,16 @@ import { extname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url))
-const DIST = join(ROOT, 'dist')
-const SHOTS = join(ROOT, 'verification-shots')
+// DIST_DIR and SHOTS_DIR point the check at a build, and its screenshots, somewhere else.
+const DIST = process.env.DIST_DIR ? resolve(process.env.DIST_DIR) : join(ROOT, 'dist')
+const SHOTS = process.env.SHOTS_DIR ? resolve(process.env.SHOTS_DIR) : join(ROOT, 'verification-shots')
 mkdirSync(SHOTS, { recursive: true })
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' }
 const server = createServer(async (req, res) => {
   try {
-    const raw = req.url === '/' ? '/index.html' : req.url.split('?')[0]
+    // The query is dropped first: '/?intro=0' is the index page too.
+    const pathname = req.url.split('?')[0]
+    const raw = pathname === '/' ? '/index.html' : pathname
     const file = resolve(DIST, '.' + decodeURIComponent(raw))
     if (file !== DIST && !file.startsWith(DIST + sep)) { res.writeHead(403).end(); return }
     const data = await readFile(file)
@@ -22,10 +25,10 @@ const server = createServer(async (req, res) => {
 })
 await new Promise(resolve => server.listen(0, resolve))
 const port = server.address().port
-const browser = await chromium.launch({
-  executablePath: process.env.CHROMIUM_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-  args: ['--no-sandbox', '--disable-gpu-sandbox'],
-})
+// CHROMIUM_PATH wins when set; otherwise the installed Chrome (there is no bundled browser here).
+const browser = await chromium.launch(process.env.CHROMIUM_PATH
+  ? { executablePath: process.env.CHROMIUM_PATH, args: ['--no-sandbox', '--disable-gpu-sandbox'] }
+  : { channel: 'chrome' })
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } })
 const errors = []
 page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
@@ -95,7 +98,8 @@ async function playRoute(state, focusOverload = false, triggerOverload = false) 
 }
 
 try {
-  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'networkidle' })
+  // ?intro=0: straight to the title, without the attach screen and the opening sequence.
+  await page.goto(`http://127.0.0.1:${port}/?intro=0`, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => window.__GAME_READY__ === true)
   await page.getByRole('button', { name: /BREACH SANDBOX/ }).click()
   await waitPhase(['planning'])
@@ -147,8 +151,10 @@ try {
   if (await page.locator('.enemy-card.affected').count() !== 1) throw new Error('Expected exactly one affected Geek')
   const previewColor = await page.locator('.enemy-card.affected .to-be').evaluate(element => getComputedStyle(element).color)
   if (previewColor !== 'rgb(245, 245, 245)') throw new Error(`Projected HP is not white: ${previewColor}`)
+  // 61, not 62: BASE deals 1 and pushes the Warden a cell away, so MANHATTAN measures 2
+  // (battle.test.ts, 'fires one Bash preset step per Bash Flag and advances the turn').
   const projected = await page.locator('.to-be').textContent()
-  if (!projected?.includes('62')) throw new Error(`Missing projected Desire value: ${projected}`)
+  if (!projected?.includes('61')) throw new Error(`Missing projected Desire value: ${projected}`)
   if (await page.locator('.action-slot').count() !== 8) throw new Error('Expected eight smaller AP slots')
   if (await page.locator('.action-indicator.lit').count() !== 2) throw new Error('Expected Roman steps I and II to light')
   const coreLayout = await page.locator('.buff-list').evaluate(element => ({
@@ -219,7 +225,7 @@ try {
   if (state.playerAttackResolved || state.enemyPhaseIndex !== 0 || Object.keys(state.enemyResourcePreviews).length) {
     throw new Error('Event-driven HP previews did not reset for the next planning turn')
   }
-  if (state.enemies[0].robustness !== 62) throw new Error(`Opening Bash expected B01 at 62, got ${state.enemies[0].robustness}`)
+  if (state.enemies[0].robustness !== 61) throw new Error(`Opening Bash expected B01 at 61, got ${state.enemies[0].robustness}`)
   if (state.playerTrail.length !== 1 || state.playerTrail[0].x !== 7 || state.playerTrail[0].y !== 5) {
     throw new Error(`Gray trail did not clear at turn completion: ${JSON.stringify(state.playerTrail)}`)
   }
@@ -316,7 +322,7 @@ try {
 
   if (errors.length) throw new Error(`Browser errors: ${errors.join(' | ')}`)
   console.log(JSON.stringify({
-    result: 'PASS', openingDamage: 2, victory: true, victoryStats, elimination: true,
+    result: 'PASS', openingDamage: 3, victory: true, victoryStats, elimination: true,
     overloadTriggeredInBrowser: overloadUsed, menus: true, settings: true,
     restart: true, resized: true, performance, consoleErrors: 0,
   }, null, 2))

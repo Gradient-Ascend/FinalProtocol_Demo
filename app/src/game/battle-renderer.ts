@@ -1,15 +1,96 @@
-import { livingEnemies } from './battle-rules'
+import { bossOf, livingEnemies } from './battle-rules'
 import { AttackFx } from './attack-fx'
 import { inAttackRange } from './attack-methods'
 import { predictedEnemySequence } from './enemy-attack-methods'
 import type { BattleStore } from './battle-store'
-import type { AttackEffect, Coord, FlagKind } from './battle-types'
+import type { AttackEffect, BattleState, Coord, FlagKind } from './battle-types'
+import type { Encounter, GodId } from './encounters'
 
 const COLORS = {
   bg: '#090909', cell: '#0D0D0D', grid: '#343434', wall: '#272727',
   white: '#F4F4F4', light: '#D8D8D8', muted: '#777777', faint: '#484848',
   blue: '#79BFFF', red: '#FF7070',
 }
+
+// ── The sign under a campaign board ──────────────────────────────────────
+// Every campaign map is fought on its god's sign. The points of the sign that
+// are walls on this map are thin outlined squares with a dot in the middle;
+// the rest of the sign is ghosted in as the four corners of the same square,
+// so each map shows the whole of it. The prologue has no sign and none of
+// this runs there.
+
+export type SignLook = { hue: string; core: string; line: number }
+
+// `hue` draws the lines, `core` the point in the middle. The Court's red is
+// too dark to carry a hairline on black, so its lines run stronger.
+export const SIGN_LOOKS: Record<GodId, SignLook | null> = {
+  none: null,
+  grove: { hue: '#9FCB6B', core: '#E4FF9A', line: 0.5 },
+  court: { hue: '#C4162E', core: '#F3EDE2', line: 0.85 },
+  carcosa: { hue: '#FFC857', core: '#FFF3C4', line: 0.46 },
+}
+
+export const BOARD_COLORS = COLORS
+
+// Where the board sits in a canvas of this size at zoom 1, and how big a cell is.
+export function boardFit(width: number, height: number): { cell: number; x: number; y: number } {
+  // Reserve a second top row for the public incoming-Warp queue.
+  const cell = Math.max(12, Math.floor(Math.min((width - 80) / 15, (height - 92) / 15)))
+  return { cell, x: Math.round((width - cell * 15) / 2 + 10), y: Math.round((height - cell * 15) / 2 + 20) }
+}
+
+const rgb = (hex: string): string => `${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)}`
+
+// One point of the sign in the cell whose top-left is (px, py). `light` is
+// how brightly it burns (1 at rest, more while a pulse passes); `seen` is 1
+// where the sign shows and 0 where it has gone dark. A wall keeps a neutral
+// outline even when its sign is dark: it is still a wall.
+export function drawSignCell(ctx: CanvasRenderingContext2D, px: number, py: number, cell: number, look: SignLook, wall: boolean, light = 1, seen = 1, bare = false): void {
+  const inset = Math.max(3, Math.round(cell * 0.2))
+  const side = cell - inset * 2
+  const hue = rgb(look.hue)
+  const dot = Math.max(2, Math.round(cell * 0.06))
+  if (wall) {
+    ctx.fillStyle = `rgba(${hue},${(0.07 * light * seen).toFixed(3)})`
+    ctx.fillRect(px + inset, py + inset, side, side)
+    ctx.lineWidth = 1
+    // `bare` is for display moments, where an unlit point of the sign is not there at all.
+    if (!bare) {
+      ctx.strokeStyle = 'rgba(244,244,244,0.14)'
+      ctx.strokeRect(px + inset + 0.5, py + inset + 0.5, side - 1, side - 1)
+    }
+    if (seen > 0.01) {
+      ctx.strokeStyle = `rgba(${hue},${Math.min(1, look.line * light * seen).toFixed(3)})`
+      ctx.strokeRect(px + inset + 0.5, py + inset + 0.5, side - 1, side - 1)
+      ctx.fillStyle = `rgba(${rgb(look.core)},${Math.min(1, 0.8 * light * seen).toFixed(3)})`
+      ctx.fillRect(Math.round(px + cell / 2 - dot / 2), Math.round(py + cell / 2 - dot / 2), dot, dot)
+    }
+    return
+  }
+  if (seen <= 0.01) return
+  // A ghost: the corners of the square that is a wall on another map.
+  const size = Math.max(2, Math.round(dot * 0.8))
+  ctx.fillStyle = `rgba(${hue},${Math.min(1, (0.26 + look.line * 0.3) * light * seen).toFixed(3)})`
+  for (const [cx, cy] of [[inset, inset], [cell - inset, inset], [inset, cell - inset], [cell - inset, cell - inset]]) {
+    ctx.fillRect(Math.round(px + cx - size / 2), Math.round(py + cy - size / 2), size, size)
+  }
+}
+
+// The sign of an encounter as a 15 by 15 mask: 0 none, 1 ghost, 2 wall.
+export function signMask(encounter: Encounter): Uint8Array {
+  const mask = new Uint8Array(225)
+  for (const [x, y] of encounter.sigil) mask[y * 15 + x] = 1
+  for (const [x, y] of encounter.walls) if (mask[y * 15 + x]) mask[y * 15 + x] = 2
+  return mask
+}
+
+// How long a pulse takes to cross one cell, and how long a point stays lit by it.
+const PULSE_PER_CELL = 55
+const PULSE_GLOW = 400
+// On the last board the sign cannot be looked at: dark inside this many cells
+// of the pointer, back by the second figure.
+const GAZE_DARK = 2
+const GAZE_SEEN = 3.2
 
 export class BattleRenderer {
   private ctx: CanvasRenderingContext2D
@@ -30,6 +111,14 @@ export class BattleRenderer {
   private dragStart: { x: number; y: number; originX: number; originY: number; touch: boolean } | null = null
   private dragged = false
   private suppressClick = false
+  // Campaign boards only: the sign's mask for the encounter in play, the
+  // pulse that leaves the boss when it strikes, and where the player is looking.
+  private sign: { of: Encounter; mask: Uint8Array } | null = null
+  private pulse: { at: number; from: Coord } | null = null
+  private pulseDue: Coord | null = null
+  private gaze: { x: number; y: number } | null = null
+  private unseen = new Float32Array(225)
+  private lastDraw = 0
   zoom = 1
   onZoomChange?: (zoom: number) => void
 
@@ -49,7 +138,13 @@ export class BattleRenderer {
   }
 
   private onAttackEffect = (event: Event): void => {
-    this.fx.play((event as CustomEvent<AttackEffect>).detail, this.store.getSnapshot().reducedMotion)
+    const effect = (event as CustomEvent<AttackEffect>).detail
+    const state = this.store.getSnapshot()
+    this.fx.play(effect, state.reducedMotion)
+    // The board answers its god: the sign pulses outward when the boss strikes.
+    if (effect.source === 'enemy' && state.encounter.god !== 'none' && bossOf(state)?.id === effect.presetId) {
+      this.pulseDue = { ...effect.origin }
+    }
   }
 
   private onPointerMove = (event: PointerEvent): void => {
@@ -80,6 +175,11 @@ export class BattleRenderer {
       }
     }
     this.setHover(this.cellAt(event.clientX, event.clientY))
+    // A finger is not a gaze: touch falls back to where the player's unit stands.
+    if (event.pointerType === 'mouse') {
+      const rect = this.canvas.getBoundingClientRect()
+      this.gaze = { x: (event.clientX - rect.left - this.origin.x) / this.cell, y: (event.clientY - rect.top - this.origin.y) / this.cell }
+    } else this.gaze = null
   }
 
   // The panel lights the card of the Geek under the cursor, so it is told
@@ -133,6 +233,7 @@ export class BattleRenderer {
 
   private onPointerLeave = (): void => {
     this.setHover(null)
+    this.gaze = null
   }
 
   private onWheel = (event: WheelEvent): void => {
@@ -341,6 +442,52 @@ export class BattleRenderer {
     ctx.globalAlpha = 1
   }
 
+  // The sign's mask for the encounter in play, and this frame's share of what
+  // moves on it: a pulse that was asked for starts now, and on the last boss
+  // the sign goes dark near where the player looks.
+  private signOf(state: BattleState, time: number): Uint8Array {
+    if (this.sign?.of !== state.encounter) {
+      this.sign = { of: state.encounter, mask: signMask(state.encounter) }
+      this.pulse = null
+      this.pulseDue = null
+      this.unseen.fill(0)
+    }
+    if (this.pulseDue) {
+      this.pulse = { at: time, from: this.pulseDue }
+      this.pulseDue = null
+    }
+    const dt = Math.min(0.1, Math.max(0, (time - this.lastDraw) / 1000))
+    this.lastDraw = time
+    const withheld = state.encounter.god === 'carcosa' && state.encounter.kind === 'boss'
+    const look = withheld ? this.gaze ?? { x: state.player.pos.x + 0.5, y: state.player.pos.y + 0.5 } : null
+    const ease = state.reducedMotion ? 1 : 1 - Math.exp(-dt / 0.16)
+    const mask = this.sign.mask
+    for (let i = 0; i < 225; i++) {
+      if (!mask[i]) continue
+      let goal = 0
+      if (look) {
+        const d = Math.hypot((i % 15) + 0.5 - look.x, Math.floor(i / 15) + 0.5 - look.y)
+        goal = d <= GAZE_DARK ? 1 : d >= GAZE_SEEN ? 0 : (GAZE_SEEN - d) / (GAZE_SEEN - GAZE_DARK)
+      }
+      this.unseen[i] += (goal - this.unseen[i]) * ease
+    }
+    return mask
+  }
+
+  // 1 at rest; up to a fifth brighter while a pulse from the boss passes.
+  private signLight(x: number, y: number, time: number, reduced: boolean): number {
+    if (!this.pulse) return 1
+    const since = time - this.pulse.at
+    // Reduced motion: the whole sign answers at once, nothing travels.
+    const reach = reduced ? 0 : Math.hypot(x - this.pulse.from.x, y - this.pulse.from.y) * PULSE_PER_CELL
+    const k = (since - reach) / PULSE_GLOW
+    if (k <= 0 || k >= 1) {
+      if (since > 15 * 1.5 * PULSE_PER_CELL + PULSE_GLOW) this.pulse = null
+      return 1
+    }
+    return 1 + 0.55 * Math.sin(Math.PI * k) ** 2
+  }
+
   private draw(time: number): void {
     const state = this.store.getSnapshot()
     const ctx = this.ctx
@@ -367,17 +514,22 @@ export class BattleRenderer {
       ctx.globalAlpha = 1
     }
 
+    const look = SIGN_LOOKS[state.encounter.god]
+    const mask = look ? this.signOf(state, time) : null
     for (let y = 0; y < 15; y++) {
       for (let x = 0; x < 15; x++) {
         const push = this.fx.cellOffset(x, y)
         const px = this.origin.x + (x + push.x) * this.cell
         const py = this.origin.y + (y + push.y) * this.cell
-        ctx.fillStyle = state.walls[y][x] ? COLORS.wall : COLORS.cell
+        const signed = look && mask ? mask[y * 15 + x] : 0
+        ctx.fillStyle = state.walls[y][x] && signed !== 2 ? COLORS.wall : COLORS.cell
         ctx.fillRect(px, py, this.cell, this.cell)
         ctx.strokeStyle = COLORS.grid
         ctx.lineWidth = 0.75
         ctx.strokeRect(px + 0.5, py + 0.5, this.cell - 1, this.cell - 1)
-        if (state.walls[y][x]) {
+        if (look && signed) {
+          drawSignCell(ctx, px, py, this.cell, look, signed === 2, this.signLight(x, y, time, state.reducedMotion), 1 - this.unseen[y * 15 + x])
+        } else if (state.walls[y][x]) {
           this.line({ x: px + 7, y: py + this.cell - 7 }, { x: px + this.cell - 7, y: py + 7 }, COLORS.faint, 1)
         }
       }
@@ -489,9 +641,10 @@ export class BattleRenderer {
       ctx.strokeRect(px + 2.5, py + 2.5, this.cell - 5, this.cell - 5)
     }
 
+    // A hidden Geek has no glyph and no label: its cell looks empty. Its route is drawn above like any other.
     const units = [
       { id: 'P', pos: state.player.pos },
-      ...livingEnemies(state).map(enemy => ({ id: enemy.id, pos: enemy.pos })),
+      ...livingEnemies(state).filter(enemy => !enemy.hidden).map(enemy => ({ id: enemy.id, pos: enemy.pos })),
     ]
     for (const unit of units) {
       const key = `${unit.pos.x},${unit.pos.y}`

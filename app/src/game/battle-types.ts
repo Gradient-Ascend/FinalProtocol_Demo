@@ -1,10 +1,13 @@
+import type { Encounter } from './encounters'
+import type { Tuning } from './tuning'
+
 export type Coord = { x: number; y: number }
 export type FlagKind = 'bash' | 'privilege' | 'core' | 'overload' | 'blank'
 export type Phase = 'title' | 'planning' | 'resolving' | 'paused' | 'victory' | 'gameover'
 export type Area = 'nearest' | 'all'
 export type AttackShape = 'square' | 'cross' | 'rectangle'
 export type AttackMode = 'fixed' | 'manhattan' | 'random'
-export type EnemyBehavior = 'hunter' | 'collector' | 'disruptor' | 'warden'
+export type EnemyBehavior = 'hunter' | 'collector' | 'disruptor' | 'warden' | 'grazer'
 
 export type AttackStep = {
   name: string
@@ -76,6 +79,13 @@ export type BossStageDefinition = {
   desireFloor: number
 }
 
+// What a BROOD Geek gives birth to: a Geek without an id or a place yet.
+export type BroodDefinition = {
+  // Most births alive at once; a birth beyond it is lost.
+  limit: number
+  spawn: Omit<EnemyDefinition, 'id' | 'pos' | 'bossStages' | 'brood'>
+}
+
 export type EnemyDefinition = {
   id: string
   name: string
@@ -96,6 +106,15 @@ export type EnemyDefinition = {
   breakdownAt?: number
   desireFloor?: number
   bossStages?: BossStageDefinition[]
+  // No unit glyph on the board and no name on its card.
+  hidden?: boolean
+  // Its numbers are withheld while it is not LIVE and still in Stage I. The
+  // rules never read this: see `disclosed` in mechanics.ts.
+  undisclosed?: boolean
+  // MYSTERY: Security it is restored to at the end of its resolve, Stage I only.
+  mystery?: number
+  // BROOD: a full Soul counter queues a birth instead of healing.
+  brood?: BroodDefinition
 }
 
 export type EnemyState = EnemyDefinition & {
@@ -106,6 +125,8 @@ export type EnemyState = EnemyDefinition & {
   route: Coord[]
   effectCell: Coord | null
   statuses: string[]
+  // The turn a BROOD birth first stood on the board; absent on the roster.
+  born?: number
 } & EnemyMarks
 
 // What skills write on a Geek and other skills read. `live` is the turn the
@@ -210,7 +231,57 @@ export type EnemyResourcePreview = {
   securityGain: number
   recovery: number
   soulCounterAfter: number
+  // The Soul counter fills on a BROOD Geek: a birth, not a recovery.
+  brood?: boolean
 }
+
+export type ArticleEffect = 'swap_bash_privilege' | 'swap_core_overload' | 'mirror' | 'floor_up' | 'croquet'
+
+// One entry of script.json "articles".
+export type Article = {
+  id: string
+  number: number
+  title: string
+  rule: string
+  effect: ArticleEffect
+  gloss: string
+}
+
+// The public state of the boss rule, for the protocol panel. Everything here
+// changes only at a turn boundary, except `queued`, which rises during the
+// enemy phase and is emptied at the boundary.
+export type MechanicState =
+  | { kind: 'curtain' }
+  | {
+    kind: 'brood'
+    bossId: string
+    // Births so far, and the panel's "n OF 1000": n doubles with each birth.
+    births: number
+    count: number
+    // Births that will be placed when this turn ends.
+    queued: number
+    alive: number
+    limit: number
+  }
+  | {
+    kind: 'articles'
+    bossId: string
+    // Article ids in the order this encounter draws them, and how many were drawn.
+    order: string[]
+    drawn: number
+    inForce: Article | null
+    pending: Article | null
+    // The turn `pending` is in force from, and the turn boundaries until then
+    // (1 = when this turn ends).
+    pendingTurn: number
+    countdown: number
+  }
+  | {
+    kind: 'undisclosed'
+    bossId: string
+    // The Security MYSTERY restores each turn; null once it has ended.
+    mystery: number | null
+  }
 
 export type BattleState = {
   // The two Bash decks in play, built from the loadout chosen on the menu.
@@ -253,4 +324,12 @@ export type BattleState = {
   // False while the route is still being walked, so the panel keeps showing
   // the forecast PRIVILEGE and REPAIR until they are actually granted.
   resourcesResolved: boolean
+  // What is being fought, the player's numbers for this battle, and the
+  // public state of the boss rule (null when the encounter has none).
+  encounter: Encounter
+  tuning: Tuning
+  mechanic: MechanicState | null
+  // TRACE: turns left before every Geek's Desire starts to rise, counting this
+  // one; 0 once it is rising; null when the encounter has no TRACE.
+  trace: number | null
 }

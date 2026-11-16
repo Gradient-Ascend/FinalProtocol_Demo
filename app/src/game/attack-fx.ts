@@ -42,6 +42,17 @@ type Ctx = { fx: AttackEffect; p: Coord; t: Coord; col: string[]; dir: number; a
 
 export type FxView = { origin: Coord; cell: number; dpr: number }
 
+// Amber is the colour of what the player sends out. The last amber words and
+// numbers the board showed are kept (this page load only), because one
+// display moment gives them back: see the third boss's entrance.
+export type AmberMark = { x: number; y: number; text: string }
+const amberShown: AmberMark[] = []
+function rememberAmber(at: Coord, text: string): void {
+  amberShown.push({ x: at.x, y: at.y, text })
+  if (amberShown.length > 24) amberShown.shift()
+}
+export function amberMemory(): readonly AmberMark[] { return amberShown }
+
 const rnd = (a: number, b: number) => a + Math.random() * (b - a)
 const pick = <T>(list: T[]): T => list[(Math.random() * list.length) | 0]
 const mid = (pos: Coord): Coord => ({ x: pos.x + 0.5, y: pos.y + 0.5 })
@@ -177,6 +188,7 @@ export class AttackFx {
   private tag(at: Coord, text: string, color: string): void {
     this.tags = this.tags.filter(tag => tag.x !== at.x || tag.y !== at.y)
     this.tags.push({ x: at.x, y: at.y, text, color, t: 0, dur: 1.15 })
+    if (color === AMBER[0]) rememberAmber(at, text)
   }
 
   // The interactions a hit triggered (PUSH, PINNED, BREACH, LIVE…), in white
@@ -195,6 +207,7 @@ export class AttackFx {
     const text = dealt > 0 ? `−${dealt}` : fx.absorbed ? 'BLOCKED' : '−0'
     this.nums = this.nums.filter(num => num.x !== at.x || num.y !== at.y)
     this.nums.push({ x: at.x, y: at.y, text, color: dealt > 0 ? col[0] : '#8d8b85', big: dealt >= 5, t: 0, dur: 0.95 })
+    if (dealt > 0 && col === AMBER) rememberAmber(at, text)
   }
 
   private ripple(at: Coord, force: number, radius = 3.2): void {

@@ -1,24 +1,34 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
-  ArrowRight, BookOpen, Check, ChevronDown, ChevronRight, Circle, Cpu, Gauge,
+  ArrowRight, BookOpen, Check, ChevronRight, Circle, Cpu, Gauge,
   Hexagon, Home as HomeIcon, Maximize2, Minimize2, Play, RotateCcw, Settings, Shield, ShieldAlert, SquareTerminal,
-  X, Zap,
+  Zap,
 } from 'lucide-react'
+import { useCampaign } from '@/hooks/useCampaign'
 import { useFullscreen } from '@/hooks/useFullscreen'
+import { useSuspension } from '@/hooks/useSuspension'
 import { startGame, stopGame, zoomMap } from '@/game/boot'
 import { battleStore } from '@/game/battle-store'
-import { ENEMY_DEFINITIONS, MAX_ACTIONS, OVERLOAD_THRESHOLD, PLAYER_FUNCTIONS } from '@/game/battle-config'
-import { DEFAULT_LOADOUT, FRAMES, SKILLS, assignSkill, cloneLoadout, frameById, skillById, slotLabel } from '@/game/skills'
-import type { Loadout } from '@/game/skills'
-import { coordKey, curtainLabel } from '@/game/battle-rules'
+import { MAX_ACTIONS } from '@/game/battle-config'
+import { coordKey } from '@/game/battle-rules'
 import { mechanicText, predictedSequence, rangeText, releaseCount, riderText } from '@/game/attack-methods'
 import { predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from '@/game/enemy-attack-methods'
-import type { Coord, CoreBuff, EnemyMarks, FlagKind } from '@/game/battle-types'
+import { disclosed, mysteryActive } from '@/game/mechanics'
+import type { Coord, EnemyMarks, FlagKind } from '@/game/battle-types'
+import { Transcript } from '@/story/Transcript'
+import { VoiceLine } from '@/story/VoiceLine'
+import { BattleTicker } from '@/ui/BattleTicker'
+import { Manual } from '@/ui/Manual'
+import { Modal } from '@/ui/Modal'
+import { ProtocolPanel } from '@/ui/ProtocolPanel'
+import { Scenes } from '@/ui/Scenes'
+import { TitleScreen } from '@/ui/TitleScreen'
+import { ROMAN, WITHHELD, behaviourText, desireChips, glitchName, heardSoFar, panelLine, sureText } from '@/ui/battle-text'
+import { bootCampaign, reportOutcome, returnToTitle } from '@/ui/flow'
+import { layerHue, layerInk } from '@/ui/layers'
+import { storyFeed } from '@/ui/story-feed'
 
-const ROMAN = ['I', 'II', 'III', 'IV']
 const BLOCK_COLOR = '#f5f5f5'
-const WARDEN = ENEMY_DEFINITIONS.find(enemy => enemy.bossStages?.length)
-const breakdownAt = WARDEN ? Math.ceil(WARDEN.robustness * (WARDEN.breakdownAt ?? 0.5)) : 0
 
 function FlagIcon({ kind, size = 16 }: { kind: FlagKind; size?: number }) {
   if (kind === 'bash') return <SquareTerminal size={size} strokeWidth={1.7} />
@@ -34,13 +44,17 @@ type HealthHit = {
   className: string
   label: string
   active?: boolean
+  // Its size is withheld: it is drawn as part of one unmeasured stretch.
+  unknown?: boolean
   onPreview: () => void
 }
 
 // The bar shows raw damage only. `hits` are the hits still to land, in order;
 // each is a segment hanging off the right end of the current HP, and the white
 // fill is what would remain if all of them landed unblocked. Block and repair
-// are shown beneath the bar and never reshape the segments.
+// are shown beneath the bar and never reshape the segments. A hit whose size
+// is withheld takes no measured place: such hits share one hatched stretch
+// that fades out over what is left, so no width on the bar stands for them.
 //
 // When a hit lands the bar takes the blow: the fill snaps back at once, the
 // bar rattles, the HP lost hangs for a beat in the attacker's colour and then
@@ -154,7 +168,9 @@ function HealthBar({ value, max, hits, live, label, className = '', lossColor, a
   const pct = (amount: number) => `${Math.max(0, Math.min(100, amount / max * 100))}%`
   const placed: (HealthHit & { left: number; right: number })[] = []
   let cursor = value
+  const veiled = hits.filter(hit => hit.unknown)
   for (const hit of hits) {
+    if (hit.unknown) continue
     const left = Math.max(0, cursor - hit.amount)
     if (left < cursor) placed.push({ ...hit, left, right: cursor })
     cursor = left
@@ -162,7 +178,7 @@ function HealthBar({ value, max, hits, live, label, className = '', lossColor, a
 
   return (
     <div className="health-wrap" ref={wrap}>
-      <div className={`segmented-health ${className} ${placed.length ? 'has-preview' : ''} ${live ? 'live' : ''} ${grown ? 'growing' : ''}`} style={{ '--pip': `${5 / max * 100}%` } as React.CSSProperties} aria-label={label}>
+      <div className={`segmented-health ${className} ${placed.length || veiled.length ? 'has-preview' : ''} ${live ? 'live' : ''} ${grown ? 'growing' : ''}`} style={{ '--pip': `${5 / max * 100}%` } as React.CSSProperties} aria-label={label}>
         <span className="health-current" style={{ width: pct(cursor) }} />
         {grown && <i className="gain-chunk" style={{ left: pct(grown.from), width: pct(grown.to - grown.from) }} />}
         <i className={`loss-ghost ${ghostTop === null ? 'draining' : 'struck'}`} style={{ left: pct(value), width: pct(Math.max(0, (ghostTop ?? value) - value)), background: lossColor }} />
@@ -181,6 +197,22 @@ function HealthBar({ value, max, hits, live, label, className = '', lossColor, a
             aria-label={hit.label}
           />
         ))}
+        {veiled.length > 0 && cursor > 0 && (
+          <div className={`health-unknown ${veiled.some(hit => hit.active) ? 'previewing' : ''}`} style={{ width: pct(cursor) }}>
+            {veiled.map(hit => (
+              <button
+                type="button"
+                key={hit.key}
+                onMouseEnter={hit.onPreview}
+                onMouseLeave={onLeave}
+                onFocus={hit.onPreview}
+                onBlur={onLeave}
+                onClick={hit.onPreview}
+                aria-label={hit.label}
+              />
+            ))}
+          </div>
+        )}
       </div>
       <div className="health-debris" ref={debris} aria-hidden="true" />
     </div>
@@ -197,193 +229,18 @@ function tagList(marks: EnemyMarks): string[] {
   ]
 }
 
-type DrawerId = 'a' | 'b' | 'defense' | 'core'
-
-// One collapsible row of the menu's deck list. A closed drawer keeps its
-// summary visible in the header, so the whole build reads at a glance.
-function Drawer({ id, open, onToggle, icon, kicker, title, summary, children }: {
-  id: DrawerId
-  open: boolean
-  onToggle: () => void
-  icon: React.ReactNode
-  kicker: string
-  title: string
-  summary: string
-  children: React.ReactNode
-}) {
-  return (
-    <section className={`drawer ${open ? 'open' : ''}`}>
-      <button type="button" className="drawer-head" onClick={onToggle} aria-expanded={open} aria-controls={`drawer-${id}`}>
-        <span className="drawer-icon">{icon}</span>
-        <span className="drawer-title"><em>{kicker}</em><strong>{title}</strong></span>
-        <span className="drawer-summary">{summary}</span>
-        <ChevronDown size={15} className="drawer-chevron" />
-      </button>
-      <div className="drawer-body" id={`drawer-${id}`} inert={!open}>
-        <div className="drawer-clip"><div className="drawer-content">{children}</div></div>
-      </div>
-    </section>
-  )
-}
-
-// Deck builder shown on the menu, one drawer per deck. In a Bash deck, pick a
-// slot, then pick a skill for it; a skill already placed elsewhere trades
-// places with the one it replaces. The Defense and Core decks have a single
-// fixed build, so their drawers only describe it.
-function LoadoutEditor({ loadout, buffs, onChange }: { loadout: Loadout; buffs: CoreBuff[]; onChange: (loadout: Loadout) => void }) {
-  const [open, setOpen] = useState<DrawerId | null>('a')
-  const [slots, setSlots] = useState([0, 0])
-  const toggle = (id: DrawerId) => setOpen(current => current === id ? null : id)
-  const placement = (id: string): string | null => {
-    for (const [deckIndex, deck] of loadout.entries()) {
-      const slot = deck.skills.findIndex(skill => skill === id)
-      if (slot >= 0) return `${'AB'[deckIndex]}·${ROMAN[slot]}`
-    }
-    return null
-  }
-  const cycleFrame = (deckIndex: number) => {
-    const next = cloneLoadout(loadout)
-    const at = FRAMES.findIndex(frame => frame.id === next[deckIndex].frame)
-    next[deckIndex].frame = FRAMES[(at + 1) % FRAMES.length].id
-    onChange(next)
-  }
-  return (
-    <div className="loadout" aria-label="Deck builder">
-      {loadout.map((deck, deckIndex) => {
-        const frame = frameById(deck.frame)
-        const letter = 'AB'[deckIndex]
-        const slot = slots[deckIndex]
-        const selectedSkill = deck.skills[slot]
-        return (
-          <Drawer
-            key={deckIndex}
-            id={deckIndex === 0 ? 'a' : 'b'}
-            open={open === (deckIndex === 0 ? 'a' : 'b')}
-            onToggle={() => toggle(deckIndex === 0 ? 'a' : 'b')}
-            icon={<SquareTerminal size={15} strokeWidth={1.7} />}
-            kicker={`BASH DECK ${letter} · ${deckIndex === 0 ? 'STARTS ACTIVE' : 'ON OVERLOAD'}`}
-            title={frame.name}
-            summary={deck.skills.map(id => skillById(id).name).join(' · ')}
-          >
-            <button type="button" className="frame-toggle" onClick={() => cycleFrame(deckIndex)} aria-label={`Deck ${letter} frame ${frame.name}. Change frame`}>
-              <span>FRAME</span>
-              <strong>{frame.name}</strong>
-              <em>{frame.description}</em>
-              <i>CHANGE</i>
-            </button>
-            <div className="loadout-slots">
-              {deck.skills.map((id, index) => {
-                const skill = skillById(id)
-                const active = slot === index
-                return (
-                  <button
-                    type="button"
-                    className={`loadout-slot ${active ? 'selected' : ''}`}
-                    key={index}
-                    onClick={() => setSlots(current => current.map((value, i) => i === deckIndex ? index : value))}
-                    aria-pressed={active}
-                    aria-label={`Deck ${letter} slot ${ROMAN[index]}: ${skill.name}, ${slotLabel(skill, index)}`}
-                  >
-                    <span>{ROMAN[index]}</span>
-                    <strong>{skill.name}</strong>
-                    <em>{slotLabel(skill, index)}</em>
-                  </button>
-                )
-              })}
-            </div>
-            <div className="loadout-pool">
-              <div className="pool-row pool-head">
-                <span>SKILL → {letter}·{ROMAN[slot]}</span>
-                {ROMAN.map((numeral, index) => <span className={index === slot ? 'at-slot' : ''} key={numeral}>{numeral}</span>)}
-                <span>IN</span>
-              </div>
-              {SKILLS.map(skill => {
-                const where = placement(skill.id)
-                return (
-                  <button
-                    type="button"
-                    className={`pool-skill ${skill.id === selectedSkill ? 'current' : ''} ${where ? 'placed' : ''}`}
-                    key={skill.id}
-                    onClick={() => onChange(assignSkill(loadout, deckIndex, slot, skill.id))}
-                    aria-label={`Put ${skill.name} in deck ${letter} slot ${ROMAN[slot]}. ${skill.rider}`}
-                  >
-                    <span className="pool-row">
-                      <strong>{skill.name}</strong>
-                      {skill.amounts.map((_, index) => <span className={index === slot ? 'at-slot' : ''} key={index}>{slotLabel(skill, index)}</span>)}
-                      <em>{where ?? '—'}</em>
-                    </span>
-                    <span className="pool-rider">
-                      <i>{skill.writes ? 'WRITES' : 'READS'}</i>
-                      <b>{skill.writes ?? skill.reads}</b>
-                      <span>{skill.rider}</span>
-                    </span>
-                  </button>
-                )
-              })}
-              <p className="pool-legend">Slot N fires with N Bash Flags and N unused action points. ALL hits every Geek in range · P pierces Security · D is the distance to the target. The second line of each skill is its interaction, the same in every slot: it writes a state other skills read (position, LIVE, Security, routes) or reads one.</p>
-            </div>
-          </Drawer>
-        )
-      })}
-      <Drawer
-        id="defense"
-        open={open === 'defense'}
-        onToggle={() => toggle('defense')}
-        icon={<Shield size={15} strokeWidth={1.7} />}
-        kicker="DEFENSE DECK · PRIVILEGE"
-        title="SHELL"
-        summary={`+${PLAYER_FUNCTIONS.privilegePerFlag} PRIVILEGE / FLAG`}
-      >
-        <div className="deck-cards">
-          <article className="deck-card">
-            <header><strong>SHELL</strong><em>AUTOMATIC</em></header>
-            <b>+{PLAYER_FUNCTIONS.privilegePerFlag} PRIVILEGE</b>
-            <p>For every Privilege Flag collected. PRIVILEGE absorbs damage in the enemy phase that follows, then resets.</p>
-          </article>
-        </div>
-        <p className="deck-note">The Defense deck has one fixed function in this build.</p>
-      </Drawer>
-      <Drawer
-        id="core"
-        open={open === 'core'}
-        onToggle={() => toggle('core')}
-        icon={<Cpu size={15} strokeWidth={1.7} />}
-        kicker="CORE DECK · COUNTERS"
-        title={`${buffs.length} BLOCKS`}
-        summary={buffs.map(buff => buff.name).join(' · ')}
-      >
-        <div className="deck-cards">
-          {buffs.map(buff => (
-            <article className="deck-card" key={buff.id}>
-              <header><strong>{buff.name}</strong><em>EVERY {buff.threshold}</em></header>
-              <b>{buff.description}</b>
-              <div className="counter-ticks">{Array.from({ length: buff.threshold }, (_, i) => <i key={i} />)}</div>
-            </article>
-          ))}
-        </div>
-        <p className="deck-note">Every Core Flag advances all three counters at once. The Core deck is fixed in this build.</p>
-      </Drawer>
-    </div>
-  )
-}
-
-function Modal({ children, onClose, label }: { children: React.ReactNode; onClose: () => void; label: string }) {
-  return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={label}>
-      <section className="modal-panel">
-        <button className="icon-button modal-close" onClick={onClose} aria-label="Close"><X size={18} /></button>
-        {children}
-      </section>
-    </div>
-  )
-}
-
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const state = useSyncExternalStore(battleStore.subscribe, battleStore.getSnapshot)
+  // Once, before the first frame: the log decides whether this visit starts
+  // on the attach screen or on the title.
+  useState(() => { bootCampaign(); return null })
+  const campaign = useCampaign()
+  const { scene } = campaign
+  const story = useSyncExternalStore(storyFeed.subscribe, storyFeed.getSnapshot)
+  useSuspension()
   const fullscreen = useFullscreen()
   const presets = state.presets
-  const loadout = battleStore.getLoadout()
   const [manualOpen, setManualOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [methodInspector, setMethodInspector] = useState<{ presetIndex: number; stepIndex: number } | null>(null)
@@ -426,7 +283,11 @@ export default function Home() {
   const incomingSequence = live
     ? state.incomingForecast ?? []
     : state.phase === 'planning' ? predictedEnemySequence(previewState, undefined, state.overloadArmed ? 4 : undefined) : []
-  const incomingDamage = incomingSequence.reduce((total, hit) => total + hit.damage, 0)
+  // Geeks whose numbers the sandbox withholds: their hits have no size on
+  // screen, and neither has anything that could be worked back to one.
+  const veiledIds = new Set(state.enemies.filter(enemy => enemy.robustness > 0 && !disclosed(state, enemy)).map(enemy => enemy.id))
+  const veiledIncoming = incomingSequence.some(hit => veiledIds.has(hit.enemyId))
+  const incomingDamage = incomingSequence.reduce((total, hit) => total + (veiledIds.has(hit.enemyId) ? 0 : hit.damage), 0)
   const playerResources = predictedPlayerResources(previewState)
   const sanityAfterHits = incomingSequence.length ? incomingSequence[incomingSequence.length - 1].after : state.player.sanity
   const projectedSanity = sanityAfterHits > 0 ? Math.min(state.player.maxSanity, sanityAfterHits + playerResources.healing) : 0
@@ -441,14 +302,23 @@ export default function Home() {
     ? state.attackPreview.stepIndex
     : state.overloadArmed ? null : state.attackPreview?.stepIndex ?? null
   const visibleSequence = singleStep === null ? sequence : sequence.filter(hit => hit.stepIndex === singleStep)
-  const overloadDamage = visibleSequence.reduce((total, hit) => total + hit.dealt, 0)
+  // What a hit takes after Security. On a withheld Geek it is not capped by
+  // the Robustness left, which would give that number away.
+  const landed = (hit: { enemyId: string; damage: number; absorbed: number; dealt: number }) =>
+    veiledIds.has(hit.enemyId) ? Math.max(0, hit.damage - hit.absorbed) : hit.dealt
+  const overloadDamage = visibleSequence.reduce((total, hit) => total + landed(hit), 0)
   const overloadHasTargets = visibleSequence.length > 0
   const aliveEnemies = state.enemies.filter(enemy => enemy.robustness > 0)
   // Geek bars break in the colour of whatever is hitting them: violet for an
   // Overload (the only damage dealt while planning), otherwise the active deck's.
   const strikeColor = !live ? '#a78bfa' : presets[state.player.activeBash].steps[0].shape === 'cross' ? '#5ee6ff' : '#ffc857'
-  const boss = aliveEnemies.find(enemy => enemy.bossStages?.length)
+  const { tuning } = state
+  const overloadReady = state.player.overload >= tuning.overloadThreshold
   const canAct = state.phase === 'planning'
+  // What each Geek's route will give it this turn; fixed once the turn starts.
+  const enemyResources = (enemyId: string) => state.enemyResourcePreviews[enemyId]
+    ?? predictedEnemyResources(attackSequenceState, enemyId, state.overloadArmed ? 4 : undefined)
+  const broodForecast = state.mechanic?.kind === 'brood' && aliveEnemies.some(enemy => enemyResources(enemy.id).brood)
   const plannedCore = canAct ? state.actions.filter(action => action.type === 'move' && action.flag === 'core').length : 0
   const releases = state.overloadArmed ? 4 : releaseCount(previewState)
   const bashDisplayIndex = state.overloadArmed ? displayActiveBash : bashView
@@ -492,8 +362,20 @@ export default function Home() {
     clearTimer.current = window.setTimeout(clearMethodPreview, 180)
   }
 
+  // A full-screen scene is over the battle: the board stays mounted under it,
+  // out of reach of the pointer and the Tab key.
+  const covered = scene !== 'battle' && scene !== 'title'
+  const ended = scene === 'battle' && (state.phase === 'victory' || state.phase === 'gameover')
+  const outcomeLines = story.lines.filter(line => line.event === 'victory' || line.event === 'defeat')
+
   return (
-    <div id="game-root" className={`phase-${state.phase} ${state.reducedMotion ? 'reduced-motion' : ''} device-panel-${devicePanel}`}>
+    <>
+    <div
+      id="game-root"
+      className={`phase-${state.phase} scene-${scene} ${state.reducedMotion ? 'reduced-motion' : ''} device-panel-${devicePanel}`}
+      style={{ '--story-accent': layerHue(state.encounter.layer), '--layer-ink': layerInk(state.encounter.layer) } as React.CSSProperties}
+      inert={covered}
+    >
       <header className="top-bar">
         <div className="sandbox-id">
           <span className="status-dot" />
@@ -531,7 +413,9 @@ export default function Home() {
             <div className="identity-stats">
               <div className="hp-number">
                 {state.player.sanity}<span> / {state.player.maxSanity}</span>
-                {!live && projectedSanity !== state.player.sanity && <em className="player-to-be">→ {projectedSanity}</em>}
+                {!live && veiledIncoming
+                  ? <em className="player-to-be">→ {WITHHELD}</em>
+                  : !live && projectedSanity !== state.player.sanity && <em className="player-to-be">→ {projectedSanity}</em>}
               </div>
               <div className="stat-label">Desires' Scissors</div>
             </div>
@@ -543,15 +427,16 @@ export default function Home() {
             hits={incomingSequence.filter(hit => hit.damage > 0).map(hit => ({
               key: `${hit.enemyId}-${hit.stepIndex}`,
               amount: hit.damage,
+              unknown: veiledIds.has(hit.enemyId),
               className: 'incoming-segment',
-              label: `Preview ${hit.enemyId} attack ${hit.stepIndex + 1}: ${hit.damage} raw damage`,
+              label: `Preview ${hit.enemyId} attack ${hit.stepIndex + 1}: ${veiledIds.has(hit.enemyId) ? 'withheld' : hit.damage} raw damage`,
               active: state.enemyAttackPreview?.enemyId === hit.enemyId && state.enemyAttackPreview.stepIndex === hit.stepIndex,
               onPreview: () => previewEnemyAttack(hit.enemyId, hit.stepIndex),
             }))}
             live={live}
             lossColor="#ff5d73"
             absorbed={state.absorbedTotals.player ?? 0}
-            label={`Sanity ${state.player.sanity} of ${state.player.maxSanity}; ${incomingDamage} raw damage incoming`}
+            label={`Sanity ${state.player.sanity} of ${state.player.maxSanity}; ${incomingDamage} raw damage incoming${veiledIncoming ? ', and hits of a withheld size' : ''}`}
             onLeave={clearEnemyAttackPreview}
           />
           <div className="status-row">
@@ -618,9 +503,9 @@ export default function Home() {
               })()}
             </div>
             <button
-              className={`overload-button ${state.player.overload >= OVERLOAD_THRESHOLD ? 'ready' : ''} ${state.overloadArmed ? 'armed' : ''}`}
+              className={`overload-button ${overloadReady ? 'ready' : ''} ${state.overloadArmed ? 'armed' : ''}`}
               onClick={() => battleStore.requestOverload()}
-              disabled={!canAct || state.player.overload < OVERLOAD_THRESHOLD || state.actions.length >= MAX_ACTIONS}
+              disabled={!canAct || !overloadReady || state.actions.length >= MAX_ACTIONS}
               title={state.overloadArmed ? 'Press again to release Overload' : 'Preview Overload; press again to release'}
             >
               <Gauge size={16} />
@@ -628,7 +513,7 @@ export default function Home() {
               <strong className="overload-preview-value">
                 {state.overloadArmed
                   ? (overloadHasTargets ? `−${overloadDamage}` : 'NO TARGET')
-                  : `${state.player.overload} / ${OVERLOAD_THRESHOLD}`}
+                  : `${state.player.overload} / ${tuning.overloadThreshold}`}
               </strong>
             </button>
             <div className={`method-detail ${inspector ? 'active' : ''}`} aria-live="polite" onMouseEnter={cancelMethodClear} onMouseLeave={scheduleMethodClear}>
@@ -647,7 +532,7 @@ export default function Home() {
 
           <section className="panel-section compact-section">
             <div className="section-heading"><span>PRIVILEGE</span><Shield size={14} /></div>
-            <div className="defense-function"><strong>SHELL</strong><span>+{PLAYER_FUNCTIONS.privilegePerFlag} PRIVILEGE / Flag</span></div>
+            <div className="defense-function"><strong>SHELL</strong><span>+{tuning.privilegePerFlag} PRIVILEGE / Flag</span></div>
           </section>
 
           <section className="panel-section buff-section">
@@ -681,11 +566,20 @@ export default function Home() {
         </aside>
 
         <section className="board-area" aria-label="Battle map with hexadecimal Warp coordinates">
-          <canvas id="game-canvas" ref={canvasRef} />
-          <div className="map-zoom-controls" aria-label="Map zoom controls">
-            <button type="button" onClick={() => zoomMap('out')} aria-label="Zoom out">−</button>
-            <button type="button" className="zoom-value" onClick={() => zoomMap('reset')} aria-label="Reset map zoom">{Math.round(mapZoom * 100)}%</button>
-            <button type="button" onClick={() => zoomMap('in')} aria-label="Zoom in">+</button>
+          <div className="board-stage">
+            <canvas id="game-canvas" ref={canvasRef} />
+          </div>
+          <div className="board-foot">
+            {/* The story's one line slot. Nothing in it appears, moves or leaves while a route is being planned. */}
+            <BattleTicker
+              frozen={state.phase !== 'resolving' && state.phase !== 'victory' && state.phase !== 'gameover'}
+              reducedMotion={state.reducedMotion}
+            />
+            <div className="map-zoom-controls" aria-label="Map zoom controls">
+              <button type="button" onClick={() => zoomMap('out')} aria-label="Zoom out">−</button>
+              <button type="button" className="zoom-value" onClick={() => zoomMap('reset')} aria-label="Reset map zoom">{Math.round(mapZoom * 100)}%</button>
+              <button type="button" onClick={() => zoomMap('in')} aria-label="Zoom in">+</button>
+            </div>
           </div>
         </section>
 
@@ -698,23 +592,8 @@ export default function Home() {
             </button>
           </section>
 
-          {boss && <section className="boss-protocol" aria-label="Warden boss protocol">
-            <div className="section-heading"><span>WARDEN / STAGE {ROMAN[boss.stage - 1]}</span><ShieldAlert size={14} /></div>
-            <div className="boss-sets">
-              <span>DESIRE <strong>{boss.desireName}</strong></span>
-              <span>SECURITY <strong>{boss.securityName}</strong></span>
-              <span>SOUL <strong>{boss.soulName}</strong></span>
-            </div>
-            <div className="breakdown-line">
-              <span>BREAKDOWN</span>
-              <strong>{boss.stage === 1 ? `AT ${Math.ceil(boss.maxRobustness * (boss.breakdownAt ?? 0.5))} ROBUSTNESS` : 'SPENT / DUAL CURTAIN'}</strong>
-            </div>
-            <div className="curtain-list">
-              {state.curtains.map(curtain => <span className={curtain.locked ? 'locked' : ''} key={`${curtain.axis}-${curtain.index}`}>
-                {curtain.locked ? 'SEALED' : `T−${Math.max(0, curtain.fireTurn - state.turn)}`} / {curtainLabel(curtain)}
-              </span>)}
-            </div>
-          </section>}
+          {/* The feed keeps the last battle's lines until the next one starts: outside a battle the panel says nothing. */}
+          <ProtocolPanel key={state.encounter.id} state={state} broodForecast={!live && broodForecast} said={scene === 'battle' ? panelLine(story.lines) : undefined} />
 
           <section className="enemy-list-section">
             <div className="section-heading"><span>HOSTILES</span><strong>{aliveEnemies.length}</strong></div>
@@ -723,27 +602,41 @@ export default function Home() {
                 const allHits = sequence.filter(hit => hit.enemyId === enemy.id)
                 const hits = visibleSequence.filter(hit => hit.enemyId === enemy.id)
                 const projected = hits.length ? hits[hits.length - 1].after : enemy.robustness
-                const resources = state.enemyResourcePreviews[enemy.id] ?? predictedEnemyResources(attackSequenceState, enemy.id, state.overloadArmed ? 4 : undefined)
+                const resources = enemyResources(enemy.id)
                 const showForecast = hits.length > 0
                 // Tags the Geek has now, and how the hits still to land change them.
                 const tags = tagList(enemy)
                 const tagsAfter = hits.length && !live ? tagList(hits[hits.length - 1].marks) : tags
                 const events = live ? [] : [...new Set(hits.flatMap(hit => hit.events))]
                   .filter(word => !['LIVE', 'BREACH', 'DROP'].includes(word))
+                // UNDISCLOSED: its Robustness and Desire amounts are printed only while the sandbox allows.
+                const open = !veiledIds.has(enemy.id)
+                const pending = hits.reduce((total, hit) => total + landed(hit), 0)
+                const chips = desireChips(state, enemy)
+                const sure = sureText(chips)
+                // A Geek with nothing to print has a glitch in its name slot. It is
+                // picked by what the card shows (never by a withheld number), so it
+                // changes when the card does and at no other time.
+                const nameShown = enemy.hidden
+                  ? glitchName(state.encounter.layer, JSON.stringify([state.turn, live, enemy.block, enemy.soulCounter, tags, tagsAfter, events, pending, resources.securityGain, resources.soulCounterAfter, enemy.route]))
+                  : enemy.name
                 return (
-                  <article className={`enemy-card ${showForecast ? 'affected' : ''} ${hoveredEnemy === enemy.id ? 'map-hover' : ''}`} key={enemy.id} data-enemy={enemy.id}>
+                  <article className={`enemy-card ${showForecast ? 'affected' : ''} ${hoveredEnemy === enemy.id ? 'map-hover' : ''} ${open ? '' : 'withheld'}`} key={enemy.id} data-enemy={enemy.id}>
                     <div className="enemy-card-head">
-                      <div className="enemy-avatar"><Hexagon size={27} strokeWidth={1.4} /><span>{enemy.id}</span></div>
+                      {/* The one that comes in person has no glyph and no label. */}
+                      <div className="enemy-avatar">{!enemy.hidden && <><Hexagon size={27} strokeWidth={1.4} /><span>{enemy.id}</span></>}</div>
                       <div className="enemy-name">
-                        <strong>{enemy.name}</strong>
-                        <span>{enemy.behavior.toUpperCase()}</span>
+                        <strong>{nameShown || '\u00a0'}</strong>
+                        <span>{behaviourText(enemy)}</span>
                       </div>
                     </div>
                     <div className="enemy-hp">
-                      <strong>{enemy.robustness}{showForecast && !live && <em className="to-be"> → {projected}</em>}<small> / {enemy.maxRobustness}</small></strong>
+                      {open
+                        ? <strong>{enemy.robustness}{showForecast && !live && <em className="to-be"> → {projected}</em>}<small> / {enemy.maxRobustness}</small></strong>
+                        : <strong>{WITHHELD}{showForecast && !live && pending > 0 && <em className="to-be"> −{pending}</em>}<small> / {WITHHELD}</small></strong>}
                       <span>ROBUSTNESS</span>
                     </div>
-                    <HealthBar
+                    {open ? <HealthBar
                       value={enemy.robustness}
                       max={enemy.maxRobustness}
                       hits={allHits.filter(hit => hit.damage > 0).map(hit => ({
@@ -759,16 +652,34 @@ export default function Home() {
                       absorbed={state.absorbedTotals[enemy.id] ?? 0}
                       label={`Robustness ${enemy.robustness} of ${enemy.maxRobustness}; ${allHits.reduce((total, hit) => total + hit.damage, 0)} raw damage incoming`}
                       onLeave={clearMethodPreview}
-                    />
+                    /> : (
+                      // No fill, no pips: nothing on this bar can be measured.
+                      <div className="health-wrap"><div className={`health-withheld ${showForecast && !live ? 'struck' : ''}`} role="img" aria-label="Robustness withheld" /></div>
+                    )}
                     <div className="enemy-tags" aria-label={`Tags on ${enemy.id}`}>
                       {tags.map(tag => <span className={`enemy-tag ${tagsAfter.includes(tag) ? '' : 'spent'}`} key={tag}>{tag}</span>)}
                       {tagsAfter.filter(tag => !tags.includes(tag)).map(tag => <span className="enemy-tag pending" key={tag}>→ {tag}</span>)}
                       {events.map(word => <span className="enemy-tag event pending" key={word}>{word}</span>)}
                       {!tags.length && tagsAfter.length === 0 && !events.length && <span className="enemy-tag none">NO TAGS</span>}
                     </div>
+                    {/* Its Desire steps in release order. A SURE step needs no Bash Flag. */}
+                    <div className="enemy-desire" aria-label={`Desire steps of ${enemy.id}${sure ? `; ${sure}` : ''}`}>
+                      <span>DESIRE</span>
+                      {chips.map(chip => (
+                        <i className={chip.sure ? 'sure' : ''} key={chip.numeral} title={chip.sure ? 'Released every turn' : 'Released for a Bash Flag on its route'}>
+                          {chip.numeral}<b>{chip.amount}</b>
+                        </i>
+                      ))}
+                      {sure && <em>{sure}</em>}
+                    </div>
                     <div className="enemy-status">
-                      <span className={enemy.block ? 'has-block' : ''}>SECURITY {enemy.block}{!live && resources.securityGain > 0 && <em className="gain"> +{resources.securityGain}</em>}</span>
-                      <span>SOUL {enemy.soulCounter}/{enemy.soulThreshold}{!live && resources.recovery > 0 && <em className="gain"> +{resources.recovery} HP</em>}</span>
+                      {/* MYSTERY does not add to its Security: it puts it back. */}
+                      <span className={enemy.block ? 'has-block' : ''}>SECURITY {enemy.block}{!live && resources.securityGain > 0 && <em className="gain"> {mysteryActive(enemy) ? '→ ' : '+'}{resources.securityGain}</em>}</span>
+                      <span>
+                        SOUL {enemy.soulCounter}/{enemy.soulThreshold}
+                        {!live && resources.brood && <em className="gain brood"> BROOD</em>}
+                        {!live && resources.recovery > 0 && <em className="gain"> +{open ? resources.recovery : WITHHELD} HP</em>}
+                      </span>
                     </div>
                     <div className="enemy-route">
                       <span>ROUTE</span>
@@ -783,64 +694,45 @@ export default function Home() {
         </aside>
       </main>
 
-      {state.phase === 'title' && (
-        <div className="state-overlay title-overlay">
-          <div className="title-content">
-            <div className="eyebrow">WARDEN PROTOCOL / CURTAIN</div>
-            <h1>FINAL<br />PROTOCOL</h1>
-            <button className="primary-action" onClick={() => battleStore.start()}><Play size={16} /> BREACH SANDBOX <span>SPACE</span></button>
-            <button className="secondary-action reset-decks" onClick={() => battleStore.setLoadout(DEFAULT_LOADOUT)}><RotateCcw size={15} /> DEFAULT DECKS</button>
-          </div>
-          <LoadoutEditor loadout={loadout} buffs={state.player.buffs} onChange={next => battleStore.setLoadout(next)} />
-        </div>
-      )}
+      {scene === 'title' && state.phase === 'title' && <TitleScreen state={state} campaign={campaign} />}
 
       {state.phase === 'paused' && (
-        <div className="state-overlay">
-          <div className="pause-content">
-            <h2>PAUSED</h2>
-            <button className="primary-action" onClick={() => battleStore.togglePause()}><Play size={16} /> RESUME</button>
-            <div className="pause-menu">
-              <button onClick={() => battleStore.restart()}><RotateCcw size={15} /> RESTART BATTLE</button>
-              <button onClick={() => battleStore.returnToMenu()}><HomeIcon size={15} /> RETURN TO MAIN MENU</button>
+        <div className="state-overlay pause-overlay">
+          <div className="pause-content with-context">
+            <div className="pause-controls">
+              <h2>PAUSED</h2>
+              <button className="primary-action" onClick={() => battleStore.togglePause()}><Play size={16} /> RESUME</button>
+              <div className="pause-menu">
+                <button onClick={() => battleStore.restart()}><RotateCcw size={15} /> RESTART BATTLE</button>
+                <button onClick={returnToTitle}><HomeIcon size={15} /> RETURN TO MAIN MENU</button>
+              </div>
             </div>
+            {/* Everything said so far, without the lines still waiting for a turn to resolve. It is still: nothing here arrives or leaves. */}
+            <Transcript className="pause-context" entries={heardSoFar(campaign.meta.transcript, storyFeed.waiting())} limit={120} />
           </div>
         </div>
       )}
 
-      {(state.phase === 'victory' || state.phase === 'gameover') && (
-        <div className="state-overlay">
+      {/* The battle is over. CONTINUE hands the result to the run; R fights the same battle again. */}
+      {ended && (
+        <div className="state-overlay outcome-overlay">
           <div className="outcome-content">
             <div className="outcome-icon">{state.phase === 'victory' ? <Check size={34} /> : <ShieldAlert size={34} />}</div>
-            <h2>{state.phase === 'victory' ? 'ESCAPED' : 'ELIMINATED'}</h2>
-            <button className="primary-action" onClick={() => battleStore.restart()}><RotateCcw size={16} /> RESTART BATTLE <span>R</span></button>
+            <div className="eyebrow">{state.message}</div>
+            <h2>{state.phase !== 'victory' ? 'ELIMINATED' : state.encounter.layer === 0 ? 'ESCAPED' : state.encounter.kind === 'boss' ? 'BREACHED' : 'BROKEN'}</h2>
+            <div className="outcome-lines" aria-live="polite">
+              {outcomeLines.map(line => <p key={line.id} data-voice={line.voice}><VoiceLine voice={line.voice} text={line.text} id={line.id} live reducedMotion={state.reducedMotion} /></p>)}
+            </div>
+            <button className="primary-action" onClick={reportOutcome}><ArrowRight size={16} /> CONTINUE <span>SPACE</span></button>
             <div className="pause-menu">
-              <button onClick={() => battleStore.returnToMenu()}><HomeIcon size={15} /> RETURN TO MAIN MENU</button>
+              <button onClick={() => battleStore.restart()}><RotateCcw size={15} /> RESTART BATTLE <span>R</span></button>
+              <button onClick={returnToTitle}><HomeIcon size={15} /> RETURN TO MAIN MENU</button>
             </div>
           </div>
         </div>
       )}
 
-      {manualOpen && (
-        <Modal onClose={() => setManualOpen(false)} label="Battle manual">
-          <div className="eyebrow">BLACKWALL_01 / DOCUMENTATION</div>
-          <h2>BATTLE MANUAL</h2>
-          <div className="manual-grid">
-            <section><h3>OBJECTIVE</h3><p>Reduce every hostile’s <strong>Robustness</strong> to zero to escape. Your own health is <strong>Sanity</strong>; at zero, the run ends.</p></section>
-            <section><h3>TURN</h3><p>Enemy routes and Curtain targets are exposed first. Plan up to eight operations, execute your Functions, then enemies move and attack one step at a time. Warps reindex last.</p></section>
-            <section><h3>BOARD FORECAST</h3><p>The small symbols above the coordinates are the next Warps entering each column. Only columns changed by a pickup or purge drop, so untouched routes remain stable.</p></section>
-            <section><h3>CURTAIN</h3><p>Red dashed rows or columns are fixed two turns ahead. When their countdown reaches zero, they seal for your next planning turn. Sealed Warps cannot be entered or collected by either side.</p></section>
-            <section><h3>BREAKDOWN</h3><p>At {breakdownAt} Robustness, the Warden enters Stage II: REHEARSAL becomes OVERTURE, CLOSE becomes DEADLOCK, and REPAIR becomes REWRITE. Future Curtains cover both axes around the position you occupied when they were scheduled.</p></section>
-            <section><h3>DESIRE</h3><p>The Warden always releases Desire I each turn, and Desire I and II in Stage II, even without Bash Flags. Collected Bash Flags unlock its remaining methods. Every release is previewed before execution.</p></section>
-            <section><h3><SquareTerminal size={15} /> BASH</h3><p>Release length is the lower of Bash collected, remaining AP, and IV. Each deck has a frame that sets its range (VECTOR is a 5×5 square, CoT a cross with arm length 5) and four skills, one per Roman numeral. A skill is stronger the later its slot. Decks are built on the main menu.</p></section>
-            <section><h3><Shield size={15} /> PRIVILEGE</h3><p>SHELL automatically adds {PLAYER_FUNCTIONS.privilegePerFlag} PRIVILEGE per collected Privilege Flag. PRIVILEGE absorbs incoming damage for the following enemy phase. HP bars show raw damage; PRIVILEGE and REPAIR are listed beneath the bar.</p></section>
-            <section><h3><Cpu size={15} /> CORE</h3><p>Every Core Flag advances all three independent counters. REPAIR restores Sanity at the end of the turn, after enemies attack; FOCUS makes the next Bash hit tag its target LIVE, and FIREWALL adds PRIVILEGE.</p></section>
-            <section><h3><Zap size={15} /> INTERACTIONS</h3><p>Every skill has a rider that works in any slot. <strong>PUSH</strong> and <strong>PULL</strong> move a Geek one cell, and it carries its route with it; blocked by a wall, a Geek, the edge or a sealed Curtain it is a <strong>BUMP</strong>: 1 damage to it and to a Geek it hits. <strong>BREACH</strong>: a hit that takes Security to 0 makes later hits that turn deal +1. <strong>LIVE</strong> is a tag set up by one release and read by the next release or an Overload; a Geek that collects a Privilege Flag scrubs it, and a Desire step your PRIVILEGE blocks in full tags the attacker. Bumps, Breaches and spent LIVE tags each give 1 Overload charge, up to 2 a turn. Tags are listed under each Geek’s Robustness bar.</p></section>
-            <section><h3><Gauge size={15} /> OVERLOAD</h3><p>Five charges enable the only manual Function. The first click or O previews all four methods from the planned endpoint; the second spends one AP, switches to the other deck at once, and releases that deck’s four methods without consuming Bash Flags. Normal end-of-turn Bash still releases afterward. Escape cancels the preview.</p></section>
-          </div>
-          <div className="controls-table"><span>WASD / ARROWS</span><strong>Plan route</strong><span>DRAG / ONE FINGER</span><strong>Pan map</strong><span>PINCH / WHEEL</span><strong>Zoom map</strong><span>BACKSPACE</span><strong>Undo move</strong><span>SPACE</span><strong>Execute</strong><span>O</span><strong>Overload</strong><span>ESC</span><strong>Pause</strong></div>
-        </Modal>
-      )}
+      {manualOpen && <Manual state={state} weights={campaign.run?.weights ?? []} onClose={() => setManualOpen(false)} />}
 
       {settingsOpen && (
         <Modal onClose={() => setSettingsOpen(false)} label="Settings">
@@ -848,9 +740,11 @@ export default function Home() {
           <div className="setting-row"><div><strong>AUDIO</strong></div><button className={`toggle ${state.muted ? '' : 'on'}`} onClick={() => battleStore.toggleMute()} aria-label="Toggle audio"><span />{state.muted ? 'MUTED' : 'ON'}</button></div>
           <div className="setting-row"><div><strong>REDUCED MOTION</strong></div><button className={`toggle ${state.reducedMotion ? 'on' : ''}`} onClick={() => battleStore.toggleReducedMotion()} aria-label="Toggle reduced motion"><span />{state.reducedMotion ? 'ON' : 'OFF'}</button></div>
           <button className="secondary-action full-width" onClick={() => { setSettingsOpen(false); battleStore.restart() }}><RotateCcw size={15} /> RESTART BATTLE</button>
-          {state.phase !== 'title' && <button className="secondary-action full-width menu-return" onClick={() => { setSettingsOpen(false); battleStore.returnToMenu() }}><HomeIcon size={15} /> RETURN TO MAIN MENU</button>}
+          {state.phase !== 'title' && <button className="secondary-action full-width menu-return" onClick={() => { setSettingsOpen(false); returnToTitle() }}><HomeIcon size={15} /> RETURN TO MAIN MENU</button>}
         </Modal>
       )}
     </div>
+    <Scenes campaign={campaign} state={state} />
+    </>
   )
 }

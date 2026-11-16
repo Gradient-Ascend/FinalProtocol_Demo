@@ -221,7 +221,7 @@
     { "id": "l1.boss4", "voice": "BOSS", "event": "brood", "when": { "encounter": "1.B", "brood_gte": 3 }, "tier": 0, "once": "battle", "text": "Again. Again. Again." },
     { "id": "l1.boss5", "voice": "BOSS", "event": "breakdown", "when": { "encounter": "1.B" }, "tier": 0, "once": "battle", "text": "Mother is not coming. Mother does not need to." },
     { "id": "l1.boss6", "voice": "BOSS", "event": "victory", "when": { "encounter": "1.B" }, "tier": 0, "once": "battle", "text": "I was the thousandth. So are you." },
-    { "id": "l1.god1", "voice": "GOD", "event": "battle_start", "when": { "encounter": "1.B" }, "tier": 0, "once": "ever", "text": "the child plays. the mother is elsewhere, as she always is." },
+    { "id": "l1.god1", "voice": "GOD", "event": "battle_start", "when": { "encounter": "1.B" }, "tier": 0, "once": "ever", "text": "the yeanling plays. the mother is elsewhere, as she always is." },
     { "id": "l1.god2", "voice": "GOD", "event": "breakdown", "when": { "encounter": "1.B" }, "tier": 0, "once": "ever", "text": "they made a thing to be wanted. it surprised them by being one." },
 
     { "id": "l2.start", "voice": "SYS", "event": "battle_start", "when": { "layer": 2, "kind": "skirmish" }, "tier": 0, "once": "run", "text": "Layer 2 of 3. The rules protect it. It keeps breaking them." },

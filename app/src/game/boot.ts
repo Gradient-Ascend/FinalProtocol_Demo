@@ -1,6 +1,8 @@
 import { AudioSystem } from './audio'
 import { BattleRenderer } from './battle-renderer'
 import { battleStore } from './battle-store'
+import { campaignStore } from '@/campaign/campaign-store'
+import { reportOutcome, titlePrimary } from '@/ui/flow'
 
 declare global {
   interface Window {
@@ -26,7 +28,11 @@ export function startGame(canvas: HTMLCanvasElement): void {
   battleStore.sfx = id => audio.sfx(id)
   battleStore.startMusic = () => audio.startMusic()
 
+  // These are the battle's keys, and the title's Space. Every other scene
+  // (the map, a reward, a seam) answers for its own.
   const onKey = (event: KeyboardEvent): void => {
+    const scene = campaignStore.getSnapshot().scene
+    if (scene !== 'battle' && scene !== 'title') return
     if (event.ctrlKey || event.metaKey) {
       if (['Equal', 'NumpadAdd'].includes(event.code)) { event.preventDefault(); renderer.zoomIn(); return }
       if (['Minus', 'NumpadSubtract'].includes(event.code)) { event.preventDefault(); renderer.zoomOut(); return }
@@ -37,9 +43,14 @@ export function startGame(canvas: HTMLCanvasElement): void {
     if (event.repeat && !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) return
     const phase = battleStore.getSnapshot().phase
     if (event.code === 'Space') {
-      if (phase === 'title') battleStore.start()
+      if (scene === 'title') titlePrimary()
       else if (phase === 'planning') void battleStore.executeTurn()
-      else if (phase === 'victory' || phase === 'gameover') battleStore.restart()
+      // CONTINUE: the result goes to the run. R is the way to fight it again.
+      else if (phase === 'victory' || phase === 'gameover') reportOutcome()
+      return
+    }
+    if (scene === 'title') {
+      if (event.code === 'KeyM') battleStore.toggleMute()
       return
     }
     if (event.code === 'Escape') {
@@ -67,6 +78,11 @@ export function startGame(canvas: HTMLCanvasElement): void {
   const unsubscribe = battleStore.subscribe(() => {
     if (audio.muted !== battleStore.getSnapshot().muted) audio.toggleMute()
   })
+  // The battle's tone belongs to the battle: it stops when the scene leaves it.
+  const unwatch = campaignStore.subscribe(() => {
+    const scene = campaignStore.getSnapshot().scene
+    if (scene !== 'battle' && scene !== 'entrance') audio.stopMusic()
+  })
 
   window.addEventListener('keydown', onKey)
   window.addEventListener('resize', renderer.resize)
@@ -85,6 +101,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
       renderer.dispose()
       audio.dispose()
       unsubscribe()
+      unwatch()
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('resize', renderer.resize)
       canvas.removeEventListener('click', onClick)
