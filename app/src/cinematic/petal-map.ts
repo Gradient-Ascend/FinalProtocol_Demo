@@ -4,6 +4,7 @@
 // petal reads as a petal first and as a sign when looked at. Quiet almost all
 // of the time: the dots sway within a pixel or two and breathe.
 
+import { MONO } from './display'
 import {
   breath, driftX, driftY, drawSigilDots, fillDot, glowSprite, ignition, nearestStroke,
   prepareSigil, scatterSigil, seededRandom, STROKE_PACE, withAlpha,
@@ -325,7 +326,7 @@ export function mountPetalMap(
   const context = canvas.getContext('2d')
   if (!context) throw new Error('Canvas 2D is unavailable')
   const ctx: CanvasRenderingContext2D = context
-  const family = getComputedStyle(canvas).fontFamily || 'monospace'
+  const family = MONO                 // the canvases' one face, whatever the page around this one is set in
   const stat = { ms: 0 }
   frameTimes.set(canvas, stat)
 

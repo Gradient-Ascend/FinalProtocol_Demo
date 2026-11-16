@@ -37,6 +37,9 @@ const FOG = 1.6, FOG_WIDE = 0.9                           // how soon distance t
 // --- guesses ---
 const E0 = 1.0, TAU = 1.3                                 // first error of a block's guesses, and how fast it falls
 const SIZE = 0.0128                                       // a point's diameter in world units, up close
+// A small screen has about a third of the points and would show each at half the width, which reads as dust:
+// there a point is drawn this many times wider, about the width it has on a desk, so the wave has body.
+const SMALL_BODY = 2.1
 const GUESS = 1.05                                        // brightness of a guess: a little over a context point's best
 
 // Three places nothing approaches. The outline is the petal of the map between battles:
@@ -223,7 +226,7 @@ function buildWorld(side: number): World {
   return world
 }
 
-type View = { camera: Camera; spacing: number; fog: number; near: number; size: number; wide: number }
+type View = { camera: Camera; spacing: number; fog: number; near: number; size: number; wide: number; body: number }
 
 export class LatentShot {
   private world: World | null = null
@@ -238,6 +241,7 @@ export class LatentShot {
   // totals of the frame being drawn, for the read-out
   private landed = 0
   private off = 0
+  private points = 0         // how many points of the first sheet were drawn: fewer than it holds when `share` is under 1
   // A machine that cannot keep up is shown a share of the points, each a little larger.
   private share = 1
   private cost = 0
@@ -281,8 +285,9 @@ export class LatentShot {
       cx: 0.5, cy: lerp(0.48, portrait ? 0.4 : 0.41, e),
     }
     const spacing = world.s0 * (distance / pushed) ** world.grow
+    const body = Math.min(f.w, f.h) < 600 ? SMALL_BODY : 1
     // A point keeps its size on screen as the view widens: there are fewer of them per unit of ground, not smaller ones.
-    return { camera, spacing, fog: lerp(FOG, FOG_WIDE, e) / distance, near: 0.8 * distance, size: SIZE * distance / pushed, wide: e }
+    return { camera, spacing, fog: lerp(FOG, FOG_WIDE, e) / distance, near: 0.8 * distance, size: SIZE * body * distance / pushed, wide: e, body }
   }
 
   /** The sheets and their blocks are laid out once, in the dark of shot 0: tens of thousands of points. */
@@ -350,7 +355,7 @@ export class LatentShot {
 
     // --- read-out ---
     if (t < P.mask - 0.3) {
-      f.hud.push({ text: `${count(world.sheets[0].n)} points`, alpha: 0.7 * span(t, P.start + 2.4, 1) })
+      f.hud.push({ text: `${count(this.points)} points`, alpha: 0.7 * span(t, P.start + 2.4, 1) })
     } else {
       const error = this.landed ? (this.off / this.landed).toFixed(3) : '—'
       let masked = 0, filled = 0
@@ -399,7 +404,8 @@ export class LatentShot {
       const keep = Math.min(1, (sheet.spacing / sp) ** 2) * this.share    // the share of this sheet the view has room for
       const soft = 0.3 * keep
       const { x: xs, z: zs, rank, edge, block, noise, fx, fz, delay, arc } = sheet
-      for (let i = 0; i < sheet.n; i++) {
+      let i = 0
+      for (; i < sheet.n; i++) {
         if (rank[i] >= keep) break
         const thin = keep >= 1 ? 1 : clamp01((keep - rank[i]) / soft)
         let x = xs[i], z = zs[i]
@@ -416,7 +422,8 @@ export class LatentShot {
             const my = lerp(this.py[i], 0, tiltK), mz = lerp(this.pz[i], ROW_Z[row] + (world.cv[i] - 0.5) * 0.14, tiltK)
             x = lerp(this.px[i], x, k); y = lerp(my, y, k); z = lerp(mz, z, k)
             // packed into its cell the points overlap: each carries a share of the cell's light, not all of it
-            const a = lerp(this.pv[i] * 0.4, glint, k) * appear * weight * Math.exp(k * fog * view.near)
+            // (and a wider point a smaller share, so the rows it leaves are no brighter for it)
+            const a = lerp(this.pv[i] * 0.4 / (view.body * view.body), glint, k) * appear * weight * Math.exp(k * fog * view.near)
             field.add(x, y, z, size, WR, WG, WB, a * (b === 0 ? 1 - maskK : 1), fog * k)
             continue
           }
@@ -451,6 +458,7 @@ export class LatentShot {
             size, BR, BG, BB, GUESS * base * (0.35 + 0.65 * e), fog)
         }
       }
+      if (s === 0 && tally) this.points = i                  // what the read-out counts: the points drawn, not the points there are
     }
   }
 

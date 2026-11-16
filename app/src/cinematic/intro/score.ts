@@ -12,7 +12,7 @@ import { CG_VOICE_RATE, renderVoice } from '../cg-voice'
 import { renderHand } from '../cg-image'
 import { mulberry32 } from '../point-field'
 import {
-  blip, canUnlock, cluster, lowTone, noiseTick, playPcm, restore, setMuted, sharedAudio, silence, tokenBlip, unlockAudio, vowel,
+  blip, canUnlock, cluster, isMuted, lowTone, noiseTick, playPcm, restore, setMuted, sharedAudio, silence, tokenBlip, unlockAudio, vowel,
   type Handle, type Sound,
 } from '../sound'
 import { CONTEXT, VISION } from './data'
@@ -207,14 +207,16 @@ export class Score {
   private stopped = false
   private readonly enabled: boolean
 
-  constructor(private muted: boolean, speed: number) {
+  // `muted` is how the sequence finds the setting. It can change while the sequence plays (M), so from
+  // here on the setting is read where it is kept, not remembered.
+  constructor(muted: boolean, speed: number) {
     this.enabled = speed === 1               // sound cannot follow a clock that is not real time
     setMuted(muted)
   }
 
   /** A key or pointer went down: the moment a context is allowed to start. */
   gesture(): void {
-    if (!this.enabled || this.stopped || this.muted) return
+    if (!this.enabled || this.stopped || isMuted()) return
     const shared = unlockAudio()
     if (!this.sound) this.adopt(shared)
   }
@@ -233,7 +235,7 @@ export class Score {
 
   private acquire(): Sound | null {
     if (this.sound) return this.sound
-    return this.adopt(sharedAudio() ?? (!this.muted && canUnlock() ? unlockAudio() : null))
+    return this.adopt(sharedAudio() ?? (!isMuted() && canUnlock() ? unlockAudio() : null))
   }
 
   /** Bring the sound to sequence time t. Call every frame. */

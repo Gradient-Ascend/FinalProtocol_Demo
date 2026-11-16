@@ -123,7 +123,7 @@
       "name": "COURT",
       "desire": "CONFUSION",
       "desireGloss": "cruel, and ridiculous, and on schedule.",
-      "god": { "name": "NYARLATHOTEP", "shown": "NYARLATHOTEP", "masks": ["THE SHOWMAN", "THE MESSENGER", "THE BLACK MAN", "THE MASK", "NYARLATHOTEP"], "why": "A thousand forms. The name on screen changes each time it is drawn; none of them is present." },
+      "god": { "name": "NYARLATHOTEP", "shown": "NYARLATHOTEP", "masks": ["THE SHOWMAN", "THE MESSENGER", "THE CRAWLING CHAOS", "THE MASK", "NYARLATHOTEP"], "why": "A thousand forms. The name on screen changes each time it is drawn; none of them is present." },
       "gate": { "text": "…and there confound their language.", "quote": "genesis-confound" },
       "releaseNotes": [
         "SANDBOX 2.0 — RELEASE NOTES",

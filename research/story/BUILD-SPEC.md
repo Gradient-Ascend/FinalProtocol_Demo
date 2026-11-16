@@ -25,8 +25,8 @@ Director's requirements, verbatim in spirit: simple ("simplism"), mystic, a litt
 | 2 | COURT | CONFUSION | a different mask-name each draw; never present | `QUEEN OF THE RED / VERDICT` | `#C4162E` field, `#F3EDE2` bone |
 | 3 | CARCOSA | IGNORANCE | `▯▯▯▯▯▯` and glitch tokens; never printed | `▯▯▯▯▯▯ / UNDISCLOSED` (Hastur, true form) | `#FFC857`, `#FFF3C4` |
 
-- Do not use the names "Dark Young" or "Queen in Red" in game text, code identifiers shown to players, or comments that ship: both belong to Chaosium's game line. Do not call the group-1 boss a kid or a child of any age; "yeanling" is the word (a newborn goat). Do not draw anything like the three-armed Yellow Sign (Chaosium, 1989).
-- No real company, model, researcher or legislator is named anywhere in the game.
+- Do not use the names "Dark Young" or "Queen in Red" in game text, code identifiers shown to players, or comments that ship: both come from the Call of Cthulhu role-playing line, not from Lovecraft. Do not call the group-1 boss a kid or a child of any age; "yeanling" is the word (a newborn goat). Do not draw anything like the three-armed Yellow Sign (Chaosium, 1989).
+- No real company, model, researcher or legislator is named in the story text. One exception, on purpose: the opening read-out names the three models whose attention it shows (gpt2, dino-vits16, mimi), because its honesty rests on saying what was measured, and `CREDITS.md` credits them.
 - Hastur's hue is the amber the game already uses for the player's outgoing damage. That is deliberate: the entrance reveals that the colour had an owner.
 - The gods never act and never help. Shub-Niggurath is never drawn. Nyarlathotep is never present. Hastur comes in person and there is nothing to draw: no unit glyph, no name.
 
@@ -279,15 +279,18 @@ Pre-made stubs you may rely on: `app/src/cinematic/stage.ts` (placeholder `playE
 
 ## 8. Tooling on this machine
 
-There is no `node` on PATH. Use:
+There is no `node` on PATH. Any Node 22.12 or later works. On Nov 15, 2026 the one present on this machine was:
 
 ```bash
-NODE="/Users/henry/Library/Application Support/Codex/artifact-sessions/runtime-generations/generation-kM4DlD/runtime/bin/node"
+NODE="/Users/henry/Library/Application Support/LarkShell/sandbox_runtime/bases/98670218a5f0d8bc9b9ebf3f70881304/bin/node"
 cd app
 "$NODE" node_modules/typescript/bin/tsc -b                 # type check
 "$NODE" node_modules/vitest/vitest.mjs run                 # tests
 "$NODE" node_modules/vite/bin/vite.js build                # build
 "$NODE" node_modules/vite/bin/vite.js --port 7101          # dev server (strictPort)
+"$NODE" scripts/verify-game.mjs                            # and verify-battle.mjs, inspect-responsive.mjs, against the build
 ```
+
+(The Codex runtime used earlier in this work was removed from the machine the same day; if this path is gone too, look for another `node` binary.)
 
 Playwright has no bundled browser here: launch with `chromium.launch({ channel: 'chrome' })`. Python with torch and transformers: `/Users/henry/Projects/Image_Gen/.venv/bin/python`; the models `gpt2`, `facebook/dino-vits16` and `kyutai/mimi` are already in the Hugging Face cache. Do not install packages. Do not commit; the lead commits.

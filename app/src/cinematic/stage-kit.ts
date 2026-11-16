@@ -17,6 +17,7 @@ import { campaignStore } from '../campaign/campaign-store'
 import { BOARD_COLORS, SIGN_LOOKS, boardFit, drawSignCell, signMask, type SignLook } from '../game/battle-renderer'
 import type { Encounter } from '../game/encounters'
 import { Display, MONO, SPECTATOR, clamp01, spectatorDots, type Beat } from './display'
+import { isMuteKey, toggleMute } from './mute'
 import { PointField } from './point-field'
 import { canUnlock, restore, setMuted, sharedAudio, unlockAudio, type Handle, type Sound } from './sound'
 
@@ -108,12 +109,14 @@ export function runMoment(kind: string, options: StageOptions, build: (env: Env)
   let stems: GainNode[] = []
   const kept: { handle: Handle; release: number }[] = []
   const keep: Keep = (handle, release = 1.2) => { kept.push({ handle, release }); return handle }
+  let told = false
   function wire(): void {
     if (sound || speed !== 1) return
+    // The caller's setting, said once: after that M may have changed it.
+    if (!told) { told = true; setMuted(options.muted) }
     try {
       const shared = sharedAudio() ?? (canUnlock() ? unlockAudio() : null)
       if (!shared) return
-      setMuted(options.muted)
       const { ctx: audio, master } = shared
       const stem = (to: GainNode) => { const g = audio.createGain(); g.connect(to); return g }
       stems = [stem(master.music), stem(master.sfx), stem(master.wet)]
@@ -222,8 +225,8 @@ export function runMoment(kind: string, options: StageOptions, build: (env: Env)
     over = true
     if (raf) cancelAnimationFrame(raf)
     raf = 0
-    window.removeEventListener('keydown', onKeyDown)
-    window.removeEventListener('keyup', up)
+    window.removeEventListener('keydown', onKeyDown, true)
+    window.removeEventListener('keyup', onKeyUp)
     window.removeEventListener('blur', onBlur)
     window.removeEventListener('pointerup', up)
     window.removeEventListener('pointercancel', up)
@@ -284,9 +287,20 @@ export function runMoment(kind: string, options: StageOptions, build: (env: Env)
     if (!held) holdFrom = 0
   }
   function onKeyDown(event: KeyboardEvent): void {
-    if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
+    if (event.metaKey || event.ctrlKey || event.altKey) return
+    if (isMuteKey(event)) {
+      // M mutes, here as everywhere. It is not a way out, however long it is held, and while a moment
+      // has the keys nobody else answers for it (or it would be toggled twice).
+      event.stopImmediatePropagation()
+      if (!event.repeat && !toggleMute()) wire()               // unmuted by a key: sound may start from here
+      return
+    }
+    if (event.repeat) return
     if (event.key === 'Meta' || event.key === 'Control' || event.key === 'Alt' || event.key === 'Shift') return
     down()
+  }
+  function onKeyUp(event: KeyboardEvent): void {
+    if (!isMuteKey(event)) up()
   }
   function onBlur(): void { held = 0; holdFrom = 0 }
   function onPointerMove(event: PointerEvent): void {
@@ -306,8 +320,9 @@ export function runMoment(kind: string, options: StageOptions, build: (env: Env)
     }
   }
 
-  window.addEventListener('keydown', onKeyDown)
-  window.addEventListener('keyup', up)
+  // In the capture phase: the mute key is settled here before anything under the moment hears it.
+  window.addEventListener('keydown', onKeyDown, true)
+  window.addEventListener('keyup', onKeyUp)
   window.addEventListener('blur', onBlur)
   window.addEventListener('pointerup', up)
   window.addEventListener('pointercancel', up)
@@ -386,7 +401,7 @@ export function drawBoard(ctx: CanvasRenderingContext2D, geo: BoardGeo, encounte
   const labels = (p.labels ?? 0) * all
   if (labels > 0.003) {
     ctx.globalAlpha = labels
-    ctx.font = '10px "JetBrains Mono", monospace'
+    ctx.font = font(10)
     ctx.fillStyle = BOARD_COLORS.muted
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'

@@ -72,6 +72,14 @@ export const storyFeed = {
     publish([], true)
   },
 
+  // Another battle is put on the board: the lines of the last one are not
+  // its lines. What was heard stays in the log.
+  clear(): void {
+    if (!feed.lines.length) return
+    begun = 0
+    publish([], true)
+  },
+
   handle(event: StoryEvent): void {
     const fresh = event.type === 'battle_start'
     if (fresh) resumed = false

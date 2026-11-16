@@ -21,12 +21,22 @@ export function RewardScreen({ campaign }: { campaign: CampaignSnapshot }) {
     const onKey = (event: KeyboardEvent) => {
       const now = keys.current
       if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return
+      const target = event.target instanceof Element ? event.target : null
       const digit = /^(?:Digit|Numpad)([1-9])$/.exec(event.code)
+      const step = event.code === 'ArrowRight' || event.code === 'ArrowDown' ? 1 : event.code === 'ArrowLeft' || event.code === 'ArrowUp' ? -1 : 0
       if (digit && Number(digit[1]) <= now.count) now.choose(Number(digit[1]) - 1)
-      else if (event.code === 'ArrowRight' || event.code === 'ArrowDown') setSelected(((now.selected ?? -1) + 1) % now.count)
-      else if (event.code === 'ArrowLeft' || event.code === 'ArrowUp') setSelected(((now.selected ?? now.count) + now.count - 1) % now.count)
-      else if (event.code === 'Enter' || event.code === 'NumpadEnter' || event.code === 'Space') now.install(now.selected)
-      else if (event.code === 'Escape') setSelected(null)
+      else if (step && now.count) {
+        const next = step > 0 ? ((now.selected ?? -1) + 1) % now.count : ((now.selected ?? now.count) + now.count - 1) % now.count
+        setSelected(next)
+        // Focus on a card goes with the inspection, so Enter there still means the card that is lit.
+        const cards = target?.closest('.reward-card')?.parentElement?.querySelectorAll<HTMLElement>('.reward-card')
+        cards?.[next]?.focus()
+      } else if (event.code === 'Enter' || event.code === 'NumpadEnter' || event.code === 'Space') {
+        // Focus on a card, or on INSTALL: the key is that control's. A card
+        // answers it as it answers a click: inspect, then install.
+        if (target?.closest('button')) return
+        now.install(now.selected)
+      } else if (event.code === 'Escape') setSelected(null)
       else return
       event.preventDefault()
     }

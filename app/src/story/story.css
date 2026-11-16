@@ -140,3 +140,8 @@
 .story-transcript-list li.is-turn { margin-top: 14px; }
 .story-transcript-list .story-seam-label { padding-top: .3em; }
 .story-transcript-list li.story-transcript-cut, .story-transcript-list li.story-transcript-empty { display: block; color: var(--muted, #858585); letter-spacing: .06em; }
+@media (max-width: 560px) {
+  /* No gutter here either. An entry is a block, as a seam's row is: an empty
+     mark is hidden there, and its line must not fall into the mark's column. */
+  .story-transcript-list li { display: block; }
+}

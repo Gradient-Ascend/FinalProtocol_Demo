@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router'
 import { playEnding, playEntrance, playPhaseChange, playReset, playReveal, stageProbe, stageSeek, type StageHandle, type StageOptions } from '@/cinematic/stage'
+import { MONO } from '@/cinematic/display'
 import { sharedAudio, unlockAudio } from '@/cinematic/sound'
 import { mountPetalMap, type PetalModel } from '@/cinematic/petal-map'
 import { BattleRenderer } from '@/game/battle-renderer'
@@ -179,7 +180,7 @@ export default function PreviewStage() {
   return (
     <div data-preview-stage style={{ position: 'fixed', inset: 0, background: '#090909', overflow: 'hidden' }}>
       {!bare && <canvas id="game-canvas" ref={canvas} data-board style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />}
-      {moment === 'reveal' && !bare && <canvas ref={map} data-map="petals" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', background: '#070707', fontFamily: '"JetBrains Mono", monospace' }} />}
+      {moment === 'reveal' && !bare && <canvas ref={map} data-map="petals" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', background: '#070707', fontFamily: MONO }} />}
       <div ref={host} data-stage-host style={{ position: 'absolute', inset: 0, pointerEvents: moment === 'board' ? 'none' : 'auto' }} />
       {done && (
         <button

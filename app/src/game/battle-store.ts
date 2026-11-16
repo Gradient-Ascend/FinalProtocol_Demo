@@ -620,13 +620,19 @@ export class BattleStore {
     }
   }
 
-  private async resolveRepair(): Promise<void> {
-    if (!this.state.pendingRepair) return
+  // Pays the REPAIR the route queued; returns what it restored.
+  private payRepair(): number {
     const healed = Math.min(this.state.pendingRepair, this.state.player.maxSanity - this.state.player.sanity)
     this.state.player.sanity += healed
     this.state.pendingRepair = 0
     this.log(`CORE / REPAIR restored ${healed} Sanity.`, 'good')
     if (healed) this.sfx('pickup')
+    return healed
+  }
+
+  private async resolveRepair(): Promise<void> {
+    if (!this.state.pendingRepair) return
+    const healed = this.payRepair()
     this.commit()
     // Let the recovery finish on the HP bar before the next turn's incoming
     // damage is previewed on it.
@@ -771,6 +777,10 @@ export class BattleStore {
     this.commit()
     await this.wait()
     if (id !== this.runId) return
+    // A release that leaves no Geek standing ends the battle here, with no end
+    // of the turn to heal at: REPAIR is paid first, as the panel promised, and
+    // the Sanity left is what the run carries on.
+    if (this.state.pendingRepair && !livingEnemies(this.state).length) this.payRepair()
     if (this.checkOutcome()) { this.commit(); return }
     if (this.held && !await this.heldBack(id)) return
 

@@ -10,7 +10,9 @@ import { PLAN } from './plan'
 const P = PLAN.title
 const HUGE_CAP = 1.4                 // cap height of the large title, in viewport heights
 const DRIFT = 0.035                  // viewport widths per second, leftward
-const OPEN_ON = 2.9                  // which letter the frame opens on, counted in letters from the first
+// Which letter the frame opens on, counted in letters from the first: the join of the O and the C of
+// PROTOCOL, so a wide frame holds the backs of two round letters and nothing that can be read as a word.
+const OPEN_ON = 10.95
 const OPEN_ON_TALL = 2.52            // a tall frame holds less than half a letter: it opens on a diagonal
 const TRACK = 0.42                   // letter-spacing of the small title, in em
 

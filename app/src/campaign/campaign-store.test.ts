@@ -143,7 +143,7 @@ describe('boot', () => {
     expect(Object.keys(campaignStore).sort()).toEqual([
       'abandonRun', 'attach', 'battleLost', 'battleWon', 'beginBattle', 'boot', 'chooseGate', 'chooseWeight',
       'continueRun', 'finishEnding', 'finishInterlude', 'finishIntro', 'finishReset', 'getSnapshot', 'nodeState',
-      'recordLine', 'replayIntro', 'selectNode', 'startRun', 'subscribe',
+      'recordLine', 'recordWin', 'replayIntro', 'selectNode', 'startRun', 'subscribe', 'withdrawWin',
     ])
   })
 })
@@ -513,6 +513,245 @@ describe('defeat', () => {
   })
 })
 
+// The rule: a win is recorded once, when it happens, and from then on it
+// stands. A reload, a return to the title and CONTINUE all find it. The one
+// way to lose it is to fight that battle again from its last screen (R, or
+// RESTART BATTLE): that withdraws the win and puts the run back exactly as it
+// stood when the battle began, so the fight that follows is the only one that
+// counts. No win is counted twice, and the stored run always describes the
+// battle on the board.
+describe('a win is kept from the moment it happens', () => {
+  it('records a skirmish win without leaving the battle, and CONTINUE goes on from it', () => {
+    const store = opened(21)
+    onFirstMap(store)
+    store.selectNode('1.2')
+    const scenes: Scene[] = []
+    store.subscribe(() => scenes.push(store.getSnapshot().scene))
+
+    store.recordWin(19)
+    expect(store.getSnapshot()).toMatchObject({ scene: 'battle', offer: null, run: { current: null, broken: ['0.B', '1.2'], sanity: 19, attempts: { '1.2': 1 } } })
+    expect(stored('run')).toMatchObject({ broken: ['0.B', '1.2'], sanity: 19, reward: true, interlude: false })
+    expect(store.nodeState('1.2')).toBe('broken')
+    // The same report again says nothing new and publishes nothing.
+    const recorded = store.getSnapshot()
+    store.recordWin(19)
+    expect(store.getSnapshot()).toBe(recorded)
+    expect(scenes).toEqual(['battle'])
+    // A defeat cannot be reported over a win.
+    store.battleLost()
+    expect(store.getSnapshot()).toBe(recorded)
+
+    store.battleWon(19)
+    expect(store.getSnapshot()).toMatchObject({ scene: 'reward', run: { broken: ['0.B', '1.2'], sanity: 19 } })
+    expect(store.getSnapshot().offer).toEqual(offerFor(run(store)))
+    // One win: published once more, for the scene.
+    expect(scenes).toEqual(['battle', 'reward'])
+    expect(run(store).attempts).toEqual({ '0.B': 1, '1.2': 1 })
+    // Continued from: there is nothing left to withdraw.
+    const continued = store.getSnapshot()
+    store.withdrawWin()
+    store.recordWin(5)
+    expect(store.getSnapshot()).toBe(continued)
+  })
+
+  it('finds a recorded skirmish win after a closed tab: the reward, with the same three offered', () => {
+    const store = opened(7)
+    onFirstMap(store)
+    store.selectNode('1.2')
+    store.recordWin(19)
+
+    const later = opened(1234)
+    expect(later.getSnapshot()).toMatchObject({ scene: 'title', run: { current: null, broken: ['0.B', '1.2'], sanity: 19 } })
+    later.continueRun()
+    expect(later.getSnapshot()).toMatchObject({ scene: 'reward', offer: offerFor(run(store)) })
+    // After a reload there is no battle to fight again: the win stands.
+    later.withdrawWin()
+    expect(run(later).broken).toEqual(['0.B', '1.2'])
+  })
+
+  it('finds a recorded boss win after a closed tab: its interlude, then the next layer', () => {
+    const store = opened(9)
+    onFirstMap(store)
+    winSkirmish(store, '1.1', 20)
+    winSkirmish(store, '1.2', 20)
+    store.selectNode('1.B')
+    store.beginBattle()
+    store.recordWin(10)
+    expect(store.getSnapshot()).toMatchObject({ scene: 'battle', interlude: null, run: { layer: 2, sanity: 22, current: null }, meta: { deepest: 2 } })
+    expect(stored('run')).toMatchObject({ layer: 2, sanity: 22, reward: false, interlude: true })
+
+    const later = opened()
+    expect(later.getSnapshot()).toMatchObject({ scene: 'title', interlude: null, run: { layer: 2, broken: ['0.B', '1.1', '1.2', '1.B'] } })
+    later.continueRun()
+    expect(later.getSnapshot()).toMatchObject({ scene: 'interlude', interlude: 1 })
+    // Closed again before it was read to its end: it is still waiting.
+    const again = opened()
+    again.continueRun()
+    expect(again.getSnapshot()).toMatchObject({ scene: 'interlude', interlude: 1 })
+    again.finishInterlude()
+    expect(again.getSnapshot()).toMatchObject({ scene: 'map', interlude: null })
+    expect(stored('run')).toMatchObject({ layer: 2, interlude: false })
+    // Read: the next visit goes to the map.
+    const after = opened()
+    after.continueRun()
+    expect(after.getSnapshot().scene).toBe('map')
+  })
+
+  it('finds a recorded prologue win after a closed tab, and the last boss leads to the gate', () => {
+    const store = opened(4)
+    store.startRun()
+    expect(stored('run')).toBeNull()
+    store.recordWin(20)
+    expect(store.getSnapshot()).toMatchObject({ scene: 'battle', run: { layer: 1, broken: ['0.B'], sanity: 32 } })
+    const later = opened()
+    expect(later.getSnapshot()).toMatchObject({ scene: 'title', run: { layer: 1, broken: ['0.B'], sanity: 32, attempts: { '0.B': 1 } } })
+    later.continueRun()
+    expect(later.getSnapshot()).toMatchObject({ scene: 'interlude', interlude: 0 })
+    later.finishInterlude()
+    expect(later.getSnapshot().scene).toBe('map')
+
+    for (const layer of [1, 2, 3]) {
+      winSkirmish(later, `${layer}.1`, 20)
+      winSkirmish(later, `${layer}.2`, 20)
+      if (layer < 3) winBoss(later, `${layer}.B`, 20)
+    }
+    later.selectNode('3.B')
+    later.beginBattle()
+    later.recordWin(8)
+    const last = opened()
+    expect(last.getSnapshot()).toMatchObject({ scene: 'title', run: { layer: 4 }, meta: { deepest: 4 } })
+    last.continueRun()
+    expect(last.getSnapshot()).toMatchObject({ scene: 'interlude', interlude: 3 })
+    last.finishInterlude()
+    expect(last.getSnapshot().scene).toBe('gate')
+  })
+
+  it('withdraws the win when the battle is fought again: the run as it stood, and the next result is the one that counts', () => {
+    const store = opened(33)
+    onFirstMap(store)
+    winSkirmish(store, '1.1', 24, 'CORE')
+    store.selectNode('1.3')
+    const before = store.getSnapshot()
+    const disk1 = stored('run')
+
+    store.recordWin(6)
+    expect(run(store)).toMatchObject({ broken: ['0.B', '1.1', '1.3'], sanity: 6, current: null })
+    store.withdrawWin()
+    // Exactly as it was: the same attempt on the same board, the node unbroken, the Sanity carried in, nothing offered.
+    expect(store.getSnapshot()).toEqual(before)
+    expect(stored('run')).toEqual(disk1)
+    expect(store.nodeState('1.3')).toBe('open')
+    // A second withdrawal has nothing to take back.
+    const withdrawn = store.getSnapshot()
+    store.withdrawWin()
+    expect(store.getSnapshot()).toBe(withdrawn)
+
+    // Closed during the replay: a battle left open, as any other. The attempt was counted once.
+    const closed = opened()
+    expect(closed.getSnapshot()).toMatchObject({ run: { broken: ['0.B', '1.1'], current: null, attempts: { '1.3': 1 } } })
+    closed.continueRun()
+    expect(closed.getSnapshot().scene).toBe('map')
+
+    // Won again: one win, with the second fight's Sanity.
+    store.recordWin(30)
+    store.battleWon(30)
+    expect(store.getSnapshot()).toMatchObject({ scene: 'reward', run: { broken: ['0.B', '1.1', '1.3'], sanity: 30 } })
+    expect(run(store).attempts).toEqual({ '0.B': 1, '1.1': 1, '1.3': 1 })
+    expect(run(store).broken.filter(id => id === '1.3')).toHaveLength(1)
+
+    // Lost instead: the defeat is the result, and the layer rolls back as for any defeat.
+    const other = opened(34)
+    onFirstMap(other)
+    const held = winSkirmish(other, '1.1', 24, 'CORE')
+    other.selectNode('1.3')
+    other.recordWin(6)
+    other.withdrawWin()
+    other.battleLost()
+    expect(other.getSnapshot()).toMatchObject({ scene: 'reset', run: { layer: 1, broken: ['0.B'], weights: [], sanity: 36 }, meta: { iteration: 2, ghosts: ['1.3'] } })
+    expect(run(other).weights).not.toContain(held)
+    expect(stored('run')).toMatchObject({ broken: ['0.B'], reward: false, interlude: false })
+  })
+
+  it('withdraws a boss win: back in its layer, and the layer after it is entered once', () => {
+    const store = opened(55)
+    onFirstMap(store)
+    const first = winSkirmish(store, '1.1', 20, 'CORE')
+    winSkirmish(store, '1.2', 16)
+    store.selectNode('1.B')
+    store.beginBattle()
+    const before = store.getSnapshot()
+
+    store.recordWin(9)
+    expect(store.getSnapshot()).toMatchObject({ run: { layer: 2, sanity: 21 }, meta: { deepest: 2 } })
+    store.withdrawWin()
+    expect(store.getSnapshot()).toEqual(before)
+    expect(store.getSnapshot()).toMatchObject({ scene: 'battle', run: { layer: 1, current: '1.B', sanity: 24, snapshot: { layer: 1, weights: [] } }, meta: { deepest: 1 } })
+    expect(stored('run')).toMatchObject({ layer: 1, current: '1.B', reward: false, interlude: false })
+    expect(stored('meta')).toMatchObject({ deepest: 1 })
+
+    store.recordWin(30)
+    store.battleWon(30)
+    // +12 once, on the second fight's Sanity; one snapshot of the next layer.
+    const full = run(store).tuning.maxSanity
+    expect(store.getSnapshot()).toMatchObject({
+      scene: 'interlude', interlude: 1,
+      run: { layer: 2, sanity: Math.min(full, 42), broken: ['0.B', '1.1', '1.2', '1.B'], snapshot: { layer: 2, weights: [first] }, attempts: { '1.B': 1 } },
+      meta: { deepest: 2 },
+    })
+
+    // The prologue, withdrawn: not a stored run again.
+    const fresh = opened(56)
+    fresh.startRun()
+    const prologue = fresh.getSnapshot()
+    fresh.recordWin(20)
+    expect(stored('run')).toMatchObject({ layer: 1 })
+    fresh.withdrawWin()
+    expect(fresh.getSnapshot()).toEqual(prologue)
+    expect(stored('run')).toBeNull()
+  })
+
+  it('takes the last Sanity reported before CONTINUE, from the run as the battle found it', () => {
+    const store = opened(77)
+    onFirstMap(store)
+    store.selectNode('1.1')
+    store.recordWin(10)
+    // The battle's last number settled after the first report (a repair on the winning turn).
+    store.recordWin(13)
+    expect(run(store)).toMatchObject({ sanity: 13, broken: ['0.B', '1.1'] })
+    expect(stored('run')).toMatchObject({ sanity: 13, reward: true })
+    store.battleWon(13)
+    expect(store.getSnapshot()).toMatchObject({ scene: 'reward', run: { sanity: 13, broken: ['0.B', '1.1'] } })
+
+    const boss = opened(78)
+    onFirstMap(boss)
+    winSkirmish(boss, '1.1', 20)
+    winSkirmish(boss, '1.2', 20)
+    boss.selectNode('1.B')
+    boss.beginBattle()
+    boss.recordWin(5)
+    boss.recordWin(8)
+    // +12 on the Sanity it ended with, not twice.
+    expect(run(boss)).toMatchObject({ layer: 2, sanity: 20 })
+    boss.battleWon(8)
+    expect(boss.getSnapshot()).toMatchObject({ scene: 'interlude', interlude: 1, run: { layer: 2, sanity: 20 } })
+    expect(run(boss).broken.filter(id => id === '1.B')).toHaveLength(1)
+  })
+
+  it('forgets how to withdraw once the title has been returned to, and keeps the win', () => {
+    const store = opened(88)
+    onFirstMap(store)
+    store.selectNode('1.2')
+    store.recordWin(15)
+    // RETURN TO MAIN MENU: the run is read again as it was saved.
+    store.boot('?intro=0')
+    expect(store.getSnapshot()).toMatchObject({ scene: 'title', run: { broken: ['0.B', '1.2'], sanity: 15 } })
+    store.withdrawWin()
+    expect(run(store).broken).toEqual(['0.B', '1.2'])
+    store.continueRun()
+    expect(store.getSnapshot().scene).toBe('reward')
+  })
+})
+
 describe('persistence', () => {
   it('resumes at the map with the run exactly as it was saved', () => {
     const store = opened(0x5EED)
@@ -581,7 +820,7 @@ describe('persistence', () => {
     expect(store.getSnapshot().scene).toBe('reward')
 
     expect(sanitizeRun({ seed: -1, layer: 99, sanity: -5, weights: 'all', broken: null, snapshot: 3, attempts: [] })).toEqual({
-      reward: false,
+      reward: false, interlude: false,
       run: {
         seed: 0xFFFFFFFF, layer: 4, current: null, weights: [], tuning: DEFAULT_TUNING, sanity: 1,
         broken: ['0.B', '1.B', '2.B', '3.B'], snapshot: { layer: 4, weights: [], tuning: DEFAULT_TUNING }, attempts: {},
@@ -591,6 +830,10 @@ describe('persistence', () => {
     expect(sanitizeRun({ seed: 1, layer: 1, reward: true })?.reward).toBe(false)
     expect(sanitizeRun({ seed: 1, layer: 1, reward: true, broken: ['1.3'] })?.reward).toBe(true)
     expect(sanitizeRun({ seed: 1, layer: 1, reward: 'yes', broken: ['1.3'] })?.reward).toBe(false)
+    // An interlude waits only before the first node of a layer is broken.
+    expect(sanitizeRun({ seed: 1, layer: 2, interlude: true })?.interlude).toBe(true)
+    expect(sanitizeRun({ seed: 1, layer: 2, interlude: true, broken: ['2.1'] })?.interlude).toBe(false)
+    expect(sanitizeRun({ seed: 1, layer: 2, interlude: 1 })?.interlude).toBe(false)
   })
 
   it('reads a log that is not one as the first iteration, and a damaged one field by field', () => {

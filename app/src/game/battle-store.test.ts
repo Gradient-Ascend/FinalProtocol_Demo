@@ -681,3 +681,143 @@ describe('wording outside the prologue', () => {
     })
   })
 })
+
+describe('PURGE in the forecast', () => {
+  // Two Geeks on a cleared row of 2.1, two rows above a player who stands at
+  // (7, 10). `first` acts first and stands out of reach; `second` ends its walk
+  // in reach. Every number the turn stands on is set here.
+  function row() {
+    const battle = loaded(ENCOUNTERS['2.1'])
+    battle.store.start()
+    const state = battle.store.getSnapshot()
+    const [first, second] = state.enemies
+    for (const enemy of state.enemies.slice(2)) enemy.robustness = 0
+    state.player.pos = { x: 7, y: 10 }
+    state.player.sanity = 30
+    for (const y of [7, 8, 9]) {
+      for (let x = 2; x <= 11; x++) { state.walls[y][x] = false; state.flags[y][x] = 'blank' }
+    }
+    for (const enemy of [first, second]) {
+      Object.assign(enemy, { route: [], effectCell: null, block: 0, securityPerFlag: 2, soulThreshold: 3, soulHeal: 3, soulCounter: 2 })
+      enemy.robustness = enemy.maxRobustness - 3
+    }
+    first.pos = { x: 3, y: 8 }
+    setDesire(first, [2], 1)
+    setDesire(second, [3, 4], 5)
+    return { ...battle, state, first, second }
+  }
+
+  // What the panels print while planning, then the turn itself.
+  async function turn({ store, logs, state, first, second }: ReturnType<typeof row>) {
+    const incoming = predictedEnemySequence(planned(store))
+    const resources = [first, second].map(enemy => predictedEnemyResources(planned(store), enemy.id))
+    const sanity = state.player.sanity
+    const seen: Record<string, unknown> = {}
+    store.subscribe(() => Object.assign(seen, store.getSnapshot().enemyResourcePreviews))
+    await store.executeTurn()
+    expect(strikes(logs)).toEqual(incoming.map(hit => [hit.enemyId, hit.dealt]))
+    expect(store.getSnapshot().player.sanity).toBe(incoming.length ? incoming[incoming.length - 1].after : sanity)
+    expect([seen[first.id], seen[second.id]]).toEqual(resources)
+    return { incoming, resources }
+  }
+
+  it.each(['bash', 'privilege', 'core'] as const)('counts a %s Flag an earlier Geek erases for nothing on the route of a Geek acting later', async flag => {
+    const battle = row()
+    const { logs, state, first, second } = battle
+    // The second Geek's route crosses the cell the first one erases, then a Bash Flag.
+    first.effectCell = { x: 9, y: 8 }
+    second.pos = { x: 10, y: 8 }
+    second.route = [{ x: 9, y: 8 }, { x: 8, y: 8 }]
+    state.flags[8][9] = flag
+    state.flags[8][8] = 'bash'
+
+    const { incoming, resources } = await turn(battle)
+    // One Desire step for the Bash Flag still there; no Security, no Soul.
+    expect(incoming.map(hit => [hit.enemyId, hit.stepIndex, hit.dealt, hit.after])).toEqual([[second.id, 0, 3, 27]])
+    expect(resources[1]).toEqual({ securityGain: 0, recovery: 0, soulCounterAfter: 2 })
+    expect(logs).toContain(`${first.id} / PURGE erased 0x98.`)
+    expect(second).toMatchObject({ pos: { x: 8, y: 8 }, block: 0, soulCounter: 2, robustness: second.maxRobustness - 3 })
+  })
+
+  it('erases the cell where the release left it: a Geek that was pushed carries its PURGE along', async () => {
+    const battle = row()
+    const { store, logs, state, first, second } = battle
+    // BASE pushes the first Geek one cell west, and its PURGE with it: off the
+    // cell the second Geek stands on, onto the first cell of that Geek's route.
+    first.pos = { x: 5, y: 8 }
+    first.effectCell = { x: 10, y: 7 }
+    second.pos = { x: 10, y: 7 }
+    second.route = [{ x: 9, y: 7 }, { x: 8, y: 7 }]
+    state.flags[7][9] = 'bash'
+    state.flags[7][8] = 'bash'
+    state.flags[9][7] = 'bash'
+    store.addStep(0, -1)
+    const pushed = simulateRelease(planned(store)).enemies.find(enemy => enemy.id === first.id)!
+    expect(pushed).toMatchObject({ pos: { x: 4, y: 8 }, effectCell: { x: 9, y: 7 } })
+
+    const { incoming } = await turn(battle)
+    expect(incoming.map(hit => [hit.enemyId, hit.stepIndex, hit.dealt])).toEqual([[second.id, 0, 3]])
+    expect(logs).toContain(`${first.id} / PURGE erased 0x97.`)
+  })
+
+  it('leaves a Flag to the Geek that walks it before the PURGE: only the Geeks acting later lose it', async () => {
+    const battle = row()
+    const { logs, state, first, second } = battle
+    // The second Geek erases a cell the first has already walked by then.
+    first.route = [{ x: 4, y: 8 }]
+    setDesire(first, [2], 15)
+    second.pos = { x: 10, y: 8 }
+    second.effectCell = { x: 4, y: 8 }
+    state.flags[8][4] = 'bash'
+
+    const { incoming } = await turn(battle)
+    expect(incoming.map(hit => [hit.enemyId, hit.dealt])).toEqual([[first.id, 2]])
+    expect(logs.some(text => text.includes('PURGE erased'))).toBe(false)
+  })
+})
+
+describe('REPAIR on the turn that wins', () => {
+  // One Geek with 1 Robustness left, where BASE reaches it from the end of a
+  // two-step route: a Core Flag that completes REPAIR, then a Bash Flag.
+  function lastGeek(encounter: Encounter, sanity: number) {
+    const battle = loaded(encounter, { sanity, tuning: DEFAULT_TUNING })
+    battle.store.start()
+    const state = battle.store.getSnapshot()
+    const geek = quiet(battle.store)
+    const { x, y } = state.player.pos
+    for (const step of [1, 2]) state.walls[y - step][x] = false
+    state.flags[y - 1][x] = 'core'
+    state.flags[y - 2][x] = 'bash'
+    geek.robustness = 1
+    geek.block = 0
+    geek.pos = { x: x + 1, y: y - 3 }
+    const repair = state.player.buffs.find(buff => buff.id === 'repair')!
+    repair.counter = repair.threshold - 1
+    battle.store.addStep(0, -1)
+    battle.store.addStep(0, -1)
+    return { ...battle, state }
+  }
+
+  it.each([
+    ['1.1', 20, 23, 'Every Geek reduced to zero. Node broken.'],
+    // Never above the maximum.
+    ['1.1', 35, 36, 'Every Geek reduced to zero. Node broken.'],
+    ['0.B', 20, 23, 'Warden Robustness reduced to zero. Escape route open.'],
+  ] as const)('is paid on %s before the battle ends, as the panel promised: %i to %i', async (id, sanity, promised, last) => {
+    const { store, logs, events, state } = lastGeek(ENCOUNTERS[id], sanity)
+    expect(state.player).toMatchObject({ sanity, maxSanity: 36 })
+    // The panel's line while planning: no hit is coming, and REPAIR heals 3.
+    const incoming = predictedEnemySequence(planned(store))
+    const { healing } = predictedPlayerResources(planned(store))
+    expect([incoming, healing]).toEqual([[], 3])
+    expect(Math.min(state.player.maxSanity, sanity + healing)).toBe(promised)
+
+    await store.executeTurn()
+    const after = store.getSnapshot()
+    expect(after).toMatchObject({ phase: 'victory', pendingRepair: 0 })
+    // What the run carries into its next battle.
+    expect(after.player.sanity).toBe(promised)
+    expect(logs.slice(-2)).toEqual([`CORE / REPAIR restored ${promised - sanity} Sanity.`, last])
+    expect(events[events.length - 1].type).toBe('victory')
+  })
+})

@@ -48,6 +48,9 @@ function petalLayers(broken: readonly string[], current: number): PetalLayer[] {
 // How long the map shows a node as it was before it breaks in front of the player.
 const BREAK_AFTER_MS = 650
 
+// A control that answers Enter and Space by itself.
+const CONTROL = 'button, a[href], input, select, textarea, summary, [role="button"]'
+
 // A layer's release notes and inscription are read once per run: a reset
 // returns to the map without them, and so does a reload.
 function seamKey(run: RunState): string {
@@ -149,22 +152,32 @@ export function MapScreen({ campaign, state, reducedMotion }: { campaign: Campai
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const now = keys.current
-      if (event.metaKey || event.ctrlKey || event.altKey || now.stage !== 'ready') return
-      if (now.modal) {
-        if (event.key === 'Escape') { event.preventDefault(); setModal(null) }
-        return
-      }
+      // A modal has the keys while it is open (Escape closes it there).
+      if (event.metaKey || event.ctrlKey || event.altKey || now.stage !== 'ready' || now.modal) return
+      const target = event.target instanceof Element ? event.target : null
+      // The row of the node list that has keyboard focus, if one has.
+      const row = target?.closest<HTMLElement>('.map-nodes [data-node]') ?? null
       const step = ['ArrowDown', 'ArrowRight', 'KeyS', 'KeyD'].includes(event.code) ? 1
         : ['ArrowUp', 'ArrowLeft', 'KeyW', 'KeyA'].includes(event.code) ? -1 : 0
       if (step) {
         const at = now.nodes.findIndex(node => node.id === now.selected)
-        const next = at < 0 ? (step > 0 ? 0 : now.nodes.length - 1) : (at + step + now.nodes.length) % now.nodes.length
-        if (now.nodes[next]) setSelected(now.nodes[next].id)
+        const next = now.nodes[at < 0 ? (step > 0 ? 0 : now.nodes.length - 1) : (at + step + now.nodes.length) % now.nodes.length]
+        if (next) {
+          setSelected(next.id)
+          // Focus on a row goes with the selection, so Enter there still means the node that is lit.
+          if (row) row.parentElement?.querySelector<HTMLElement>(`[data-node="${next.id}"]`)?.focus()
+        }
       } else if (event.code === 'Enter' || event.code === 'NumpadEnter' || event.code === 'Space') {
-        if (!event.repeat) now.enter()
+        // Focus on any other control: the key is that control's, not the map's.
+        if (!row && target?.closest(CONTROL)) return
+        // Focus on a node's row: the key is for that node. It selects it; on
+        // the node already selected it breaks in, as a double click does.
+        if (!event.repeat) {
+          if (row?.dataset.node && row.dataset.node !== now.selected) setSelected(row.dataset.node)
+          else now.enter()
+        }
       } else if (event.code === 'KeyR') setModal('rewire')
       else if (event.code === 'KeyL') setModal('log')
-      else if (event.code === 'KeyM') battleStore.toggleMute()
       else return
       event.preventDefault()
     }

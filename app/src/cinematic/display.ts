@@ -106,7 +106,9 @@ export function slew(current: number, goal: number, dt: number, maxPerSecond = 0
   return current + Math.max(-step, Math.min(step, goal - current))
 }
 
-export const MONO = '"JetBrains Mono", "Cascadia Code", "SFMono-Regular", Menlo, Consolas, monospace'
+// The one face for every word drawn on a canvas, the board's as well as the moments'. The stylesheet
+// names the same stack. No face is downloaded, so the first that the machine has is the one used.
+export const MONO = '"JetBrains Mono", "Cascadia Code", "SF Mono", SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace'
 
 // The three spectators: 2 px dots at 6 percent white, top-right of every
 // full-screen scene from the first frame of the opening to the last frame of

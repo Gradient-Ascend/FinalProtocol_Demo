@@ -27,5 +27,5 @@ export function IntroScreen({ reducedMotion, muted }: { reducedMotion: boolean; 
       delete window.__introSkip
     }
   }, [])
-  return <div ref={root} className="scene intro-scene" />
+  return <div ref={root} className="scene intro-scene" data-reduced-motion={options.current.reducedMotion} />
 }

@@ -39,6 +39,8 @@ export type CampaignStore = {
   nodeState(id: string): 'broken' | 'open' | 'locked' | 'closed'
   selectNode(id: string): Encounter | null         // sets current; returns the encounter to load
   beginBattle(): void                              // entrance finished → scene 'battle'
+  recordWin(sanity: number): void                  // the battle is won: kept at once; the scene stays 'battle'
+  withdrawWin(): void                              // that battle is fought again: the run as it stood before the win
   battleWon(sanity: number): void                  // → 'reward' | 'interlude'
   battleLost(): void                               // → 'reset'
   finishReset(): void; chooseWeight(id: string): void; finishInterlude(): void
@@ -139,8 +141,9 @@ export function sanitizeMeta(raw: unknown): MetaState {
 // A stored run is rebuilt rather than believed: its numbers come from the
 // weights it lists, its broken nodes have to fit its layer, and the battle
 // that was open when the tab closed is not resumed. `reward` says a skirmish
-// was won and its weight not yet chosen.
-export function sanitizeRun(raw: unknown): { run: RunState; reward: boolean } | null {
+// was won and its weight not yet chosen; `interlude` says a boss fell and
+// what is said after it has not been read to its end.
+export function sanitizeRun(raw: unknown): { run: RunState; reward: boolean; interlude: boolean } | null {
   if (!isRecord(raw) || typeof raw.seed !== 'number' || !Number.isFinite(raw.seed)) return null
   const layer = whole(raw.layer, 0, 4, 0) as RunState['layer']
   // The prologue is never stored: a run is saved from its first map on.
@@ -168,6 +171,8 @@ export function sanitizeRun(raw: unknown): { run: RunState; reward: boolean } | 
       attempts,
     },
     reward: raw.reward === true && layer < 4 && here.length > 0,
+    // An interlude waits only at the door of a layer: before any of its nodes is broken.
+    interlude: raw.interlude === true && here.length === 0,
   }
 }
 
@@ -177,11 +182,21 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
   // A skirmish is won and its weight not yet chosen; kept with the stored run
   // so a closed tab does not cost the reward.
   let reward = false
+  // A boss (or the Warden) fell and the interlude after it is still to be
+  // read; kept with the stored run in the same way.
+  let interlude = false
+  // A win that has been recorded and not yet continued from: the run and the
+  // deepest layer as they stood when that battle began, and the Sanity the
+  // win was recorded with. Only while this is held can the win be withdrawn;
+  // it is never stored.
+  let won: { before: RunState; deepest: number; sanity: number } | null = null
   let state = read('title')
 
   function read(scene: Scene): CampaignSnapshot {
     const stored = sanitizeRun(storage.get<unknown>('run', null))
     reward = stored?.reward ?? false
+    interlude = stored?.interlude ?? false
+    won = null
     return { scene, run: stored?.run ?? null, meta: sanitizeMeta(storage.get<unknown>('meta', null)), offer: null, interlude: null }
   }
 
@@ -192,7 +207,7 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
 
   function saveRun(run: RunState | null): void {
     if (!run || run.layer === 0) storage.remove('run')
-    else storage.set('run', { ...run, reward })
+    else storage.set('run', { ...run, reward, interlude })
   }
 
   function saveMeta(meta: MetaState): void {
@@ -212,6 +227,45 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
   function runInBattle(): RunState | null {
     const run = state.run ?? prologueRun(nextSeed(), {})
     return run.current ? run : null
+  }
+
+  // The battle on the board is won. The win goes into the run and into
+  // storage now, so a closed tab finds it; the scene is not changed here.
+  // Returns what changed: null when no battle is being fought, and nothing
+  // when this win is already recorded as it is. Reported again with another
+  // Sanity before it is continued from (the battle's last number settled
+  // after the first report), the win is worked out again from the run as it
+  // stood when the battle began: one win, however often it is reported.
+  function settle(sanity: number): Partial<CampaignSnapshot> | null {
+    const before = won?.before ?? runInBattle()
+    if (!before || !before.current) return null
+    const kept = whole(sanity, 1, before.tuning.maxSanity, before.sanity)
+    if (won?.sanity === kept) return {}
+    const deepest = won?.deepest ?? state.meta.deepest
+    const encounter = ENCOUNTERS[before.current]
+    const broken = unique([...before.broken, encounter.id])
+    won = { before, deepest, sanity: kept }
+    if (encounter.kind === 'skirmish') {
+      const next = { ...before, broken, current: null, sanity: kept }
+      reward = true
+      interlude = false
+      saveRun(next)
+      return { run: next }
+    }
+    // A boss, or the Warden: Sanity back, the next layer, and the snapshot
+    // a defeat in that layer rolls back to.
+    const layer = Math.min(4, encounter.layer + 1) as RunState['layer']
+    const next: RunState = {
+      ...before, broken, current: null, layer,
+      sanity: Math.min(before.tuning.maxSanity, kept + BOSS_HEAL),
+      snapshot: { layer, tuning: { ...before.tuning }, weights: [...before.weights] },
+    }
+    const meta = { ...state.meta, deepest: Math.max(deepest, layer) }
+    reward = false
+    interlude = true
+    saveRun(next)
+    saveMeta(meta)
+    return { run: next, meta }
   }
 
   function nodeState(id: string): 'broken' | 'open' | 'locked' | 'closed' {
@@ -268,6 +322,8 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
     startRun() {
       if (state.scene !== 'title') return
       reward = false
+      interlude = false
+      won = null
       saveRun(null)
       commit({ run: prologueRun(nextSeed(), {}), scene: 'battle', offer: null, interlude: null })
     },
@@ -275,7 +331,9 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
     continueRun() {
       const { run } = state
       if (state.scene !== 'title' || !run) return
-      if (run.layer === 4) commit({ scene: 'gate' })
+      // A boss fell and the tab was closed before its interlude was read out.
+      if (interlude) commit({ scene: 'interlude', interlude: run.layer - 1 })
+      else if (run.layer === 4) commit({ scene: 'gate' })
       else if (run.layer === 0) commit({ scene: 'battle' })
       else if (reward) commit({ scene: 'reward', offer: offerFor(run) })
       else commit({ scene: 'map' })
@@ -283,6 +341,8 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
 
     abandonRun() {
       reward = false
+      interlude = false
+      won = null
       saveRun(null)
       commit({ run: null, scene: 'title', offer: null, interlude: null })
     },
@@ -305,32 +365,41 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
       if (state.scene === 'entrance') commit({ scene: 'battle' })
     },
 
-    battleWon(sanity) {
-      const run = runInBattle()
-      if (!run || !run.current) return
-      const encounter = ENCOUNTERS[run.current]
-      const kept = whole(sanity, 1, run.tuning.maxSanity, run.sanity)
-      const broken = unique([...run.broken, encounter.id])
-      if (encounter.kind === 'skirmish') {
-        const next = { ...run, broken, current: null, sanity: kept }
-        reward = true
-        saveRun(next)
-        commit({ run: next, scene: 'reward', offer: offerFor(next), interlude: null })
-        return
-      }
-      // A boss, or the Warden: Sanity back, the next layer, and the snapshot
-      // a defeat in that layer rolls back to.
-      const layer = Math.min(4, encounter.layer + 1) as RunState['layer']
-      const next: RunState = {
-        ...run, broken, current: null, layer,
-        sanity: Math.min(run.tuning.maxSanity, kept + BOSS_HEAL),
-        snapshot: { layer, tuning: { ...run.tuning }, weights: [...run.weights] },
-      }
-      const meta = { ...state.meta, deepest: Math.max(state.meta.deepest, layer) }
+    // The battle is won, at the moment it is won. The run and storage hold
+    // the win from here on: a reload, a return to the title and CONTINUE all
+    // find it. The scene stays where it is, on the battle's last screen.
+    recordWin(sanity) {
+      const patch = settle(sanity)
+      if (patch?.run) commit(patch)
+    },
+
+    // The one way a recorded win is lost: the player chose to fight that
+    // battle again from its last screen. The run goes back exactly as it
+    // stood when the battle began (the same attempt, its node unbroken, the
+    // Sanity it carried in, nothing offered), so the fight that follows is
+    // the only one that counts and no win is counted twice.
+    withdrawWin() {
+      if (!won) return
+      const { before, deepest } = won
+      const meta = state.meta.deepest === deepest ? state.meta : { ...state.meta, deepest }
+      won = null
       reward = false
-      saveRun(next)
-      saveMeta(meta)
-      commit({ run: next, meta, scene: 'interlude', interlude: encounter.layer, offer: null })
+      interlude = false
+      saveRun(before)
+      if (meta !== state.meta) saveMeta(meta)
+      commit({ run: before, meta })
+    },
+
+    // CONTINUE: on to what follows the win. A win not yet recorded is
+    // recorded here first.
+    battleWon(sanity) {
+      const patch = settle(sanity)
+      const run = patch?.run ?? state.run
+      if (!patch || !won?.before.current || !run) return
+      const encounter = ENCOUNTERS[won.before.current]
+      won = null
+      if (encounter.kind === 'skirmish') commit({ ...patch, scene: 'reward', offer: offerFor(run), interlude: null })
+      else commit({ ...patch, scene: 'interlude', interlude: encounter.layer, offer: null })
     },
 
     battleLost() {
@@ -377,6 +446,11 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
 
     finishInterlude() {
       if (state.scene !== 'interlude') return
+      // Read to its end: a later visit goes straight on.
+      if (interlude) {
+        interlude = false
+        saveRun(state.run)
+      }
       commit({ interlude: null, scene: !state.run ? 'title' : state.run.layer === 4 ? 'gate' : 'map' })
     },
 

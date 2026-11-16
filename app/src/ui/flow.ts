@@ -1,6 +1,8 @@
 import { battleStore } from '@/game/battle-store'
 import type { StoryEvent } from '@/game/battle-store'
 import { WARDEN_ENCOUNTER } from '@/game/encounters'
+import type { Encounter } from '@/game/encounters'
+import type { Carry } from '@/game/tuning'
 import { campaignStore, runCarry } from '@/campaign/campaign-store'
 import type { Scene } from '@/campaign/campaign-store'
 import { playPhaseChange } from '@/cinematic/stage'
@@ -36,8 +38,12 @@ export function bootCampaign(): void {
   let muted = battleStore.getSnapshot().muted
   setMuted(muted)
   battleStore.subscribe(() => {
-    const next = battleStore.getSnapshot().muted
-    if (next !== muted) setMuted(muted = next)
+    const state = battleStore.getSnapshot()
+    if (state.muted !== muted) setMuted(muted = state.muted)
+    // A battle is won when it is won, not when CONTINUE is pressed: a closed
+    // tab must not cost the win. Said again on every change of the board
+    // while its last screen is up; the run takes one win from it.
+    if (state.phase === 'victory' && campaignStore.getSnapshot().scene === 'battle') campaignStore.recordWin(state.player.sanity)
   })
 }
 
@@ -58,8 +64,16 @@ export function brokenWasDrawn(): void {
 // no run's numbers on it. Left alone when it already is.
 function wardenAtTitle(): void {
   const untouched = !parked && battleStore.getSnapshot().phase === 'title' && battleStore.currentEncounter() === WARDEN_ENCOUNTER
-  if (!untouched) battleStore.load(WARDEN_ENCOUNTER)
+  if (!untouched) putOnBoard(WARDEN_ENCOUNTER)
   parked = false
+}
+
+// Another battle goes on the board, waiting on its title phase. The line
+// left under the board by the last one goes with that battle: it must not
+// show under a boss's entrance, or on the map's board.
+function putOnBoard(encounter: Encounter, carry?: Carry): void {
+  storyFeed.clear()
+  battleStore.load(encounter, carry)
 }
 
 // Between battles the board waits on its title phase, so the decks can be
@@ -67,10 +81,14 @@ function wardenAtTitle(): void {
 export function parkBattle(): void {
   const { run } = campaignStore.getSnapshot()
   parked = run !== null
-  battleStore.load(WARDEN_ENCOUNTER, run ? runCarry(run) : undefined)
+  putOnBoard(WARDEN_ENCOUNTER, run ? runCarry(run) : undefined)
 }
 
 function onStoryEvent(event: StoryEvent): void {
+  // The battle on the board begins again while its win stood recorded (R, or
+  // RESTART BATTLE, on its last screen): the player gave that win up, and the
+  // run is put back as the battle found it. Any other start finds no win.
+  if (event.type === 'battle_start') campaignStore.withdrawWin()
   storyFeed.handle(event)
   // A campaign boss at half Robustness: the turn waits for the display.
   if (event.type === 'breakdown' && event.kind === 'boss' && campaignStore.getSnapshot().scene === 'battle') {
@@ -119,7 +137,7 @@ export function enterNode(id: string): void {
   if (!encounter || !run) return
   parked = false
   justBroken = null
-  battleStore.load(encounter, runCarry(run))
+  putOnBoard(encounter, runCarry(run))
   if (encounter.kind !== 'boss') battleStore.start()
 }
 
@@ -129,12 +147,13 @@ export function entranceDone(): void {
   battleStore.start()
 }
 
-// CONTINUE on the outcome overlay.
+// CONTINUE on the outcome overlay. A win is in the run already; this goes on
+// from it. A defeat is reported here.
 export function reportOutcome(): void {
   if (campaignStore.getSnapshot().scene !== 'battle') return
   const state = battleStore.getSnapshot()
   if (state.phase === 'victory') {
-    justBroken = campaignStore.getSnapshot().run?.current ?? null
+    justBroken = state.encounter.id
     campaignStore.battleWon(state.player.sanity)
     parkBattle()
   } else if (state.phase === 'gameover') {
@@ -156,6 +175,7 @@ export function resetDone(): void {
 export function returnToTitle(): void {
   parked = false
   justBroken = null
+  storyFeed.clear()
   battleStore.returnToMenu()
   campaignStore.boot('?intro=0')
 }

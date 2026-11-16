@@ -158,6 +158,19 @@ export function envelope(g: AudioParam, t0: number, peak: number, attack: number
   return t0 + a + hold + release
 }
 
+// The gain a sustained voice fades in on. Its own value is 0 before anything is scheduled on it.
+// stop() cancels what is scheduled, a param with nothing scheduled falls back to its own value, and
+// a new gain's own value is 1: on such a gain, a voice stopped in the instant it was started (a
+// development double mount does exactly that), or before its start time, opens fully and dies away,
+// several times louder than it was ever meant to be. On this one it stays shut.
+function closedGain(ctx: Ctx): GainNode {
+  const g = ctx.createGain()
+  g.gain.value = 0
+  return g
+}
+
+// Wherever `out` fades in on a schedule it is a closedGain, so stop() is safe at any time: before the
+// attack, in the instant of it, during it or after. (playPcm's gain has no schedule to cancel.)
 function sustained(ctx: Ctx, out: GainNode, sources: AudioScheduledSourceNode[]): Handle {
   let stopped = false
   return {
@@ -185,7 +198,7 @@ export type LowToneOptions = {
  */
 export function lowTone(ctx: Ctx, out: AudioNode, f0 = 55, t0 = ctx.currentTime, attack = 0.04, options: LowToneOptions = {})
   : Handle & { upper(level: number, at?: number, seconds?: number): void; level(value: number, at?: number, seconds?: number): void } {
-  const bus = ctx.createGain()
+  const bus = closedGain(ctx)
   bus.gain.setValueAtTime(0, t0)
   bus.gain.setTargetAtTime(options.gain ?? 1, t0, attack / 3)        // 95 percent in `attack` seconds
   const high = ctx.createGain()
@@ -290,7 +303,7 @@ export function vowel(ctx: Ctx, out: AudioNode, f = 110, t0 = ctx.currentTime, o
   vib.connect(depth)
   depth.connect(src.frequency)
   depth.connect(twin.frequency)
-  const sum = ctx.createGain()
+  const sum = closedGain(ctx)
   sum.gain.setValueAtTime(0, t0)
   sum.gain.setTargetAtTime(options.gain ?? 0.08, t0, (options.attack ?? 2.4) / 3)
   for (const [hz, level] of options.formants ?? [[700, 1], [1100, 0.5], [2500, 0.25]]) {
@@ -319,7 +332,7 @@ export type ClusterOptions = { low?: number; high?: number; voices?: number; gai
 export function cluster(ctx: Ctx, out: AudioNode, t0 = ctx.currentTime, options: ClusterOptions = {}): Handle {
   const low = options.low ?? 3000, high = options.high ?? 6000, voices = options.voices ?? 14
   const rnd = mulberry32(options.seed ?? 23)
-  const bus = ctx.createGain()
+  const bus = closedGain(ctx)
   bus.gain.setValueAtTime(0, t0)
   bus.gain.setTargetAtTime(options.gain ?? 0.03, t0, (options.attack ?? 1.5) / 3)
   const sources: OscillatorNode[] = []
@@ -397,7 +410,7 @@ export type PulseTrainOptions = {
 export function pulseTrain(ctx: Ctx, out: AudioNode, t0 = ctx.currentTime, options: PulseTrainOptions = {})
   : Handle & { rate(hz: number, at?: number, seconds?: number): void; level(value: number, at?: number, seconds?: number): void } {
   const from = options.from ?? 1, to = options.to ?? 64, seconds = options.seconds ?? 3
-  const bus = ctx.createGain()
+  const bus = closedGain(ctx)
   bus.gain.setValueAtTime(0, t0)
   bus.gain.setTargetAtTime(options.gain ?? 0.2, t0, (options.attack ?? 0.05) / 3)
   const edge = ctx.createBiquadFilter()
@@ -522,7 +535,7 @@ export function driftCluster(ctx: Ctx, out: AudioNode, t0 = ctx.currentTime, opt
   : Handle & { level(value: number, at?: number, seconds?: number): void } {
   const low = options.low ?? 207.65, high = options.high ?? 261.63, voices = options.voices ?? 24
   const rnd = mulberry32(options.seed ?? 31)
-  const bus = ctx.createGain()
+  const bus = closedGain(ctx)
   bus.gain.setValueAtTime(0, t0)
   bus.gain.setTargetAtTime(options.gain ?? 0.18, t0, (options.rise ?? 7) / 3)
   const sources: OscillatorNode[] = []
@@ -555,7 +568,7 @@ export type ShepardOptions = { low?: number; octaves?: number; secondsPerOctave?
  */
 export function shepardFall(ctx: Ctx, out: AudioNode, t0 = ctx.currentTime, seconds = 8, options: ShepardOptions = {}): Handle {
   const low = options.low ?? 55, octaves = options.octaves ?? 6, per = options.secondsPerOctave ?? 40
-  const bus = ctx.createGain()
+  const bus = closedGain(ctx)
   bus.gain.setValueAtTime(0, t0)
   bus.gain.setTargetAtTime(options.gain ?? 0.1, t0, (options.attack ?? 1.2) / 3)
   const sources: OscillatorNode[] = []

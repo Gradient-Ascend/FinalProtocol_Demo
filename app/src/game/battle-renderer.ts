@@ -5,6 +5,7 @@ import { predictedEnemySequence } from './enemy-attack-methods'
 import type { BattleStore } from './battle-store'
 import type { AttackEffect, BattleState, Coord, FlagKind } from './battle-types'
 import type { Encounter, GodId } from './encounters'
+import { MONO } from '../cinematic/display'
 
 const COLORS = {
   bg: '#090909', cell: '#0D0D0D', grid: '#343434', wall: '#272727',
@@ -345,7 +346,7 @@ export class BattleRenderer {
       return
     }
     if (kind === 'bash') {
-      ctx.font = `600 ${Math.max(10, s * 0.85)}px "JetBrains Mono", monospace`
+      ctx.font = `600 ${Math.max(10, s * 0.85)}px ${MONO}`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText('>_', x, y)
@@ -419,7 +420,7 @@ export class BattleRenderer {
     ctx.stroke()
     this.line({ x: x - r * 0.35, y: y - r * 0.35 }, { x: x + r * 0.35, y: y + r * 0.35 }, COLORS.light, 1.5)
     ctx.fillStyle = COLORS.light
-    ctx.font = `500 ${Math.max(8, this.cell * 0.22)}px "JetBrains Mono", monospace`
+    ctx.font = `500 ${Math.max(8, this.cell * 0.22)}px ${MONO}`
     ctx.textAlign = 'left'
     ctx.textBaseline = 'top'
     ctx.fillText(id, x - r, y - r - 12)
@@ -500,7 +501,7 @@ export class BattleRenderer {
     ctx.save()
     ctx.translate(shake.x, shake.y)
 
-    ctx.font = '10px "JetBrains Mono", monospace'
+    ctx.font = `10px ${MONO}`
     ctx.fillStyle = COLORS.muted
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'

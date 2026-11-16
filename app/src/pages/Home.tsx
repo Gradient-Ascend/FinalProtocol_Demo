@@ -713,7 +713,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* The battle is over. CONTINUE hands the result to the run; R fights the same battle again. */}
+      {/* The battle is over. A win is in the run from the moment it happened and CONTINUE goes on from it; a defeat is reported by CONTINUE. R fights the same battle again, and gives a win up. */}
       {ended && (
         <div className="state-overlay outcome-overlay">
           <div className="outcome-content">

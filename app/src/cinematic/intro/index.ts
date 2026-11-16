@@ -9,6 +9,7 @@
 // It owns its canvas, its animation loop (paused while the tab is hidden) and
 // its key and pointer listeners, and gives all of them back in dispose().
 import { MONO, drawSpectators, span } from '../display'
+import { isMuteKey, toggleMute } from '../mute'
 import { PointField } from '../point-field'
 import { layoutOf, Subtitle, WHITE, font, type Frame, type Layout } from './common'
 import { CG } from './data'
@@ -198,11 +199,19 @@ export function mountIntro(root: HTMLElement, opts: IntroOptions): IntroHandle {
     if (!held) holdFrom = 0
   }
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
+    if (event.metaKey || event.ctrlKey || event.altKey) return
+    if (isMuteKey(event)) {
+      // M mutes, here as everywhere. It is not a way out, however long it is held, and while the
+      // sequence has the keys nobody else answers for it (or it would be toggled twice).
+      event.stopImmediatePropagation()
+      if (!event.repeat && !toggleMute()) score.gesture()      // unmuted by a key: sound may start from here
+      return
+    }
+    if (event.repeat) return
     if (event.key === 'Meta' || event.key === 'Control' || event.key === 'Alt' || event.key === 'Shift') return
     down()
   }
-  const onKeyUp = () => up()
+  const onKeyUp = (event: KeyboardEvent) => { if (!isMuteKey(event)) up() }
   const onPointerDown = () => down()
   const onPointerUp = () => up()
   const onBlur = () => { held = 0; holdFrom = 0 }
@@ -218,7 +227,8 @@ export function mountIntro(root: HTMLElement, opts: IntroOptions): IntroHandle {
     }
   }
 
-  window.addEventListener('keydown', onKeyDown)
+  // In the capture phase: the mute key is settled here before anything under the sequence hears it.
+  window.addEventListener('keydown', onKeyDown, true)
   window.addEventListener('keyup', onKeyUp)
   window.addEventListener('blur', onBlur)
   window.addEventListener('resize', resize)
@@ -256,7 +266,7 @@ export function mountIntro(root: HTMLElement, opts: IntroOptions): IntroHandle {
       if (raf) cancelAnimationFrame(raf)
       raf = 0
       window.clearTimeout(warm)
-      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keydown', onKeyDown, true)
       window.removeEventListener('keyup', onKeyUp)
       window.removeEventListener('blur', onBlur)
       window.removeEventListener('resize', resize)

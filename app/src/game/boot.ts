@@ -2,6 +2,7 @@ import { AudioSystem } from './audio'
 import { BattleRenderer } from './battle-renderer'
 import { battleStore } from './battle-store'
 import { campaignStore } from '@/campaign/campaign-store'
+import { modalOpen } from '@/ui/Modal'
 import { reportOutcome, titlePrimary } from '@/ui/flow'
 
 declare global {
@@ -28,11 +29,23 @@ export function startGame(canvas: HTMLCanvasElement): void {
   battleStore.sfx = id => audio.sfx(id)
   battleStore.startMusic = () => audio.startMusic()
 
+  // M is the mute key in every scene: the opening, the display moments and
+  // the seams as much as the battle. It is heard here first and by nothing
+  // else, so a seam does not take it for the key that turns its page and a
+  // display does not take it for a held key. A modal keeps its own keys.
+  const onMuteKey = (event: KeyboardEvent): void => {
+    if (event.code !== 'KeyM' || event.ctrlKey || event.metaKey || event.altKey || modalOpen()) return
+    event.stopImmediatePropagation()
+    if (!event.repeat) battleStore.toggleMute()
+  }
+
   // These are the battle's keys, and the title's Space. Every other scene
   // (the map, a reward, a seam) answers for its own.
   const onKey = (event: KeyboardEvent): void => {
     const scene = campaignStore.getSnapshot().scene
     if (scene !== 'battle' && scene !== 'title') return
+    // The manual or the settings are open: nothing acts underneath them.
+    if (modalOpen()) return
     if (event.ctrlKey || event.metaKey) {
       if (['Equal', 'NumpadAdd'].includes(event.code)) { event.preventDefault(); renderer.zoomIn(); return }
       if (['Minus', 'NumpadSubtract'].includes(event.code)) { event.preventDefault(); renderer.zoomOut(); return }
@@ -49,10 +62,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
       else if (phase === 'victory' || phase === 'gameover') reportOutcome()
       return
     }
-    if (scene === 'title') {
-      if (event.code === 'KeyM') battleStore.toggleMute()
-      return
-    }
+    if (scene === 'title') return
     if (event.code === 'Escape') {
       if (battleStore.getSnapshot().overloadArmed) battleStore.cancelOverload()
       else battleStore.togglePause()
@@ -60,7 +70,6 @@ export function startGame(canvas: HTMLCanvasElement): void {
     }
     if (event.code === 'Backspace') { battleStore.undo(); return }
     if (event.code === 'KeyO') { battleStore.requestOverload(); return }
-    if (event.code === 'KeyM') { battleStore.toggleMute(); return }
     if (event.code === 'KeyR' && (phase === 'victory' || phase === 'gameover')) { battleStore.restart(); return }
     const moves: Record<string, [number, number]> = {
       KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1],
@@ -83,7 +92,14 @@ export function startGame(canvas: HTMLCanvasElement): void {
     const scene = campaignStore.getSnapshot().scene
     if (scene !== 'battle' && scene !== 'entrance') audio.stopMusic()
   })
+  // A display moment has its own sound: the battle's tone falls silent for
+  // it and comes back when it is over.
+  const onMoment = (event: Event): void => {
+    audio.duckMusic((event as CustomEvent<{ phase?: string }>).detail?.phase === 'start')
+  }
 
+  window.addEventListener('keydown', onMuteKey, true)
+  window.addEventListener('stage-moment', onMoment)
   window.addEventListener('keydown', onKey)
   window.addEventListener('resize', renderer.resize)
   canvas.addEventListener('click', onClick)
@@ -102,6 +118,8 @@ export function startGame(canvas: HTMLCanvasElement): void {
       audio.dispose()
       unsubscribe()
       unwatch()
+      window.removeEventListener('keydown', onMuteKey, true)
+      window.removeEventListener('stage-moment', onMoment)
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('resize', renderer.resize)
       canvas.removeEventListener('click', onClick)

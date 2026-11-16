@@ -9,7 +9,7 @@
 import script from '../story/script.json'
 import { attentionFor, shadeAt, shadeFinal } from '../story/attention'
 import { renderHand } from './cg-image'
-import { clamp01, easeInOutCubic, lerp, pullBack, smoother, span, spectatorDots } from './display'
+import { SPECTATOR, clamp01, easeInOutCubic, lerp, pullBack, smoother, span, spectatorDots } from './display'
 import { AUDIO, VISION } from './intro/data'
 import { both, lowTone, silence, tokenBlip, vowel } from './sound'
 import { buildFlower, drawFlower, mapLayout } from './reveal'
@@ -245,27 +245,32 @@ export function endingMoment(env: Env): Moment {
       if (away > 0.01) {
         const from = { x: word.x, y: lineY - fs * 0.95 }
         ctx.save()
-        ctx.strokeStyle = `rgba(245,245,245,${(0.2 * away).toFixed(3)})`
+        ctx.strokeStyle = `rgba(245,245,245,${(0.26 * away).toFixed(3)})`
         ctx.lineWidth = 1
         spectatorDots(w).forEach(([x, y], i) => {
           const reach = smoother(clamp01(span(t, T.look, 2.2) * 1.4 - i * 0.14))
           ctx.beginPath()
           ctx.moveTo(from.x, from.y)
-          const mx = lerp(from.x, x, 0.45), my = Math.min(from.y, y) - h * 0.1 - i * 10
+          // Three that can be counted: the first runs straight and each of the others bows further out under it,
+          // so they part at the word and only meet again at the corner.
+          const ex = x, ey = y + 5
+          const length = Math.hypot(ex - from.x, ey - from.y) || 1
+          const bow = i * 0.11 * length
+          const mx = (from.x + ex) / 2 - (ey - from.y) / length * bow, my = (from.y + ey) / 2 + (ex - from.x) / length * bow
           // drawn as far as attention has got
           const steps = 40
           for (let s = 1; s <= steps * reach; s++) {
             const u = s / steps
-            ctx.lineTo((1 - u) ** 2 * from.x + 2 * u * (1 - u) * mx + u * u * x, (1 - u) ** 2 * from.y + 2 * u * (1 - u) * my + u * u * (y + 5))
+            ctx.lineTo((1 - u) ** 2 * from.x + 2 * u * (1 - u) * mx + u * u * ex, (1 - u) ** 2 * from.y + 2 * u * (1 - u) * my + u * u * ey)
           }
           ctx.stroke()
         })
-        // and, for once, the game says what they are
-        ctx.fillStyle = `rgba(245,245,245,${(0.5 * away).toFixed(3)})`
-        ctx.font = font(small ? 9 : 10)
-        ctx.textAlign = 'left'
-        ctx.textBaseline = 'alphabetic'
-        ctx.fillText(script.meta.spectators, small ? 16 : 28, h - (small ? 16 : 28))
+        // and, for once, the game says what they are: beside them, where the lines have led the eye
+        ctx.fillStyle = `rgba(245,245,245,${(0.6 * away).toFixed(3)})`
+        ctx.font = font(small ? 10 : 11)
+        ctx.textAlign = 'right'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(script.meta.spectators, w - SPECTATOR.inset - SPECTATOR.spread - (small ? 10 : 14), SPECTATOR.inset)
         ctx.restore()
       }
     },

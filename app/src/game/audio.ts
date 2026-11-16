@@ -17,10 +17,18 @@ function writeMuted(v: boolean): void {
   storage.set("muted", v);
 }
 
+// The level of the battle's pulse, and how fast it leaves and returns around a display moment.
+const MUSIC_LEVEL = 0.06;
+const DUCK_OUT = 0.05; // seconds, time constant
+const DUCK_IN = 0.3;
+
 export class AudioSystem {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private musicOsc: OscillatorNode | null = null;
+  private musicGain: GainNode | null = null;
+  // A display moment is playing: the music is held at silence until it is over.
+  private ducked = false;
   private disposed = false;
   muted = false;
 
@@ -113,14 +121,35 @@ export class AudioSystem {
     const gain = ctx.createGain();
     osc.type = "sine";
     osc.frequency.value = 55; // A1 sustained bass
-    gain.gain.value = 0.06;
+    gain.gain.value = this.ducked ? 0 : MUSIC_LEVEL;
     osc.connect(gain).connect(this.master!);
     osc.start();
     this.musicOsc = osc;
+    this.musicGain = gain;
   }
 
   stopMusic(): void {
     this.musicOsc?.stop();
     this.musicOsc = null;
+    this.musicGain = null;
+  }
+
+  /**
+   * Take the music down to silence under a display moment (true) and bring it back after
+   * (false). The gain glides both ways, so neither edge clicks; sound effects are untouched.
+   */
+  duckMusic(on: boolean): void {
+    this.ducked = on;
+    const ctx = this.ctx;
+    const gain = this.musicGain?.gain;
+    if (!ctx || !gain) return;
+    const now = ctx.currentTime;
+    gain.cancelScheduledValues(now);
+    if (on) {
+      gain.setTargetAtTime(0, now, DUCK_OUT); // 95 percent down in three time constants
+      gain.setValueAtTime(0, now + DUCK_OUT * 10); // then exactly silent (the step is 0.005 percent of the level)
+    } else {
+      gain.setTargetAtTime(MUSIC_LEVEL, now, DUCK_IN);
+    }
   }
 }

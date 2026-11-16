@@ -168,14 +168,26 @@ const FORMS: Shape[] = [
     if (capsule(x, y, -0.19, 0.78, -0.39, 0.5, 0.05)) return true
     return Math.abs(x) < 0.14 && y >= 0.9 && y < 1
   },
-  // something with wings
+  // a figure in a tall striped headcloth: the showman of the 1920 prose poem, who "looked like a Pharaoh"
   (x, y) => {
     const ax = Math.abs(x)
-    if (disc(x, y, 0, 0.3, 0.06) || (ax < 0.06 && y > 0.14 && y < 0.3 && ax > 0.02 + (0.3 - y) * 0.1 && y > 0.14 + (0.06 - ax) * 2.2)) return true
-    if (ax < 0.075 && y > 0.32 && y < 0.86 && ax < 0.075 * Math.sqrt(Math.max(0, 1 - ((y - 0.58) / 0.28) ** 2))) return true
-    const k = ax / 0.5
-    const top = 0.4 - 0.3 * k ** 0.75 + 0.1 * k ** 3, bottom = 0.74 - 0.5 * k - 0.075 * Math.abs(Math.sin(Math.PI * k * 3))
-    return ax >= 0.04 && k <= 1 && y > top && y < bottom
+    const band = y % 0.06 < 0.037                                               // the stripes of the cloth
+    const face = (x / 0.07) ** 2 + ((y - 0.245) / 0.095) ** 2
+    if (face < 1) return true
+    if (y < 0.4) {
+      // the cloth: square over the brow, then spreading wide of the face down to the shoulders; a clear line round the face
+      const half = y < 0.12 ? 0.12 + 0.04 * Math.sqrt(Math.max(0, y - 0.02) / 0.1) : lerp(0.16, 0.3, (y - 0.12) / 0.28)
+      return y > 0.02 && ax < half && face > 1.7 && band
+    }
+    // its two ends hang on the chest, each with a clear line round it
+    if (y < 0.57 && ax > 0.065 && ax < 0.145) return band
+    if (y < 0.585 && ax > 0.05 && ax < 0.16) return false
+    if (y < 0.425) return ax < 0.04                                             // the neck
+    // a narrow body under all that cloth: shoulders, arms at the sides, a kilt, two legs
+    if (capsule(x, y, 0.205 * Math.sign(x), 0.46, 0.215 * Math.sign(x), 0.7, 0.032)) return true
+    if (y < 0.66) return ax < lerp(0.2, 0.1, (y - 0.425) / 0.235)
+    if (y < 0.84) return ax < lerp(0.1, 0.14, (y - 0.66) / 0.18)
+    return y < 1 && ax > 0.018 && ax < 0.085
   },
   // a man in a suit
   (x, y) => {
@@ -313,7 +325,7 @@ function court(env: Env, encounter: Encounter): Moment {
 // ── 3.B: the true form ───────────────────────────────────────────────────
 
 function carcosa(env: Env, encounter: Encounter): Moment {
-  const { geo, small, reduced, short } = env
+  const { geo, small, reduced, short, w, h } = env
   const L = short ? 3.4 : 6
   const T = { open: 0.9 * L / 6, predict: 2.1 * L / 6, stopped: 4.0 * L / 6, close: 5.2 * L / 6, end: L }
   const boss = bossOf(encounter)
@@ -355,8 +367,14 @@ function carcosa(env: Env, encounter: Encounter): Moment {
     cover: () => 1,
     draw(f) {
       const { ctx, t } = f
-      // Everything but the hole is the game, untouched: this canvas is clear there.
+      // Everything but the hole is the game, at a quarter of its light for as long as the hole is open:
+      // this canvas is black over it, eased in and out so that nothing jumps.
       const opening = span(t, 0.15, T.open), closing = span(t, T.close, T.end - T.close - 0.1)
+      const dim = 0.75 * Math.min(smoother(opening), 1 - smoother(closing))
+      if (dim > 0.002) {
+        ctx.fillStyle = `rgba(0,0,0,${dim.toFixed(3)})`
+        ctx.fillRect(0, 0, w, h)
+      }
       const open = Math.min(reduced ? stepped(opening) : opening, 1 - closing) * (rings + 1)
       const ring = Math.min(rings, Math.floor(open - 0.001))
       if (open <= 0.001) return
@@ -390,21 +408,23 @@ function carcosa(env: Env, encounter: Encounter): Moment {
         dot(f, cx + Math.cos(g.a) * r * scale, cy + Math.sin(g.a) * r * scale, small ? 1.8 : 2.4, blue, light * (reduced ? k : 1) * 0.9)
       }
       f.field.end(ctx, 1, 0.75)
-      // what the opening measured, measured here
-      const read = span(t, T.predict + (T.stopped - T.predict) * 0.55, 0.5) * (1 - closing * 3)
-      if (read > 0 && ring === rings) {
-        ctx.globalAlpha = 0.72 * read
-        ctx.fillStyle = '#f5f5f5'
-        ctx.font = font(small ? 8 : 10)
-        ctx.textAlign = 'left'
-        ctx.textBaseline = 'alphabetic'
-        ctx.fillText(readout, cx - reach + (small ? 5 : 9), cy + reach - (small ? 6 : 10))
-      }
       ctx.restore()
       // the edge of the hole: one hairline, so it reads as cut and not as a panel
       ctx.strokeStyle = 'rgba(255,200,87,0.22)'
       ctx.lineWidth = 1
       ctx.strokeRect(cx - reach + 0.5, cy - reach + 0.5, reach * 2, reach * 2)
+      // What the opening measured, measured here: under the hole, on the dimmed board, at a size to be read from across a room.
+      const read = span(t, T.predict + (T.stopped - T.predict) * 0.55, 0.5) * (1 - closing * 3)
+      if (read > 0 && ring === rings) {
+        const px = Math.min(small ? 18 : 34, Math.floor(reach * 2 / (readout.length * 0.62)))
+        ctx.globalAlpha = 0.92 * read
+        ctx.fillStyle = '#f5f5f5'
+        ctx.font = font(px, 600)
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'top'
+        ctx.fillText(readout, cx - reach, cy + reach + Math.round(px * 0.4))
+        ctx.globalAlpha = 1
+      }
     },
   }
 }

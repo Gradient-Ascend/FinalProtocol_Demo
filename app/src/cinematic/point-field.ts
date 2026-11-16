@@ -58,7 +58,8 @@ export function jitteredGrid(n: number, half: number, jitter = 0.35, rnd: () => 
 /** How many points a screen can afford: n for an n by n sheet. */
 export function sheetSide(cssWidth: number, cssHeight: number): number {
   const short = Math.min(cssWidth, cssHeight)
-  return short < 600 ? 80 : short < 820 ? 120 : 140                   // 6,400 on small screens, 14,400 or 19,600 on a desk
+  // 5,184 on small screens, where each point is drawn wider (shot-latent.ts) and so costs more; 14,400 or 19,600 on a desk
+  return short < 600 ? 72 : short < 820 ? 120 : 140
 }
 
 export class PointField {

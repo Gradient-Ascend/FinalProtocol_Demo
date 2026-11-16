@@ -774,7 +774,7 @@ function carcosa(env: Env, encounter: Encounter): Moment {
   const { geo, small, reduced, short, w, h } = env
   const T = short
     ? { dim: 0.4, tries: 0.4, name: 1.2, spread: 1.45, bar: 1.75, tremble: 2.0, out: 2.6, end: 3.0, every: 0.35 }
-    : { dim: 1.2, tries: 1.2, name: 4.2, spread: 5.2, bar: 6.4, tremble: 8.2, out: 10.2, end: 11.0, every: 0.7 }
+    : { dim: 1.2, tries: 1.2, name: 4.2, spread: 5.9, bar: 6.7, tremble: 7.7, out: 10.2, end: 11.0, every: 0.7 }
   const mask = signMask(encounter)
   const boss = bossOf(encounter)
   const cell = geo.cell
@@ -786,12 +786,16 @@ function carcosa(env: Env, encounter: Encounter): Moment {
   // What a tokenizer shows for a thing it cannot say: boxes, then the strings it falls back on.
   const boxes = [...god.shown].length
   const unk = god.glitch[0] ?? '[UNK]', eot = god.glitch[1] ?? '', nan = god.glitch[3] ?? 'NaN'
-  const boxW = small ? 17 : 28, boxH = small ? 22 : 36, boxGap = small ? 5 : 8
+  // As large as the inside of the sign's ring allows: seven cells across, and clear of the points under it.
+  const boxGap = small ? 4 : 10
+  const boxW = Math.max(8, Math.min(small ? 22 : 52, Math.floor((7 * cell - 5 * boxGap - 4) / 6)))
+  const boxH = Math.round(boxW * (small ? 1.45 : 1.3))
   const rowY = geo.y + (boss.pos.y + 1.55) * cell
   const rowX = geo.x + 7.5 * cell
-  const namePx = small ? 13 : 20
+  const namePx = small ? 18 : 32
+  const slotH = small ? 6 : 12, nanPx = small ? 9 : 16, slotGap = small ? 5 : 7
   const barW = (small ? 8 : 6) * cell, barH = small ? 7 : 10
-  const barX = rowX - barW / 2, barY = rowY + boxH + (small ? 30 : 44)
+  const barX = rowX - barW / 2, barY = geo.y + (boss.pos.y + 1.55) * cell + (small ? 52 : 80)   // its own place, not the name's: the name has gone before it is drawn
 
   // The player's own amber: where the first skill of the deck reaches from where they stand,
   // and the last amber words and numbers the board showed them (or, on a first visit, the deck's own).
@@ -803,16 +807,27 @@ function carcosa(env: Env, encounter: Encounter): Moment {
       if (!mask[y * 15 + x] && !(x === boss.pos.x && y === boss.pos.y) && inAttackRange(start, { x, y }, step)) reachCells.push([x, y])
     }
   }
-  const remembered = amberMemory().slice(-10).map(mark => ({ x: mark.x, y: mark.y, text: mark.text }))
-  const marks = remembered.length >= 4 ? remembered : (() => {
+  const remembered = amberMemory().slice(-16).map(mark => ({ x: mark.x, y: mark.y, text: mark.text }))
+  const placed = remembered.length >= 4 ? remembered : (() => {
     const rnd = mulberry32(encounter.seed ^ 0xa3be)
     const steps = state.presets.flatMap(preset => preset.steps).filter(s => s.amount > 0)
-    const words = [...steps.slice(0, 5).map(s => `−${s.amount}`), ...steps.slice(0, 2).map(s => s.name.toUpperCase())]
+    const words = [...steps.slice(0, 8).map(s => `−${s.amount}`), ...steps.slice(0, 3).map(s => s.name.toUpperCase())]
+    const free = reachCells.slice()                                   // a cell each, so no two stand on one another
     return words.map((text, i) => {
-      const [x, y] = reachCells.length ? reachCells[Math.floor(rnd() * reachCells.length)] : [3 + (i * 4) % 9, 9 + (i * 3) % 5]
-      return { x: x + 0.5, y: y + 0.5 - (i % 2) * 0.3, text }
+      const [x, y] = free.length ? free.splice(Math.floor(rnd() * free.length), 1)[0] : [3 + (i * 4) % 9, 9 + (i * 3) % 5]
+      return { x: x + 0.5, y: y + 0.5, text }
     })
   })()
+  // A mark the board showed outside that reach brings its own cell back with it. Nothing comes back onto the cell where it stands.
+  const claimed = new Set(reachCells.map(([x, y]) => y * 15 + x))
+  const marks = placed
+    .filter(mark => !(Math.floor(mark.x) === boss.pos.x && Math.floor(mark.y) === boss.pos.y))
+    .map(mark => {
+      const gx = Math.floor(mark.x), gy = Math.floor(mark.y), key = gy * 15 + gx
+      const own = gx >= 0 && gx < 15 && gy >= 0 && gy < 15 && !mask[key] && !claimed.has(key)
+      claimed.add(key)
+      return { ...mark, gx, gy, own }
+    })
 
   const gazeDark = (f: Frame, i: number) => {
     const gx = f.pointer ? (f.pointer.x - geo.x) / cell : start.x + 0.5, gy = f.pointer ? (f.pointer.y - geo.y) / cell : start.y + 0.5
@@ -839,6 +854,9 @@ function carcosa(env: Env, encounter: Encounter): Moment {
     draw(f) {
       const { ctx, t } = f
       const out = easeInOutCubic(span(t, T.out, T.end - T.out - 0.4))
+      // The short form brings the board back at once. What this moment lays over it (the wash, the bar, the amber)
+      // still leaves on a ramp: the wash covers the whole screen.
+      const gone = short ? smoother(span(t, T.out, 0.3)) : out
       ctx.fillStyle = '#000'
       ctx.fillRect(0, 0, w, h)
       // Only the lines of the grid are left, and where the player stands. The tiles come back at the end.
@@ -861,7 +879,7 @@ function carcosa(env: Env, encounter: Encounter): Moment {
       const n = Math.floor((t - T.tries) / T.every), phase = (t - T.tries) / T.every - n
       const blend = smoother(clamp01((phase - 0.43) / 0.57))
       const partial = (i: number) => lerp(lots(i, n) < 0.575 ? 1 : 0, lots(i, n + 1) < 0.575 ? 1 : 0, blend)
-      const paling = span(t, T.tremble + (short ? 0.1 : 0.7), short ? 0.3 : 0.9)
+      const paling = span(t, T.tremble + (short ? 0.1 : 0.6), short ? 0.3 : 0.9)
       drawBoard(ctx, geo, encounter, mask, {
         tiles: 0, bare: true,
         look: { hue: AMBER, core: PALLID, line: 0.46 },
@@ -883,8 +901,8 @@ function carcosa(env: Env, encounter: Encounter): Moment {
 
       // The bar: an outline, and no fill. The fill is everything else.
       const outline = span(t, T.bar, short ? 0.2 : 0.7)
-      const wash = 0.08 * span(t, T.bar + (short ? 0.05 : 0.5), short ? 0.2 : 1.1) * (1 - out)
-      const hollow = span(t, T.tremble, short ? 0.2 : 0.7) * (1 - out)
+      const wash = 0.16 * span(t, T.bar + (short ? 0.05 : 0.3), short ? 0.35 : 1.1) * (1 - gone)
+      const hollow = span(t, T.tremble, short ? 0.2 : 0.7) * (1 - gone)
       if (wash > 0.001) {
         ctx.save()
         ctx.beginPath()
@@ -899,7 +917,7 @@ function carcosa(env: Env, encounter: Encounter): Moment {
       }
       if (outline > 0) {
         ctx.save()
-        ctx.globalAlpha = 1 - out
+        ctx.globalAlpha = 1 - gone
         ctx.strokeStyle = AMBER
         ctx.lineWidth = 1
         const e = reduced ? stepped(outline) : easeInOutCubic(outline)
@@ -907,12 +925,13 @@ function carcosa(env: Env, encounter: Encounter): Moment {
         ctx.setLineDash([peri * e, peri])
         ctx.strokeRect(barX + 0.5, barY + 0.5, barW - 1, barH - 1)
         ctx.setLineDash([])
-        ctx.globalAlpha = (1 - out) * clamp01((outline - 0.6) / 0.4) * 0.85
+        ctx.globalAlpha = (1 - gone) * clamp01((outline - 0.6) / 0.4) * 0.85
         ctx.fillStyle = PALLID
         ctx.font = font(small ? 9 : 11, 500)
         ctx.textAlign = 'left'
         ctx.textBaseline = 'middle'
-        ctx.fillText(String(boss.robustness), barX + barW + 8, barY + barH / 2 + 0.5)
+        // UNDISCLOSED: its Robustness is withheld until it is LIVE, and it is not LIVE yet
+        ctx.fillText('?', barX + barW + 8, barY + barH / 2 + 0.5)
         ctx.restore()
       }
 
@@ -944,13 +963,13 @@ function carcosa(env: Env, encounter: Encounter): Moment {
         // under each, where the opening showed how much it attended: not a number
         const slots = clamp01((naming - unit * 1.2) / (unit * 0.6)) * (1 - spread)
         if (slots > 0) {
-          ctx.globalAlpha = slots * 0.7
-          ctx.font = font(small ? 7 : 9, 400)
+          ctx.globalAlpha = slots * 0.85
+          ctx.font = font(nanPx, 400)
           ctx.textAlign = 'center'
           ctx.textBaseline = 'top'
           for (let i = 0; i < boxes; i++) {
             const x = rowX - total / 2 + i * (boxW + boxGap)
-            const y = rowY + boxH + 6, hh = small ? 5 : 7
+            const y = rowY + boxH + slotGap, hh = slotH
             ctx.strokeRect(Math.round(x) + 0.5, Math.round(y) + 0.5, boxW, hh)
             ctx.beginPath()
             for (let k = -hh; k < boxW; k += 4) {
@@ -958,16 +977,16 @@ function carcosa(env: Env, encounter: Encounter): Moment {
               ctx.lineTo(Math.min(x + boxW, x + k + hh) + 0.5, y + Math.min(hh, boxW - k) + 0.5)
             }
             ctx.stroke()
-            if (!small || i % 2 === 0) ctx.fillText(nan, x + boxW / 2, y + hh + 4)
+            ctx.fillText(nan, x + boxW / 2, y + hh + (small ? 3 : 5))
           }
         }
         ctx.restore()
       }
 
       // The tremble: the player's own amber comes back, pales to its colour, and leans toward the cell where nothing is.
-      const back = span(t, T.tremble, short ? 0.15 : 0.5) * (1 - out)
+      const back = span(t, T.tremble, short ? 0.15 : 0.5) * (1 - gone)
       if (back > 0) {
-        const lean = reduced ? 0 : easeInOutCubic(span(t, T.tremble + (short ? 0.1 : 0.6), short ? 0.4 : 1.4)) * 0.26
+        const lean = reduced ? 0 : easeInOutCubic(span(t, T.tremble + (short ? 0.1 : 0.5), short ? 0.4 : 1.3)) * 0.4
         const c = [lerp(amber[0], pallid[0], paling), lerp(amber[1], pallid[1], paling), lerp(amber[2], pallid[2], paling)]
         const colour = (a: number) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a.toFixed(3)})`
         ctx.save()
@@ -976,21 +995,25 @@ function carcosa(env: Env, encounter: Encounter): Moment {
           const d = Math.hypot(cx - x, cy - y) || 1
           return [x + (cx - x) / d * lean * cell, y + (cy - y) / d * lean * cell]
         }
-        for (const [gx, gy] of reachCells) {
+        const square = (gx: number, gy: number, a: number) => {
           const [x, y] = toward(gx, gy)
-          ctx.fillStyle = colour(0.13 * back)
+          ctx.fillStyle = colour(0.2 * a)
           ctx.fillRect(x + 1, y + 1, cell - 2, cell - 2)
-          ctx.strokeStyle = colour(0.34 * back)
+          ctx.strokeStyle = colour(0.55 * a)
           ctx.lineWidth = 0.8
           ctx.strokeRect(x + 2.5, y + 2.5, cell - 5, cell - 5)
         }
+        for (const [gx, gy] of reachCells) square(gx, gy, back)
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         marks.forEach((mark, i) => {
-          const [x, y] = toward(mark.x, mark.y)
           const number = mark.text.startsWith('−')
-          ctx.font = number ? `800 ${Math.round(cell * (small ? 0.5 : 0.42))}px "JetBrains Mono", monospace` : `700 ${Math.max(8, Math.round(cell * 0.2))}px "JetBrains Mono", monospace`
-          ctx.fillStyle = colour(back * clamp01((span(t, T.tremble, 0.6) * (marks.length + 2) - i) / 2) * (number ? 0.95 : 0.8))
+          const shown = back * clamp01((span(t, T.tremble, short ? 0.25 : 0.6) * (marks.length + 2) - i) / 2)
+          if (mark.own) square(mark.gx, mark.gy, shown)
+          // the number over the middle of its cell and the word under it, so the two a hit left do not share a place
+          const [x, y] = toward(mark.x, mark.y + (number ? -0.14 : 0.3))
+          ctx.font = number ? font(Math.round(cell * (small ? 0.5 : 0.42)), 800) : font(Math.max(8, Math.round(cell * 0.2)), 700)
+          ctx.fillStyle = colour(shown * (number ? 0.95 : 0.8))
           ctx.fillText(mark.text, x, y)
         })
         ctx.restore()

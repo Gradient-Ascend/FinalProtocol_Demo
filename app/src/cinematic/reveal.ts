@@ -117,6 +117,9 @@ export function revealMoment(env: Env): Moment {
   const ZOOM = 40
   const board = { x: geo.x + 7.5 * geo.cell, y: geo.y + 7.5 * geo.cell, side: geo.cell * 15 }
   const blue = rgbOf('#79BFFF'), white: [number, number, number] = [244, 244, 244]
+  // How brightly each petal shows. The map keeps a locked petal at 0.12; here the two are held at twice that,
+  // so that the petal the run is in is seen to be one of three. They sink to the map's level as this fades onto it.
+  const LEVELS = [0.55, 0.24, 0.24]
 
   const cues: Cue[] = [
     // the first petal's own note comes up under the pull-back, and stays for the map to take over
@@ -139,7 +142,7 @@ export function revealMoment(env: Env): Moment {
         // No zoom: the board gives way to the map, and the dot it was is ringed.
         const there = smoother(span(t, T.start + 1.2, 2.2))
         drawBoard(ctx, geo, encounter, mask, { alpha: 1 - there, labels: 0.6 })
-        drawFlower(f, flower, map.cx, map.cy, map.cell, there, [0.9, 0, 0], [0.55, 0.12, 0.12])
+        drawFlower(f, flower, map.cx, map.cy, map.cell, there, [0.9, 0, 0], LEVELS)
         dot(f, map.cx, map.cy, 4.5, blue, there)
         f.field.end(ctx, 1, 0.6)
         ctx.strokeStyle = `rgba(244,244,244,${(0.6 * there).toFixed(3)})`
@@ -176,7 +179,7 @@ export function revealMoment(env: Env): Moment {
       }
       // the petal it is at the root of; then the other two
       const petals = smoother(fall(scale / ZOOM, 0.42, 0.08))
-      drawFlower(f, flower, ox, oy, map.cell * scale, petals, [0.9, 0, 0], [0.55, 0.12, 0.12])
+      drawFlower(f, flower, ox, oy, map.cell * scale, petals, [0.9, 0, 0], LEVELS)
       f.field.end(ctx, 1, 0.6)
     },
   }

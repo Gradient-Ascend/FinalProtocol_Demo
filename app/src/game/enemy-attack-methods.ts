@@ -81,7 +81,8 @@ function projectedBoard(state: BattleState, playerPos: Coord, playerStepsOverrid
 }
 
 // Walks every Geek still to act along its route, in order, and reports where
-// each ends and what it collects.
+// each ends and what it collects. A Geek's PURGE erases its cell when its own
+// walk is over, so only the Geeks acting after it find that Flag gone.
 function projectedWalks(state: BattleState, targetPos: Coord, playerStepsOverride?: number) {
   const moves = state.actions.filter(action => action.type === 'move')
   const board = projectedBoard(state, targetPos, playerStepsOverride)
@@ -98,6 +99,7 @@ function projectedWalks(state: BattleState, targetPos: Coord, playerStepsOverrid
       counts[removed.has(key) ? 'blank' : state.flags[pos.y][pos.x]]++
       removed.add(key)
     }
+    if (enemy.effectCell) removed.add(`${enemy.effectCell.x},${enemy.effectCell.y}`)
     positions.set(enemy.id, cursor)
     return { enemy, cursor, counts }
   })

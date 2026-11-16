@@ -1,5 +1,6 @@
 import { inAttackRange } from './attack-methods'
 import type { AttackEffect, Coord } from './battle-types'
+import { MONO } from '../cinematic/display'
 
 // Attack effects are the one loud part of an otherwise minimal board: additive
 // particles with a soft bloom, drawn on their own layer above the grid. Every
@@ -715,7 +716,7 @@ export class AttackFx {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.lineJoin = 'round'
-    ctx.font = `600 ${Math.max(8, Math.min(12, cell * 0.24))}px "JetBrains Mono", monospace`
+    ctx.font = `600 ${Math.max(8, Math.min(12, cell * 0.24))}px ${MONO}`
     for (const tag of this.tags) {
       const x = origin.x + tag.x * cell
       const y = origin.y + (tag.y + 0.78) * cell
@@ -733,7 +734,7 @@ export class AttackFx {
       const x = origin.x + num.x * cell
       const y = origin.y + (num.y - 0.62 - (1 - (1 - f) ** 3) * 0.7) * cell
       ctx.globalAlpha = f < 0.6 ? 1 : 1 - (f - 0.6) / 0.4
-      ctx.font = `700 ${size}px "JetBrains Mono", monospace`
+      ctx.font = `700 ${size}px ${MONO}`
       ctx.lineWidth = Math.max(3, size * 0.2)
       ctx.strokeStyle = '#050505'
       ctx.strokeText(num.text, x, y)
