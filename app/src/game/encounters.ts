@@ -163,7 +163,7 @@ function boss(base: BossBase, stages: BossStageDefinition[]): EnemyDefinition {
   }
 }
 
-// What the Yeanling gives birth to: the Grove's small hunter, without a place
+// What the Dark Young gives birth to: the Grove's small hunter, without a place
 // yet. A point slighter than the brood of 1.3: the births are what a player
 // who only chases damage is worn down by, on top of the boss's own sure steps.
 const AGAIN: BroodDefinition = {

@@ -48,7 +48,7 @@ function bossTitle(boss: EnemyState): string {
 
 function properName(boss: EnemyState): string {
   return bossTitle(boss).toLowerCase().split(' ')
-    .map((word, index) => index > 0 && (word === 'of' || word === 'the') ? word : word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word, index) => index > 0 && (word === 'of' || word === 'the' || word === 'in') ? word : word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
 }
 

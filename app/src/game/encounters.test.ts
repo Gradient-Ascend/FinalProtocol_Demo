@@ -107,11 +107,11 @@ describe('encounter table', () => {
   })
 
   it('carries each boss rule in the boss definition', () => {
-    const [yeanling] = ENCOUNTERS['1.B'].enemies
-    expect(yeanling.brood).toMatchObject({ limit: 3, spawn: { name: 'DESIRE / AGAIN', behavior: 'hunter' } })
-    expect(yeanling.brood!.spawn.robustness).toBeLessThan(Math.min(...ENCOUNTERS['1.1'].enemies.map(enemy => enemy.robustness)))
+    const [young] = ENCOUNTERS['1.B'].enemies
+    expect(young.brood).toMatchObject({ limit: 3, spawn: { name: 'DESIRE / AGAIN', behavior: 'hunter' } })
+    expect(young.brood!.spawn.robustness).toBeLessThan(Math.min(...ENCOUNTERS['1.1'].enemies.map(enemy => enemy.robustness)))
     // Stage II lowers the Soul threshold by 1.
-    expect(yeanling.bossStages![1].soulThreshold).toBe(yeanling.bossStages![0].soulThreshold - 1)
+    expect(young.bossStages![1].soulThreshold).toBe(young.bossStages![0].soulThreshold - 1)
     const [queen, ...court] = ENCOUNTERS['2.B'].enemies
     expect(queen.bossStages).toHaveLength(2)
     // CHANGE PLACES needs a Geek to change places with.
@@ -122,7 +122,7 @@ describe('encounter table', () => {
     // Act II: the floor is 2 and Desire is larger.
     expect(king.bossStages![1].desireFloor).toBe(2)
     expect(Math.max(...king.bossStages![1].desire)).toBeGreaterThan(Math.max(...king.bossStages![0].desire))
-    for (const boss of [yeanling, queen]) expect(boss.hidden ?? boss.undisclosed ?? boss.mystery).toBeUndefined()
+    for (const boss of [young, queen]) expect(boss.hidden ?? boss.undisclosed ?? boss.mystery).toBeUndefined()
   })
 })
 

@@ -74,7 +74,7 @@ const PLAN: Plan[] = [
       { id: '1.1', name: 'WANT', kind: 'skirmish', part: rows(GROVE, 10, 14) },
       { id: '1.2', name: 'MORE', kind: 'skirmish', part: rows(GROVE, 4, 9) },
       { id: '1.3', name: 'AGAIN', kind: 'skirmish', part: rows(GROVE, 0, 2) },
-      { id: '1.B', name: 'YEANLING / THOUSAND', kind: 'boss', part: GROVE },
+      { id: '1.B', name: 'DARK YOUNG / THOUSAND', kind: 'boss', part: GROVE },
     ],
   },
   {
@@ -83,7 +83,7 @@ const PLAN: Plan[] = [
       { id: '2.1', name: 'USHER', kind: 'skirmish', part: rows(COURT, 1, 3) },
       { id: '2.2', name: 'CLERK', kind: 'skirmish', part: rows(COURT, 5, 9) },
       { id: '2.3', name: 'AXE', kind: 'skirmish', part: rows(COURT, 11, 13) },
-      { id: '2.B', name: 'QUEEN OF THE RED / VERDICT', kind: 'boss', part: COURT },
+      { id: '2.B', name: 'QUEEN IN RED / VERDICT', kind: 'boss', part: COURT },
     ],
   },
   {

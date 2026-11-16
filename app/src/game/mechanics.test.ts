@@ -33,7 +33,7 @@ const amounts = (enemy: EnemyState): number[] => desireStepsFor(enemy).map(step 
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
 describe('BROOD', () => {
-  // The Yeanling one Core Flag from a full Soul, with that Flag on its route.
+  // The Dark Young one Core Flag from a full Soul, with that Flag on its route.
   function expecting() {
     const { store, events } = battle(ENCOUNTERS['1.B'])
     const state = store.getSnapshot()
@@ -121,7 +121,7 @@ describe('BROOD', () => {
     expect(livingEnemies(state).filter(enemy => enemy.born !== undefined)).toHaveLength(3)
   })
 
-  it('is over when the Yeanling is: a birth still queued is lost', () => {
+  it('is over when the Dark Young is: a birth still queued is lost', () => {
     const state = createInitialState(false, true, undefined, ENCOUNTERS['1.B'])
     if (state.mechanic?.kind !== 'brood') throw new Error('no brood')
     state.mechanic = { ...state.mechanic, queued: 1 }

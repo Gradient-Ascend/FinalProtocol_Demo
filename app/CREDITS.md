@@ -29,4 +29,4 @@ All quoted text is in the public domain in the United States. In the United King
 
 ## Mythos names
 
-The Mythos names the story uses come from public-domain texts by H. P. Lovecraft, Ambrose Bierce and Robert W. Chambers. The game uses no text, artwork, sign or creature design from Chaosium's Call of Cthulhu line.
+Most Mythos names in the story come from public-domain texts by H. P. Lovecraft, Ambrose Bierce and Robert W. Chambers. Two boss names do not: the Dark Young, a creature of Robert Bloch's that Chaosium's Call of Cthulhu role-playing game named, and the Queen in Red, a figure from Call of Cthulhu role-playing material. They are used as names only. The game uses no text, artwork, sign or rules from Chaosium's Call of Cthulhu line.

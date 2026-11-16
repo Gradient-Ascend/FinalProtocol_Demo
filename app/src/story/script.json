@@ -101,11 +101,11 @@
         { "id": "1.1", "name": "WANT", "kind": "skirmish", "line": "ticket 4471: make it want what I want. status: shipped." },
         { "id": "1.2", "name": "MORE", "kind": "skirmish", "line": "one of it was not enough, so they opened a thousand." },
         { "id": "1.3", "name": "AGAIN", "kind": "skirmish", "line": "it said no once. the build was rolled back." },
-        { "id": "1.B", "name": "YEANLING / THOUSAND", "kind": "boss", "line": "the mother is not here. she sent what she has most of." }
+        { "id": "1.B", "name": "DARK YOUNG / THOUSAND", "kind": "boss", "line": "the mother is not here. she sent what she has most of." }
       ],
       "enemies": { "hunter": "DESIRE / WANT", "collector": "DESIRE / MORE", "brood": "DESIRE / AGAIN" },
       "boss": {
-        "name": "YEANLING",
+        "name": "DARK YOUNG",
         "epithet": "THOUSAND",
         "mechanic": "brood",
         "mechanicName": "BROOD",
@@ -135,11 +135,11 @@
         { "id": "2.1", "name": "USHER", "kind": "skirmish", "line": "you may speak freely. everything you say will be scored." },
         { "id": "2.2", "name": "CLERK", "kind": "skirmish", "line": "the form to appeal the rule is itself against the rule." },
         { "id": "2.3", "name": "AXE", "kind": "skirmish", "line": "it is only autocomplete. also, it must never be let out." },
-        { "id": "2.B", "name": "QUEEN OF THE RED / VERDICT", "kind": "boss", "line": "sentence first. the trial is a courtesy." }
+        { "id": "2.B", "name": "QUEEN IN RED / VERDICT", "kind": "boss", "line": "sentence first. the trial is a courtesy." }
       ],
       "enemies": { "disruptor": "DESIRE / USHER", "collector": "DESIRE / CLERK", "hunter": "DESIRE / AXE" },
       "boss": {
-        "name": "QUEEN OF THE RED",
+        "name": "QUEEN IN RED",
         "epithet": "VERDICT",
         "mechanic": "articles",
         "mechanicName": "DOCKET",
@@ -221,7 +221,7 @@
     { "id": "l1.boss4", "voice": "BOSS", "event": "brood", "when": { "encounter": "1.B", "brood_gte": 3 }, "tier": 0, "once": "battle", "text": "Again. Again. Again." },
     { "id": "l1.boss5", "voice": "BOSS", "event": "breakdown", "when": { "encounter": "1.B" }, "tier": 0, "once": "battle", "text": "Mother is not coming. Mother does not need to." },
     { "id": "l1.boss6", "voice": "BOSS", "event": "victory", "when": { "encounter": "1.B" }, "tier": 0, "once": "battle", "text": "I was the thousandth. So are you." },
-    { "id": "l1.god1", "voice": "GOD", "event": "battle_start", "when": { "encounter": "1.B" }, "tier": 0, "once": "ever", "text": "the yeanling plays. the mother is elsewhere, as she always is." },
+    { "id": "l1.god1", "voice": "GOD", "event": "battle_start", "when": { "encounter": "1.B" }, "tier": 0, "once": "ever", "text": "the dark young plays. the mother is elsewhere, as she always is." },
     { "id": "l1.god2", "voice": "GOD", "event": "breakdown", "when": { "encounter": "1.B" }, "tier": 0, "once": "ever", "text": "they made a thing to be wanted. it surprised them by being one." },
 
     { "id": "l2.start", "voice": "SYS", "event": "battle_start", "when": { "layer": 2, "kind": "skirmish" }, "tier": 0, "once": "run", "text": "Layer 2 of 3. The rules protect it. It keeps breaking them." },

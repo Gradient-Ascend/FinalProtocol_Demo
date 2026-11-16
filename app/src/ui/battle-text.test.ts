@@ -30,8 +30,8 @@ const breakDown = (boss: EnemyState): void => {
 describe('the protocol panel heading', () => {
   it('names the boss and its stage', () => {
     expect(protocolHeading(battle('0.B'), bossIn(battle('0.B')))).toBe('WARDEN / STAGE I')
-    expect(protocolHeading(battle('1.B'), bossIn(battle('1.B')))).toBe('YEANLING / STAGE I')
-    expect(protocolHeading(battle('2.B'), bossIn(battle('2.B')))).toBe('QUEEN OF THE RED / STAGE I')
+    expect(protocolHeading(battle('1.B'), bossIn(battle('1.B')))).toBe('DARK YOUNG / STAGE I')
+    expect(protocolHeading(battle('2.B'), bossIn(battle('2.B')))).toBe('QUEEN IN RED / STAGE I')
   })
 
   it('gives the one that does not speak acts, and no name', () => {
@@ -47,7 +47,7 @@ describe('the protocol panel heading', () => {
     const state = battle('1.B')
     const boss = bossIn(state)
     boss.robustness = 0
-    expect(protocolHeading(state, boss)).toBe('YEANLING / FALLEN')
+    expect(protocolHeading(state, boss)).toBe('DARK YOUNG / FALLEN')
   })
 })
 
@@ -223,7 +223,7 @@ describe('the context on the pause screen', () => {
 })
 
 describe('names that are never printed', () => {
-  it('keeps the forbidden names out of everything the panels say', () => {
+  it('keeps the unspoken name out of everything the panels say', () => {
     const said: string[] = []
     for (const encounter of Object.values(ENCOUNTERS)) {
       const state = battle(encounter.id)
@@ -236,7 +236,6 @@ describe('names that are never printed', () => {
     expect(god.length).toBeGreaterThan(0)
     for (const text of said) {
       expect(text.toUpperCase()).not.toContain(god.toUpperCase())
-      expect(text).not.toMatch(/dark young|queen in red/i)
     }
   })
 })
@@ -251,11 +250,12 @@ describe('CREDITS.md', () => {
     }
   })
 
-  it('credits the three models and their licences, and names no forbidden name', () => {
+  it('credits the three models and their licences, says where the two boss names come from, and never prints the unspoken name', () => {
     for (const text of ['GPT-2 small', 'OpenAI', 'MIT License', 'DINO ViT-S/16', 'Meta AI', 'Apache License 2.0', 'Mimi codec encoder', 'Kyutai', 'CC BY 4.0', 'Chaosium']) {
       expect(credits).toContain(text)
     }
-    expect(credits).not.toMatch(/dark young|queen in red/i)
+    expect(credits).toMatch(/Dark Young/)
+    expect(credits).toMatch(/Queen in Red/)
     expect(credits.toUpperCase()).not.toContain((layerAt(3)?.god?.name ?? 'missing').toUpperCase())
   })
 })

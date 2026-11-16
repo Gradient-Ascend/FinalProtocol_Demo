@@ -285,7 +285,7 @@ describe('a turn held for the interface', () => {
     await sleep(250)
     // The Breakdown is on the board and nothing has happened after it.
     expect(store.getSnapshot()).toMatchObject({
-      phase: 'resolving', enemyPhaseIndex: 0, message: 'QUEEN OF THE RED BREAKDOWN / DOCKET EVERY TURN',
+      phase: 'resolving', enemyPhaseIndex: 0, message: 'QUEEN IN RED BREAKDOWN / DOCKET EVERY TURN',
       player: { sanity: 900 },
     })
     expect(boss.stage).toBe(2)
@@ -580,7 +580,7 @@ describe('story events', () => {
     expect(events.filter(event => event.type === 'geek_killed').map(event => [event.turn, event.killsThisTurn])).toEqual([[1, 1], [2, 1]])
     expect(events[events.length - 1]).toMatchObject({ type: 'victory', encounter: '2.B', kind: 'boss', turn: 2 })
     expect(store.getSnapshot().message).toBe('COURT BREACHED')
-    expect(store.getSnapshot().log.some(entry => entry.text === 'Queen of the Red Robustness reduced to zero. Layer breached.')).toBe(true)
+    expect(store.getSnapshot().log.some(entry => entry.text === 'Queen in Red Robustness reduced to zero. Layer breached.')).toBe(true)
   })
 
   it('reports a Soul that restores Robustness, a Breakdown with the new stage, and a defeat', async () => {
@@ -652,8 +652,8 @@ describe('wording outside the prologue', () => {
       return store.getSnapshot().message
     }
     expect(await turn('1.1')).toBe('Warps reindexed. Geek intent exposed.')
-    expect(await turn('1.B')).toBe('Warps reindexed. Yeanling intent exposed.')
-    expect(await turn('2.B')).toBe('Warps reindexed. Queen of the Red intent exposed.')
+    expect(await turn('1.B')).toBe('Warps reindexed. Dark Young intent exposed.')
+    expect(await turn('2.B')).toBe('Warps reindexed. Queen in Red intent exposed.')
     // The one with no name is given none.
     expect(await turn('3.B')).toBe('Warps reindexed. Intent exposed.')
   })
@@ -673,7 +673,7 @@ describe('wording outside the prologue', () => {
     }
     expect(await fall('1.B')).toEqual({
       breakdown: 'BREAKDOWN / Stage II: FEAST, THICKET, BROOD; BROOD fills at 2.',
-      banner: 'GROVE BREACHED', last: 'Yeanling Robustness reduced to zero. Layer breached.',
+      banner: 'GROVE BREACHED', last: 'Dark Young Robustness reduced to zero. Layer breached.',
     })
     expect(await fall('3.B')).toEqual({
       breakdown: 'BREAKDOWN / Stage II: UNKNOWING, VEIL, FAITH; MYSTERY ends.',

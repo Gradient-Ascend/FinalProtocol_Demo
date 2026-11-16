@@ -11,7 +11,7 @@ import { fillText, layerAt } from '@/story/script'
 export const ROMAN = ['I', 'II', 'III', 'IV']
 export const WITHHELD = '?'
 
-// 'WARDEN', 'QUEEN OF THE RED': the part of a boss's name before its epithet.
+// 'WARDEN', 'QUEEN IN RED': the part of a boss's name before its epithet.
 export function bossTitle(boss: Pick<EnemyState, 'name'>): string {
   return boss.name.split(' / ')[0]
 }

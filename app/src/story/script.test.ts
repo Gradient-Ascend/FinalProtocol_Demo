@@ -74,7 +74,7 @@ describe('script.json shape', () => {
 describe('script lookups', () => {
   it('finds layers, nodes and enemy names', () => {
     expect(layerAt(2)?.name).toBe('COURT')
-    expect(nodeById('1.B')?.name).toBe('YEANLING / THOUSAND')
+    expect(nodeById('1.B')?.name).toBe('DARK YOUNG / THOUSAND')
     expect(nodeById('0.B')?.kind).toBe('prologue')
     expect(layerOfNode('3.2')?.id).toBe('carcosa')
     expect(nodeById('9.9')).toBeUndefined()

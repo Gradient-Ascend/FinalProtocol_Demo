@@ -253,14 +253,14 @@ describe('whole runs through the campaign store', () => {
     }
   })
 
-  it('makes the Yeanling cost the strong bot some Sanity, never nothing and never much', () => {
+  it('makes the Dark Young cost the strong bot some Sanity, never nothing and never much', () => {
     for (const [index, run] of strong.entries()) {
-      const yeanling = run.battles.find(battle => battle.encounter === '1.B')
+      const young = run.battles.find(battle => battle.encounter === '1.B')
       const label = `nodes ${PAIRS[index].join('+')}`
       // Tuned to 3 to 8. The Grove mends as fast as it wounds, so this fight
       // can slide to costing nothing without any other bound here noticing.
-      expect(yeanling?.sanityLost, label).toBeGreaterThanOrEqual(1)
-      expect(yeanling?.sanityLost, label).toBeLessThanOrEqual(10)
+      expect(young?.sanityLost, label).toBeGreaterThanOrEqual(1)
+      expect(young?.sanityLost, label).toBeLessThanOrEqual(10)
     }
   })
 
@@ -284,7 +284,7 @@ describe('whole runs through the campaign store', () => {
       const fallen = run.battles[run.battles.length - 1]
       expect(fallen.result, label).toBe('gameover')
       expect(['2', '3'], `${label}: fell at ${fallen.encounter}`).toContain(fallen.encounter[0])
-      // Everything before it was won, the Yeanling included.
+      // Everything before it was won, the Dark Young included.
       for (const battle of run.battles.slice(0, -1)) expect(battle.result, `${label} ${battle.encounter}`).toBe('victory')
       expect(run.battles.map(battle => battle.encounter), label).toContain('1.B')
     }

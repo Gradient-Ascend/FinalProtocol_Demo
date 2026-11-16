@@ -1,5 +1,5 @@
 // The three boss entrances. Each god has one verb and breaks one law of the
-// interface: the Yeanling multiplies (the grid divides past counting, then
+// interface: the Dark Young multiplies (the grid divides past counting, then
 // something too tall for the screen sets a foot down); the Queen performs (a
 // fanfare that resolves wrongly, black, a mask too large for the frame with
 // the board in its eye); the last one withholds (silence, a sign that will
@@ -58,7 +58,7 @@ function ignitions(f: Frame, mask: Uint8Array, litAt: Float32Array, hue: string,
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// 1.B — the Yeanling. Multiplies.
+// 1.B — the Dark Young. Multiplies.
 // ═════════════════════════════════════════════════════════════════════════
 
 // A limb: where it stands, how wide, and the dots of its rim and its coat as (along, across, brightness).
@@ -401,7 +401,7 @@ function grove(env: Env, encounter: Encounter): Moment {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// 2.B — the Queen of the Red. Performs.
+// 2.B — the Queen in Red. Performs.
 // ═════════════════════════════════════════════════════════════════════════
 
 const BONE = '#F3EDE2', FIELD = '#C4162E'
