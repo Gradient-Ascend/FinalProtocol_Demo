@@ -257,8 +257,11 @@ export class BattleStore {
     return counts
   }
 
+  // The route from the cell it started on. While it is walked the player is
+  // no longer standing there: the trail's first cell is where the turn began.
   routeText(): string {
-    const points = [this.state.player.pos, ...this.state.actions.filter(action => action.type === 'move').map(action => action.to)]
+    const start = this.state.playerTrail[0] ?? this.state.player.pos
+    const points = [start, ...this.state.actions.filter(action => action.type === 'move').map(action => action.to)]
     return points.map(coordKey).join(' → ')
   }
 

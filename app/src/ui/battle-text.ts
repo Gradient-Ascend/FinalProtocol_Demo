@@ -58,6 +58,29 @@ export function traceText(state: BattleState): TraceText | null {
   return { value: `+${traceLevel(state)}`, note: 'ON EVERY DESIRE, RISING', tone: 'rising' }
 }
 
+// Whether the route on the plan is still to be walked, so that what lies on
+// it may be forecast. Not once the battle is over. And not while an Overload
+// is armed that would leave no Geek standing: that release fires at once,
+// from the planned endpoint, and the battle ends there with the route never
+// walked. `release` is the armed release as the planner forecasts it.
+export function routeAhead(
+  state: Pick<BattleState, 'phase' | 'overloadArmed' | 'enemies'>, release: readonly { enemyId: string; after: number }[],
+): boolean {
+  if (state.phase === 'victory' || state.phase === 'gameover') return false
+  if (!state.overloadArmed) return true
+  const left = new Map(release.map(hit => [hit.enemyId, hit.after]))
+  return state.enemies.some(enemy => (left.get(enemy.id) ?? enemy.robustness) > 0)
+}
+
+// A key for each hit still to land on one Geek's bar, given the release step
+// of each in order. One step can hit a Geek twice (struck, then bumped into),
+// so the step alone is not a key. Hits of one step are counted from the last:
+// hits land from the front, and the key of one still to come does not change
+// as the ones before it land.
+export function segmentKeys(steps: readonly number[]): string[] {
+  return steps.map((step, at) => `${step}-${steps.slice(at + 1).filter(later => later === step).length}`)
+}
+
 type Spoken = { voice: string; event?: string }
 
 // A boss speaks through its protocol panel, and the one that does not speak

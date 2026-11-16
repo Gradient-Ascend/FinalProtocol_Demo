@@ -42,10 +42,12 @@ export type CampaignStore = {
   recordWin(sanity: number): void                  // the battle is won: kept at once; the scene stays 'battle'
   withdrawWin(): void                              // that battle is fought again: the run as it stood before the win
   battleWon(sanity: number): void                  // → 'reward' | 'interlude'
+  recordDefeat(): void                             // the battle is lost: a layer rolls back at once; the scene stays 'battle'
   battleLost(): void                               // → 'reset'
   finishReset(): void; chooseWeight(id: string): void; finishInterlude(): void
   chooseGate(choice: 'open' | 'keep'): void; finishEnding(): void
   recordLine(voice: string, text: string, id?: string): void
+  recordSeamLine(voice: string, text: string, id?: string): void   // a seam's line: logged once per run
 }
 
 const PROLOGUE = '0.B'
@@ -53,6 +55,7 @@ const BOSS_HEAL = 12
 const TRANSCRIPT_CAP = 400
 const GHOST_CAP = 200
 const SEEN_CAP = 2000
+const SAID_CAP = 400
 
 type WeightText = { id: string; kind: string }
 const WEIGHTS = script.weights as WeightText[]
@@ -138,6 +141,11 @@ export function sanitizeMeta(raw: unknown): MetaState {
   }
 }
 
+// The seam lines a run has already put in the log, as they were stored.
+export function sanitizeSaid(raw: unknown): string[] {
+  return unique(strings(raw).filter(key => key.length <= 480)).slice(-SAID_CAP)
+}
+
 // A stored run is rebuilt rather than believed: its numbers come from the
 // weights it lists, its broken nodes have to fit its layer, and the battle
 // that was open when the tab closed is not resumed. `reward` says a skirmish
@@ -190,6 +198,13 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
   // win was recorded with. Only while this is held can the win be withdrawn;
   // it is never stored.
   let won: { before: RunState; deepest: number; sanity: number } | null = null
+  // A defeat that has been recorded and not yet continued from: the run is
+  // rolled back already, and CONTINUE has only the reset left to show. It is
+  // never stored: a reload finds the run as the defeat left it.
+  let lost = false
+  // The seam lines this run has put in the log: an interlude read again after
+  // a reload, or the gate come back to, says nothing the log does not hold.
+  let said: string[] = []
   let state = read('title')
 
   function read(scene: Scene): CampaignSnapshot {
@@ -197,6 +212,8 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
     reward = stored?.reward ?? false
     interlude = stored?.interlude ?? false
     won = null
+    lost = false
+    said = sanitizeSaid(storage.get<unknown>('said', null))
     return { scene, run: stored?.run ?? null, meta: sanitizeMeta(storage.get<unknown>('meta', null)), offer: null, interlude: null }
   }
 
@@ -268,6 +285,44 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
     return { run: next, meta }
   }
 
+  // The battle on the board is lost. The log counts the reset and keeps the
+  // place; the run goes back. Inside a layer: to its snapshot, weights as they
+  // were, Sanity full, its nodes unbroken. In the prologue: the prologue again.
+  // Both are stored now. The scene is not changed here.
+  function fall(run: RunState, fought: string): Partial<CampaignSnapshot> {
+    const meta = {
+      ...state.meta, iteration: state.meta.iteration + 1,
+      ghosts: [...state.meta.ghosts, fought].slice(-GHOST_CAP),
+    }
+    const next: RunState = run.layer === 0 || !run.snapshot
+      ? prologueRun(run.seed, run.attempts)
+      : {
+        ...run, current: null,
+        tuning: { ...run.snapshot.tuning }, weights: [...run.snapshot.weights],
+        sanity: run.snapshot.tuning.maxSanity,
+        broken: run.broken.filter(id => ENCOUNTERS[id].layer !== run.layer),
+      }
+    reward = false
+    saveRun(next)
+    saveMeta(meta)
+    return { run: next, meta }
+  }
+
+  function recordLine(voice: string, text: string, id?: string): void {
+    const meta = {
+      ...state.meta,
+      transcript: [...state.meta.transcript, { voice, text }].slice(-TRANSCRIPT_CAP),
+      seenLines: id && !state.meta.seenLines.includes(id) ? [...state.meta.seenLines, id].slice(-SEEN_CAP) : state.meta.seenLines,
+    }
+    saveMeta(meta)
+    commit({ meta })
+  }
+
+  function forgetSaid(): void {
+    said = []
+    storage.remove('said')
+  }
+
   function nodeState(id: string): 'broken' | 'open' | 'locked' | 'closed' {
     const { run } = state
     if (!run || !isEncounter(id)) return 'locked'
@@ -324,6 +379,8 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
       reward = false
       interlude = false
       won = null
+      lost = false
+      forgetSaid()
       saveRun(null)
       commit({ run: prologueRun(nextSeed(), {}), scene: 'battle', offer: null, interlude: null })
     },
@@ -343,6 +400,8 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
       reward = false
       interlude = false
       won = null
+      lost = false
+      forgetSaid()
       saveRun(null)
       commit({ run: null, scene: 'title', offer: null, interlude: null })
     },
@@ -402,27 +461,30 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
       else commit({ ...patch, scene: 'interlude', interlude: encounter.layer, offer: null })
     },
 
+    // A battle inside a layer is lost, at the moment it is lost. The run and
+    // storage hold the defeat from here on: a reload and a return to the title
+    // find the layer rolled back, and there is no way to fight that battle
+    // again as it was entered. The scene stays on the battle's last screen.
+    // The prologue is not recorded here: its defeat is CONTINUE's to report,
+    // and until then the Warden can be fought again, as it always could.
+    recordDefeat() {
+      const { run } = state
+      if (lost || !run?.current || run.layer === 0 || !run.snapshot) return
+      lost = true
+      commit(fall(run, run.current))
+    },
+
+    // CONTINUE on a lost battle: the reset. A defeat not yet recorded is
+    // recorded here first.
     battleLost() {
+      if (lost) {
+        lost = false
+        commit({ scene: 'reset', offer: null, interlude: null })
+        return
+      }
       const run = runInBattle()
       if (!run || !run.current) return
-      const meta = {
-        ...state.meta, iteration: state.meta.iteration + 1,
-        ghosts: [...state.meta.ghosts, run.current].slice(-GHOST_CAP),
-      }
-      // Inside a layer: back to its snapshot, weights as they were, Sanity
-      // full, its nodes unbroken. In the prologue: the prologue again.
-      const next: RunState = run.layer === 0 || !run.snapshot
-        ? prologueRun(run.seed, run.attempts)
-        : {
-          ...run, current: null,
-          tuning: { ...run.snapshot.tuning }, weights: [...run.snapshot.weights],
-          sanity: run.snapshot.tuning.maxSanity,
-          broken: run.broken.filter(id => ENCOUNTERS[id].layer !== run.layer),
-        }
-      reward = false
-      saveRun(next)
-      saveMeta(meta)
-      commit({ run: next, meta, scene: 'reset', offer: null, interlude: null })
+      commit({ ...fall(run, run.current), scene: 'reset', offer: null, interlude: null })
     },
 
     finishReset() {
@@ -479,14 +541,17 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
 
     // Every line shown goes into the transcript; a line with an id is also
     // remembered as seen, across runs and resets.
-    recordLine(voice, text, id) {
-      const meta = {
-        ...state.meta,
-        transcript: [...state.meta.transcript, { voice, text }].slice(-TRANSCRIPT_CAP),
-        seenLines: id && !state.meta.seenLines.includes(id) ? [...state.meta.seenLines, id].slice(-SEEN_CAP) : state.meta.seenLines,
-      }
-      saveMeta(meta)
-      commit({ meta })
+    recordLine,
+
+    // A line shown at a seam (an interlude, a layer's gate, the final
+    // protocol, the ending) goes into the log once per run, however often
+    // that seam is read: come back to, or read again after a reload.
+    recordSeamLine(voice, text, id) {
+      const key = id ?? `${voice}:${text}`
+      if (said.includes(key)) return
+      said = [...said, key].slice(-SAID_CAP)
+      storage.set('said', said)
+      recordLine(voice, text, id)
     },
   }
 }

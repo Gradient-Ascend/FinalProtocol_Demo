@@ -821,3 +821,30 @@ describe('REPAIR on the turn that wins', () => {
     expect(events[events.length - 1].type).toBe('victory')
   })
 })
+
+describe('PATH TAKEN', () => {
+  it('keeps the cell the route started from while the route is walked, and after a battle that ends on it', async () => {
+    const { store } = loaded(WARDEN_ENCOUNTER)
+    store.start()
+    store.addStep(1, 0)
+    store.addStep(1, 0)
+    const route = store.routeText()
+    expect(route).toBe('0x77 → 0x87 → 0x97')
+    const whileWalked = new Set<string>()
+    store.subscribe(() => { if (store.getSnapshot().phase === 'resolving') whileWalked.add(store.routeText()) })
+    await store.executeTurn()
+    expect([...whileWalked]).toEqual([route])
+    // The next route starts where this one ended.
+    expect(store.getSnapshot().phase).toBe('planning')
+    expect(store.routeText()).toBe('0x97')
+
+    const won = loaded(WARDEN_ENCOUNTER)
+    won.store.start()
+    won.store.addStep(1, 0)
+    won.store.addStep(1, 0)
+    for (const enemy of won.store.getSnapshot().enemies) enemy.robustness = 0
+    await won.store.executeTurn()
+    expect(won.store.getSnapshot().phase).toBe('victory')
+    expect(won.store.routeText()).toBe(route)
+  })
+})

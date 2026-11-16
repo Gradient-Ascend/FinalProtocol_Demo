@@ -12,8 +12,12 @@ import { playMoment } from './moments'
 
 type Props = { campaign: CampaignSnapshot; reducedMotion: boolean }
 
-// Every line a seam shows goes into the log.
-const record = (line: SeamItem) => campaignStore.recordLine(line.voice, line.text, line.id)
+// Every line a seam shows goes into the log, once per run: a seam that is
+// read again (the gate come back to, an interlude after a reload) adds
+// nothing to it.
+const record = (line: SeamItem) => campaignStore.recordSeamLine(line.voice, line.text, line.id)
+// A reset is said each time it happens, and logged each time.
+const recordEach = (line: SeamItem) => campaignStore.recordLine(line.voice, line.text, line.id)
 
 // What is said after a boss falls.
 export function InterludeScreen({ campaign, reducedMotion }: Props) {
@@ -119,7 +123,7 @@ export function ResetScreen({ campaign, reducedMotion }: Props) {
   return (
     <div className="scene seam-scene reset-scene">
       {stage === 'lines' && (
-        <SeamText lines={lines} label={script.defeat.word} reducedMotion={reducedMotion} onLine={record} onDone={resetDone} />
+        <SeamText lines={lines} label={script.defeat.word} reducedMotion={reducedMotion} onLine={recordEach} onDone={resetDone} />
       )}
     </div>
   )

@@ -44,7 +44,21 @@ export function bootCampaign(): void {
     // tab must not cost the win. Said again on every change of the board
     // while its last screen is up; the run takes one win from it.
     if (state.phase === 'victory' && campaignStore.getSnapshot().scene === 'battle') campaignStore.recordWin(state.player.sanity)
+    // So is a battle lost when it is lost: inside a layer the run rolls back
+    // now, and a reload or the menu finds it rolled back. CONTINUE only shows
+    // the reset.
+    if (state.phase === 'gameover' && campaignStore.getSnapshot().scene === 'battle') campaignStore.recordDefeat()
   })
+}
+
+// A battle of the campaign proper: a run in progress and one of a layer's
+// boards on the table. Its defeat is in the run the moment it happens, so it
+// is not fought again from its own screens: no RESTART BATTLE while it is
+// fought, and no R once it is lost. The prologue, and the Warden fought with
+// no run, are not such battles.
+export function campaignBattle(): boolean {
+  const { scene, run } = campaignStore.getSnapshot()
+  return scene === 'battle' && run !== null && battleStore.currentEncounter().layer >= 1
 }
 
 let parked = false
@@ -148,7 +162,8 @@ export function entranceDone(): void {
 }
 
 // CONTINUE on the outcome overlay. A win is in the run already; this goes on
-// from it. A defeat is reported here.
+// from it. So is a defeat inside a layer: this shows the reset. The
+// prologue's defeat is reported here.
 export function reportOutcome(): void {
   if (campaignStore.getSnapshot().scene !== 'battle') return
   const state = battleStore.getSnapshot()

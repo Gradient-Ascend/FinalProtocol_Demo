@@ -252,7 +252,7 @@ export function MapScreen({ campaign, state, reducedMotion }: { campaign: Campai
       {stage === 'seam' && (
         <SeamText
           lines={seam} label={`${layer?.name ?? 'Layer'} gate`} reducedMotion={reducedMotion}
-          onLine={line => campaignStore.recordLine(line.voice, line.text, line.id)}
+          onLine={line => campaignStore.recordSeamLine(line.voice, line.text, line.id)}
           onDone={afterSeam}
         />
       )}

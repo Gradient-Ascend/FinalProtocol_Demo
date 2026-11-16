@@ -774,6 +774,19 @@ export function mountPetalMap(
     ctx.stroke()
   }
 
+  // A dark plate for one row of a node's name to stand on. A name cannot
+  // always be kept off the points of a sign: a boss's own sign can ring it,
+  // and on a narrow screen the next petal is close. The plate is the colour
+  // of the ground, so it shows only where there is something under the name.
+  function plate(left: number, y: number, wide: number, tall: number, alpha: number): void {
+    ctx.globalAlpha = alpha
+    ctx.fillStyle = INK
+    ctx.beginPath()
+    if (typeof ctx.roundRect === 'function') ctx.roundRect(left - 5, y - tall / 2 - 1, wide + 10, tall + 2, 4)
+    else ctx.rect(left - 5, y - tall / 2 - 1, wide + 10, tall + 2)
+    ctx.fill()
+  }
+
   function drawLabels(next: PetalModel): void {
     const size = Math.max(9, Math.min(11, Math.round(cell * 0.6)))
     const born = clock - bornAt < 2.6 ? smooth((clock - bornAt - 1.3) / 0.7) : 1
@@ -865,10 +878,14 @@ export function mountPetalMap(
         if (cost < bestCost) { best = box; bestSide = side; bestCost = cost }
       }
       if (!best) continue
-      name.lines.forEach((text, row) => {
-        const left = bestSide === 0 ? best.left + 3 : bestSide === 1 ? best.right - 3 - widths[row] : (best.left + best.right - widths[row]) / 2
-        write(text, left, best.top + line * (row + 0.5) + 0.5, widths[row], WHITE, name.alpha * born * (row ? 0.72 : 1), name.struck)
-      })
+      const box = best
+      const rows = name.lines.map((text, row) => ({
+        text, row, wide: widths[row], y: box.top + line * (row + 0.5) + 0.5,
+        left: bestSide === 0 ? box.left + 3 : bestSide === 1 ? box.right - 3 - widths[row] : (box.left + box.right - widths[row]) / 2,
+      }))
+      // Every plate before any text, so a row's plate never clips the row above it.
+      for (const at of rows) plate(at.left, at.y, at.wide, line, 0.86 * born * Math.min(1, name.alpha + 0.2))
+      for (const at of rows) write(at.text, at.left, at.y, at.wide, WHITE, name.alpha * born * (at.row ? 0.72 : 1), name.struck)
       taken.push(best)
     }
     ctx.letterSpacing = '0px'

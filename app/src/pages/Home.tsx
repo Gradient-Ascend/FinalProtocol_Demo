@@ -23,8 +23,8 @@ import { Modal } from '@/ui/Modal'
 import { ProtocolPanel } from '@/ui/ProtocolPanel'
 import { Scenes } from '@/ui/Scenes'
 import { TitleScreen } from '@/ui/TitleScreen'
-import { ROMAN, WITHHELD, behaviourText, desireChips, glitchName, heardSoFar, panelLine, sureText } from '@/ui/battle-text'
-import { bootCampaign, reportOutcome, returnToTitle } from '@/ui/flow'
+import { ROMAN, WITHHELD, behaviourText, desireChips, glitchName, heardSoFar, panelLine, routeAhead, segmentKeys, sureText } from '@/ui/battle-text'
+import { bootCampaign, campaignBattle, reportOutcome, returnToTitle } from '@/ui/flow'
 import { layerHue, layerInk } from '@/ui/layers'
 import { storyFeed } from '@/ui/story-feed'
 
@@ -280,6 +280,16 @@ export default function Home() {
       }
     : plannedState
   const live = state.phase === 'resolving'
+  // The battle is over: nothing more will happen, so nothing is forecast.
+  const over = state.phase === 'victory' || state.phase === 'gameover'
+  const forecast = !live && !over
+  const sequence = over ? [] : state.outgoingForecast ?? (state.playerAttackResolved
+    ? []
+    : state.overloadArmed ? predictedSequence(previewState, displayActiveBash, 4, true) : predictedSequence(previewState))
+  // What lies on the planned route is forecast only while the route is still
+  // to be walked: an armed Overload that leaves no Geek standing ends the
+  // battle as it fires, and the route is never walked.
+  const ahead = routeAhead(state, sequence)
   const incomingSequence = live
     ? state.incomingForecast ?? []
     : state.phase === 'planning' ? predictedEnemySequence(previewState, undefined, state.overloadArmed ? 4 : undefined) : []
@@ -288,16 +298,15 @@ export default function Home() {
   const veiledIds = new Set(state.enemies.filter(enemy => enemy.robustness > 0 && !disclosed(state, enemy)).map(enemy => enemy.id))
   const veiledIncoming = incomingSequence.some(hit => veiledIds.has(hit.enemyId))
   const incomingDamage = incomingSequence.reduce((total, hit) => total + (veiledIds.has(hit.enemyId) ? 0 : hit.damage), 0)
-  const playerResources = predictedPlayerResources(previewState)
+  const playerResources = ahead
+    ? predictedPlayerResources(previewState)
+    : { healing: 0, privilegeGain: 0, blockAfterResources: state.player.block }
   const sanityAfterHits = incomingSequence.length ? incomingSequence[incomingSequence.length - 1].after : state.player.sanity
   const projectedSanity = sanityAfterHits > 0 ? Math.min(state.player.maxSanity, sanityAfterHits + playerResources.healing) : 0
   const granted = live && state.resourcesResolved
   const repair = granted ? state.pendingRepair : playerResources.healing
   const privilegeGain = granted ? 0 : playerResources.privilegeGain
   const attackSequenceState = previewState
-  const sequence = state.outgoingForecast ?? (state.playerAttackResolved
-    ? []
-    : state.overloadArmed ? predictedSequence(previewState, displayActiveBash, 4, true) : predictedSequence(attackSequenceState))
   const singleStep = methodInspector && state.attackPreview
     ? state.attackPreview.stepIndex
     : state.overloadArmed ? null : state.attackPreview?.stepIndex ?? null
@@ -319,7 +328,7 @@ export default function Home() {
   const enemyResources = (enemyId: string) => state.enemyResourcePreviews[enemyId]
     ?? predictedEnemyResources(attackSequenceState, enemyId, state.overloadArmed ? 4 : undefined)
   const broodForecast = state.mechanic?.kind === 'brood' && aliveEnemies.some(enemy => enemyResources(enemy.id).brood)
-  const plannedCore = canAct ? state.actions.filter(action => action.type === 'move' && action.flag === 'core').length : 0
+  const plannedCore = canAct && ahead ? state.actions.filter(action => action.type === 'move' && action.flag === 'core').length : 0
   const releases = state.overloadArmed ? 4 : releaseCount(previewState)
   const bashDisplayIndex = state.overloadArmed ? displayActiveBash : bashView
   const inspector = methodInspector ?? state.attackPreview
@@ -366,6 +375,11 @@ export default function Home() {
   // out of reach of the pointer and the Tab key.
   const covered = scene !== 'battle' && scene !== 'title'
   const ended = scene === 'battle' && (state.phase === 'victory' || state.phase === 'gameover')
+  // Inside a layer a defeat counts the moment it happens, so the battle is not
+  // offered again: no RESTART BATTLE while it is fought, and only CONTINUE
+  // once it is lost. (Both stores are subscribed to above.)
+  const inLayer = campaignBattle()
+  const lostInLayer = inLayer && state.phase === 'gameover'
   const outcomeLines = story.lines.filter(line => line.event === 'victory' || line.event === 'defeat')
 
   return (
@@ -413,9 +427,9 @@ export default function Home() {
             <div className="identity-stats">
               <div className="hp-number">
                 {state.player.sanity}<span> / {state.player.maxSanity}</span>
-                {!live && veiledIncoming
+                {forecast && veiledIncoming
                   ? <em className="player-to-be">→ {WITHHELD}</em>
-                  : !live && projectedSanity !== state.player.sanity && <em className="player-to-be">→ {projectedSanity}</em>}
+                  : forecast && projectedSanity !== state.player.sanity && <em className="player-to-be">→ {projectedSanity}</em>}
               </div>
               <div className="stat-label">Desires' Scissors</div>
             </div>
@@ -593,13 +607,15 @@ export default function Home() {
           </section>
 
           {/* The feed keeps the last battle's lines until the next one starts: outside a battle the panel says nothing. */}
-          <ProtocolPanel key={state.encounter.id} state={state} broodForecast={!live && broodForecast} said={scene === 'battle' ? panelLine(story.lines) : undefined} />
+          <ProtocolPanel key={state.encounter.id} state={state} broodForecast={forecast && broodForecast} said={scene === 'battle' ? panelLine(story.lines) : undefined} />
 
           <section className="enemy-list-section">
             <div className="section-heading"><span>HOSTILES</span><strong>{aliveEnemies.length}</strong></div>
             <div className="enemy-list" ref={enemyList}>
               {aliveEnemies.map(enemy => {
                 const allHits = sequence.filter(hit => hit.enemyId === enemy.id)
+                const barHits = allHits.filter(hit => hit.damage > 0)
+                const barKeys = segmentKeys(barHits.map(hit => hit.stepIndex))
                 const hits = visibleSequence.filter(hit => hit.enemyId === enemy.id)
                 const projected = hits.length ? hits[hits.length - 1].after : enemy.robustness
                 const resources = enemyResources(enemy.id)
@@ -639,8 +655,8 @@ export default function Home() {
                     {open ? <HealthBar
                       value={enemy.robustness}
                       max={enemy.maxRobustness}
-                      hits={allHits.filter(hit => hit.damage > 0).map(hit => ({
-                        key: `${hit.stepIndex}`,
+                      hits={barHits.map((hit, at) => ({
+                        key: barKeys[at],
                         amount: hit.damage,
                         className: `segment-${hit.stepIndex}`,
                         label: `Preview action ${hit.stepIndex + 1}: ${hit.damage} raw damage`,
@@ -674,11 +690,11 @@ export default function Home() {
                     </div>
                     <div className="enemy-status">
                       {/* MYSTERY does not add to its Security: it puts it back. */}
-                      <span className={enemy.block ? 'has-block' : ''}>SECURITY {enemy.block}{!live && resources.securityGain > 0 && <em className="gain"> {mysteryActive(enemy) ? '→ ' : '+'}{resources.securityGain}</em>}</span>
+                      <span className={enemy.block ? 'has-block' : ''}>SECURITY {enemy.block}{forecast && resources.securityGain > 0 && <em className="gain"> {mysteryActive(enemy) ? '→ ' : '+'}{resources.securityGain}</em>}</span>
                       <span>
                         SOUL {enemy.soulCounter}/{enemy.soulThreshold}
-                        {!live && resources.brood && <em className="gain brood"> BROOD</em>}
-                        {!live && resources.recovery > 0 && <em className="gain"> +{open ? resources.recovery : WITHHELD} HP</em>}
+                        {forecast && resources.brood && <em className="gain brood"> BROOD</em>}
+                        {forecast && resources.recovery > 0 && <em className="gain"> +{open ? resources.recovery : WITHHELD} HP</em>}
                       </span>
                     </div>
                     <div className="enemy-route">
@@ -703,7 +719,7 @@ export default function Home() {
               <h2>PAUSED</h2>
               <button className="primary-action" onClick={() => battleStore.togglePause()}><Play size={16} /> RESUME</button>
               <div className="pause-menu">
-                <button onClick={() => battleStore.restart()}><RotateCcw size={15} /> RESTART BATTLE</button>
+                {!inLayer && <button onClick={() => battleStore.restart()}><RotateCcw size={15} /> RESTART BATTLE</button>}
                 <button onClick={returnToTitle}><HomeIcon size={15} /> RETURN TO MAIN MENU</button>
               </div>
             </div>
@@ -713,7 +729,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* The battle is over. A win is in the run from the moment it happened and CONTINUE goes on from it; a defeat is reported by CONTINUE. R fights the same battle again, and gives a win up. */}
+      {/* The battle is over, and inside a layer its result is in the run from the moment it happened. CONTINUE goes on from it. R fights the same battle again and gives a win up; a defeat inside a layer cannot be fought again, so there CONTINUE is all there is. */}
       {ended && (
         <div className="state-overlay outcome-overlay">
           <div className="outcome-content">
@@ -724,10 +740,12 @@ export default function Home() {
               {outcomeLines.map(line => <p key={line.id} data-voice={line.voice}><VoiceLine voice={line.voice} text={line.text} id={line.id} live reducedMotion={state.reducedMotion} /></p>)}
             </div>
             <button className="primary-action" onClick={reportOutcome}><ArrowRight size={16} /> CONTINUE <span>SPACE</span></button>
-            <div className="pause-menu">
-              <button onClick={() => battleStore.restart()}><RotateCcw size={15} /> RESTART BATTLE <span>R</span></button>
-              <button onClick={returnToTitle}><HomeIcon size={15} /> RETURN TO MAIN MENU</button>
-            </div>
+            {!lostInLayer && (
+              <div className="pause-menu">
+                <button onClick={() => battleStore.restart()}><RotateCcw size={15} /> RESTART BATTLE <span>R</span></button>
+                <button onClick={returnToTitle}><HomeIcon size={15} /> RETURN TO MAIN MENU</button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -739,7 +757,7 @@ export default function Home() {
           <h2>SETTINGS</h2>
           <div className="setting-row"><div><strong>AUDIO</strong></div><button className={`toggle ${state.muted ? '' : 'on'}`} onClick={() => battleStore.toggleMute()} aria-label="Toggle audio"><span />{state.muted ? 'MUTED' : 'ON'}</button></div>
           <div className="setting-row"><div><strong>REDUCED MOTION</strong></div><button className={`toggle ${state.reducedMotion ? 'on' : ''}`} onClick={() => battleStore.toggleReducedMotion()} aria-label="Toggle reduced motion"><span />{state.reducedMotion ? 'ON' : 'OFF'}</button></div>
-          <button className="secondary-action full-width" onClick={() => { setSettingsOpen(false); battleStore.restart() }}><RotateCcw size={15} /> RESTART BATTLE</button>
+          {!inLayer && <button className="secondary-action full-width" onClick={() => { setSettingsOpen(false); battleStore.restart() }}><RotateCcw size={15} /> RESTART BATTLE</button>}
           {state.phase !== 'title' && <button className="secondary-action full-width menu-return" onClick={() => { setSettingsOpen(false); returnToTitle() }}><HomeIcon size={15} /> RETURN TO MAIN MENU</button>}
         </Modal>
       )}

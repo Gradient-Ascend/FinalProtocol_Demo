@@ -27,6 +27,8 @@ The web build in `app/` is a single boss fight, not the full demo described belo
 
 Not built yet: the run map, post-battle rewards, growing the skill pool between battles, non-damage skills, obstacles blocking line attacks, and story delivery.
 
+**On branch `feature/story-drafted` (Nov 15, 2026)** the run map, post-battle rewards and story delivery are built, with an opening CG and three boss layers, and the single Warden fight becomes the prologue. See `Final Protocol Story and Campaign.md` beside this file. The seven-sin layers proposed in section 6 are replaced there by three desires.
+
 ## 1. Statement
 
 Final Protocol is a single-player, turn-based roguelike where you walk a shared grid to gather power, and everything you gathered fires automatically when you stop.

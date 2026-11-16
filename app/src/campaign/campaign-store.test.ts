@@ -4,7 +4,7 @@ import { BattleStore } from '../game/battle-store'
 import { createInitialState } from '../game/battle-rules'
 import { ENCOUNTERS } from '../game/encounters'
 import { DEFAULT_TUNING, applyWeight, tuningFor } from '../game/tuning'
-import { campaignStore, createCampaignStore, offerFor, runCarry, sanitizeMeta, sanitizeRun } from './campaign-store'
+import { campaignStore, createCampaignStore, offerFor, runCarry, sanitizeMeta, sanitizeRun, sanitizeSaid } from './campaign-store'
 import type { CampaignStore, RunState, Scene } from './campaign-store'
 
 // localStorage as a browser gives it, held in a Map the test can read.
@@ -143,7 +143,8 @@ describe('boot', () => {
     expect(Object.keys(campaignStore).sort()).toEqual([
       'abandonRun', 'attach', 'battleLost', 'battleWon', 'beginBattle', 'boot', 'chooseGate', 'chooseWeight',
       'continueRun', 'finishEnding', 'finishInterlude', 'finishIntro', 'finishReset', 'getSnapshot', 'nodeState',
-      'recordLine', 'recordWin', 'replayIntro', 'selectNode', 'startRun', 'subscribe', 'withdrawWin',
+      'recordDefeat', 'recordLine', 'recordSeamLine', 'recordWin', 'replayIntro', 'selectNode', 'startRun', 'subscribe',
+      'withdrawWin',
     ])
   })
 })
@@ -749,6 +750,211 @@ describe('a win is kept from the moment it happens', () => {
     expect(run(store).broken).toEqual(['0.B', '1.2'])
     store.continueRun()
     expect(store.getSnapshot().scene).toBe('reward')
+  })
+})
+
+// The rule: inside a layer a defeat is recorded once, when it happens, and
+// from then on it stands. The layer is rolled back in the run and in storage
+// before anything is pressed, so a reload and a return to the title find it
+// rolled back; CONTINUE has only the reset left to show. There is no way back
+// to the battle as it was entered. The prologue is left as it was: its defeat
+// is reported by CONTINUE.
+describe('a defeat inside a layer counts from the moment it happens', () => {
+  // Layer 2 with one node broken and a weight taken in it; 2.3 is being fought.
+  function inLayerTwo(seed = 0xABCDE): { store: CampaignStore; entered: string[] } {
+    const store = opened(seed)
+    onFirstMap(store, 30)
+    const first = winSkirmish(store, '1.1', 28, 'CORE')
+    const second = winSkirmish(store, '1.2', 20, 'FUNCTION')
+    winBoss(store, '1.B', 9)
+    winSkirmish(store, '2.1', 6, 'CORE')
+    expect(store.selectNode('2.3')).toBe(ENCOUNTERS['2.3'])
+    return { store, entered: [first, second] }
+  }
+
+  it('rolls the layer back at once, without leaving the battle, and CONTINUE only shows the reset', () => {
+    const { store, entered } = inLayerTwo()
+    const scenes: Scene[] = []
+    store.subscribe(() => scenes.push(store.getSnapshot().scene))
+    const tuning = tuningFor(entered)
+
+    store.recordDefeat()
+    const rolledBack = {
+      layer: 2, current: null, weights: entered, tuning, sanity: tuning.maxSanity,
+      broken: ['0.B', '1.1', '1.2', '1.B'], snapshot: { layer: 2, weights: entered, tuning },
+    }
+    expect(store.getSnapshot()).toMatchObject({ scene: 'battle', offer: null, interlude: null, meta: { iteration: 2, ghosts: ['2.3'], deepest: 2 }, run: rolledBack })
+    expect(stored('meta')).toMatchObject({ iteration: 2, ghosts: ['2.3'] })
+    expect(stored('run')).toMatchObject({ layer: 2, current: null, weights: entered, broken: ['0.B', '1.1', '1.2', '1.B'], sanity: tuning.maxSanity, reward: false, interlude: false })
+    // Said again (the board changes under its last screen): one defeat, nothing published.
+    const recorded = store.getSnapshot()
+    store.recordDefeat()
+    expect(store.getSnapshot()).toBe(recorded)
+    expect(scenes).toEqual(['battle'])
+    // Nothing can be won from a battle that is lost.
+    store.recordWin(30)
+    store.battleWon(30)
+    store.withdrawWin()
+    expect(store.getSnapshot()).toBe(recorded)
+
+    // CONTINUE: the reset, and the defeat is not counted a second time.
+    store.battleLost()
+    expect(store.getSnapshot()).toMatchObject({ scene: 'reset', meta: { iteration: 2, ghosts: ['2.3'] }, run: rolledBack })
+    expect(store.getSnapshot().run).toBe(recorded.run)
+    expect(store.getSnapshot().meta).toBe(recorded.meta)
+    expect(scenes).toEqual(['battle', 'reset'])
+    store.battleLost()
+    store.recordDefeat()
+    expect(scenes).toEqual(['battle', 'reset'])
+    store.finishReset()
+    expect(store.getSnapshot().scene).toBe('map')
+    expect(nodes(store, ['2.1', '2.2', '2.3', '2.B'])).toEqual(['open', 'open', 'open', 'locked'])
+    // The node comes back on a new board, and the next defeat is a new one.
+    expect(store.selectNode('2.3')?.seed).not.toBe(ENCOUNTERS['2.3'].seed)
+    store.recordDefeat()
+    expect(store.getSnapshot()).toMatchObject({ scene: 'battle', meta: { iteration: 3, ghosts: ['2.3', '2.3'] } })
+  })
+
+  it('is found by a reload between the defeat and CONTINUE: the title, then the map of the layer as it was entered', () => {
+    const { store, entered } = inLayerTwo(77)
+    store.recordDefeat()
+    const run2 = stored('run')
+    const meta2 = stored('meta')
+
+    // The tab is closed on the battle's last screen and opened again.
+    const later = opened(77)
+    expect(later.getSnapshot()).toMatchObject({
+      scene: 'title', meta: { iteration: 2, ghosts: ['2.3'] },
+      run: { layer: 2, current: null, weights: entered, sanity: tuningFor(entered).maxSanity, broken: ['0.B', '1.1', '1.2', '1.B'] },
+    })
+    // Reading it changed nothing, and there is no defeat left to report.
+    expect(stored('run')).toEqual(run2)
+    expect(stored('meta')).toEqual(meta2)
+    later.recordDefeat()
+    later.battleLost()
+    expect(later.getSnapshot()).toMatchObject({ scene: 'title', meta: { iteration: 2, ghosts: ['2.3'] } })
+    later.continueRun()
+    expect(later.getSnapshot()).toMatchObject({ scene: 'map', offer: null, interlude: null })
+    expect(nodes(later, ['1.B', '2.1', '2.2', '2.3', '2.B'])).toEqual(['broken', 'open', 'open', 'open', 'locked'])
+    // The weight won in the lost layer is gone with it and can be earned again.
+    expect(later.selectNode('2.1')?.seed).not.toBe(ENCOUNTERS['2.1'].seed)
+    later.battleWon(25)
+    expect(later.getSnapshot()).toMatchObject({ scene: 'reward', run: { broken: ['0.B', '1.1', '1.2', '1.B', '2.1'], weights: entered } })
+
+    // The same from the menu, in the run after that one: the title reads the run the defeat left.
+    const { store: other } = inLayerTwo(78)
+    other.recordDefeat()
+    other.boot('?intro=0')
+    expect(other.getSnapshot()).toMatchObject({ scene: 'title', meta: { iteration: 3, ghosts: ['2.3', '2.3'] }, run: { layer: 2, current: null, broken: ['0.B', '1.1', '1.2', '1.B'] } })
+    other.continueRun()
+    expect(other.getSnapshot().scene).toBe('map')
+  })
+
+  it('counts a boss lost after its entrance, and gives up nothing won before the layer', () => {
+    const store = opened(5)
+    onFirstMap(store, 30)
+    const first = winSkirmish(store, '1.1', 28, 'CORE')
+    winSkirmish(store, '1.2', 20)
+    winBoss(store, '1.B', 9)
+    winSkirmish(store, '2.1', 12, 'FUNCTION')
+    winSkirmish(store, '2.2', 10)
+    store.selectNode('2.B')
+    // Nothing is lost while it is still arriving.
+    const arriving = store.getSnapshot()
+    expect(arriving.scene).toBe('entrance')
+    store.beginBattle()
+    store.recordDefeat()
+    expect(store.getSnapshot()).toMatchObject({
+      scene: 'battle', meta: { iteration: 2, ghosts: ['2.B'], deepest: 2 },
+      run: { layer: 2, current: null, weights: [first], broken: ['0.B', '1.1', '1.2', '1.B'], sanity: tuningFor([first]).maxSanity, attempts: { '2.B': 1 } },
+    })
+    expect(opened(5).getSnapshot().run).toMatchObject({ layer: 2, weights: [first], broken: ['0.B', '1.1', '1.2', '1.B'] })
+  })
+
+  it('cannot be recorded over a win, and leaves the prologue and a Warden with no run as they were', () => {
+    const store = opened(21)
+    onFirstMap(store)
+    store.selectNode('1.2')
+    store.recordWin(19)
+    const won = store.getSnapshot()
+    store.recordDefeat()
+    expect(store.getSnapshot()).toBe(won)
+
+    // The prologue: nothing is recorded until CONTINUE, so the Warden can be fought again.
+    const fresh = opened(3)
+    const title = fresh.getSnapshot()
+    fresh.recordDefeat()
+    expect(fresh.getSnapshot()).toBe(title)
+    fresh.startRun()
+    const prologue = fresh.getSnapshot()
+    fresh.recordDefeat()
+    expect(fresh.getSnapshot()).toBe(prologue)
+    expect(stored('meta')).toMatchObject({ iteration: 1, ghosts: [] })
+    fresh.battleLost()
+    expect(fresh.getSnapshot()).toMatchObject({ scene: 'reset', meta: { iteration: 2, ghosts: ['0.B'] }, run: { layer: 0, current: '0.B', attempts: { '0.B': 2 } } })
+  })
+})
+
+// A seam can be read more than once in a run: the gate is come back to after
+// the door was kept, and an interlude starts again after a reload. Its lines
+// go into the log the first time only.
+describe('a seam line is logged once per run', () => {
+  const gate = script.gate.lines
+  const texts = (store: CampaignStore): string[] => store.getSnapshot().meta.transcript.map(line => line.text)
+
+  it('logs the gate once however often it is come back to, and again in the next run', () => {
+    const store = opened(9)
+    onFirstMap(store)
+    for (const line of gate) store.recordSeamLine(line.voice, line.text, line.id)
+    for (const line of gate) store.recordSeamLine(line.voice, line.text, line.id)
+    expect(texts(store)).toEqual(gate.map(line => line.text))
+    expect(store.getSnapshot().meta.seenLines).toEqual(gate.map(line => line.id))
+    // A line with no id (a release note, an inscription) is known by its words.
+    store.recordSeamLine('NOTE', '- removed: the door.')
+    store.recordSeamLine('NOTE', '- removed: the door.')
+    store.recordSeamLine('INSCRIPTION', '- removed: the door.')
+    expect(texts(store).slice(gate.length)).toEqual(['- removed: the door.', '- removed: the door.'])
+    // What is said in a battle, or at a reset, is still logged every time it is said.
+    store.recordLine('SYS', script.defeat.sys)
+    store.recordLine('SYS', script.defeat.sys)
+    expect(texts(store)).toHaveLength(gate.length + 4)
+
+    // A new run reads its seams for the first time.
+    store.boot('?intro=0')
+    store.startRun()
+    store.recordSeamLine(gate[0].voice, gate[0].text, gate[0].id)
+    expect(texts(store)).toHaveLength(gate.length + 5)
+    expect(stored('said')).toEqual([gate[0].id])
+    store.abandonRun()
+    expect(stored('said')).toBeNull()
+  })
+
+  it('does not repeat the part of an interlude already read when the page is reloaded during it', () => {
+    const store = opened(12)
+    store.startRun()
+    store.battleWon(30)
+    const lines = script.interludes['0']
+    expect(store.getSnapshot().scene).toBe('interlude')
+    for (const line of lines.slice(0, 2)) store.recordSeamLine(line.voice, line.text, line.id)
+
+    const later = opened(12)
+    later.continueRun()
+    expect(later.getSnapshot()).toMatchObject({ scene: 'interlude', interlude: 0 })
+    // Read again from its first line: only what was not reached before is new.
+    for (const line of lines) later.recordSeamLine(line.voice, line.text, line.id)
+    expect(texts(later)).toEqual(lines.map(line => line.text))
+    expect(opened(12).getSnapshot().meta.transcript.map(line => line.text)).toEqual(lines.map(line => line.text))
+  })
+
+  it('reads a damaged memory of them as what can be kept of it', () => {
+    expect(sanitizeSaid(null)).toEqual([])
+    expect(sanitizeSaid({ lines: ['gate.1'] })).toEqual([])
+    expect(sanitizeSaid(['gate.1', 7, 'gate.1', 'x'.repeat(500), 'gate.2'])).toEqual(['gate.1', 'gate.2'])
+    disk.items.set('fp.said', '{not json')
+    const store = opened()
+    onFirstMap(store)
+    store.recordSeamLine('SYS', gate[0].text, gate[0].id)
+    expect(texts(store)).toEqual([gate[0].text])
   })
 })
 

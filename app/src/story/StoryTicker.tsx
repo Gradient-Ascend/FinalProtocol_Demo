@@ -25,11 +25,19 @@ const AFTER_PLANNING_MS = 500
 const READ_MS_PER_CHAR = 45
 const READ_MS_MAX = 2600
 
-type Phase = 'wait' | 'write' | 'hold' | 'fade'
+export type Phase = 'wait' | 'write' | 'hold' | 'fade'
 
 // The return to the tab happens outside resolution by definition, so its line
 // is the one that may appear while the player plans.
 const mayInterrupt = (line: TickerLine | undefined): boolean => line?.event === 'resume'
+
+// The phase a line is in once the player's phase is taken into account. A
+// line that had begun to leave when planning began is held instead: it must
+// not finish leaving while a route is planned. It is back at once, whole, and
+// leaves when the turn resolves, like any line that stayed through planning.
+export function heldThroughPlanning(phase: Phase, pinned: boolean): Phase {
+  return phase === 'fade' && pinned ? 'hold' : phase
+}
 
 export function holdMs(text: string, drawnWhole: boolean): number {
   return HOLD_MS + (drawnWhole ? Math.min(READ_MS_MAX, text.length * READ_MS_PER_CHAR) : 0)
@@ -48,6 +56,8 @@ export function StoryTicker({ lines, frozen = false, reducedMotion, className }:
   const blocked = frozen && !mayInterrupt(line)
   const pinned = frozen && !mayInterrupt(lines[cursor + 1])
   const hold = line ? holdMs(line.text, line.voice !== 'SELF' || calm || frozen) : 0
+  // Set while rendering, so the frame that begins planning already shows it.
+  if (heldThroughPlanning(phase, pinned) !== phase) setPhase('hold')
 
   // The list shrank: a new battle. Start again from its first line.
   useEffect(() => {

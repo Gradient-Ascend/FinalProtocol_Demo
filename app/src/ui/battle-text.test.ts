@@ -1,13 +1,17 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { predictedSequence } from '@/game/attack-methods'
 import { createInitialState } from '@/game/battle-rules'
+import { BattleStore } from '@/game/battle-store'
 import type { BattleState, EnemyState } from '@/game/battle-types'
+import { predictedPlayerResources } from '@/game/enemy-attack-methods'
 import { ENCOUNTERS, encounterById } from '@/game/encounters'
 import { DEFAULT_LOADOUT } from '@/game/skills'
+import { DEFAULT_TUNING } from '@/game/tuning'
 import { layerAt, script } from '@/story/script'
 import {
   WITHHELD, behaviourText, bossRule, bossTitle, breakdownText, broodCount, desireChips, glitchName,
-  heardSoFar, panelLine, protocolHeading, shown, speaksInPanel, sureText, tickerInsertAt, traceText,
+  heardSoFar, panelLine, protocolHeading, routeAhead, segmentKeys, shown, speaksInPanel, sureText, tickerInsertAt, traceText,
 } from './battle-text'
 
 const battle = (id: string): BattleState => createInitialState(false, false, DEFAULT_LOADOUT, encounterById(id))
@@ -253,5 +257,90 @@ describe('CREDITS.md', () => {
     }
     expect(credits).not.toMatch(/dark young|queen in red/i)
     expect(credits.toUpperCase()).not.toContain((layerAt(3)?.god?.name ?? 'missing').toUpperCase())
+  })
+})
+
+describe('what the planned route may promise', () => {
+  // One Geek left, straight ahead of the end of a two-step route that crosses
+  // a Core Flag completing REPAIR and a Privilege Flag. Overload is charged
+  // and armed: the panel is showing what the release would do.
+  function armed(robustness: number) {
+    const store = new BattleStore()
+    store.getSnapshot().reducedMotion = true
+    store.load(ENCOUNTERS['1.1'], { sanity: 20, tuning: DEFAULT_TUNING })
+    store.start()
+    const state = store.getSnapshot()
+    const [geek, ...rest] = state.enemies
+    for (const enemy of rest) enemy.robustness = 0
+    const { x, y } = state.player.pos
+    for (const step of [1, 2, 3]) state.walls[y - step][x] = false
+    state.flags[y - 1][x] = 'core'
+    state.flags[y - 2][x] = 'privilege'
+    Object.assign(geek, { robustness, maxRobustness: Math.max(robustness, geek.maxRobustness), block: 0, pos: { x, y: y - 3 }, route: [], effectCell: null })
+    const repair = state.player.buffs.find(buff => buff.id === 'repair')!
+    repair.counter = repair.threshold - 1
+    state.player.overload = state.tuning.overloadThreshold
+    store.addStep(0, -1)
+    store.addStep(0, -1)
+    store.requestOverload()
+    const now = store.getSnapshot()
+    expect(now.overloadArmed).toBe(true)
+    // The state the panel forecasts from: the other deck, at the route's end.
+    const preview = { ...now, player: { ...now.player, activeBash: 1 - now.player.activeBash, pos: store.plannedPosition() } }
+    return { store, preview, release: predictedSequence(preview, preview.player.activeBash, 4, true) }
+  }
+
+  it('promises nothing from a route an armed Overload will never let be walked', () => {
+    const { store, preview, release } = armed(1)
+    // Walked, the route would restore 3 Sanity and add PRIVILEGE.
+    expect(predictedPlayerResources(preview)).toMatchObject({ healing: 3, privilegeGain: 2 })
+    expect(release[release.length - 1]).toMatchObject({ after: 0 })
+    expect(routeAhead(store.getSnapshot(), release)).toBe(false)
+    // Fired: the battle ends there, with nothing from the route.
+    store.requestOverload()
+    const after = store.getSnapshot()
+    expect(after).toMatchObject({ phase: 'victory', pendingRepair: 0, player: { sanity: 20, block: 0 } })
+    // REPAIR stands one Core Flag short, as it did before the route was planned.
+    const repair = after.player.buffs.find(buff => buff.id === 'repair')!
+    expect(repair.counter).toBe(repair.threshold - 1)
+  })
+
+  it('still promises the route when the armed Overload leaves a Geek standing', async () => {
+    const { store, release } = armed(60)
+    expect(release.length).toBeGreaterThan(0)
+    expect(routeAhead(store.getSnapshot(), release)).toBe(true)
+    // No Geek in reach at all: the same.
+    expect(routeAhead(store.getSnapshot(), [])).toBe(true)
+    store.requestOverload()
+    expect(store.getSnapshot()).toMatchObject({ phase: 'planning', player: { sanity: 20 } })
+    expect(routeAhead(store.getSnapshot(), [])).toBe(true)
+    // And the route is walked: its Core Flag completes REPAIR.
+    await store.executeTurn()
+    expect(store.getSnapshot().player.buffs.find(buff => buff.id === 'repair')).toMatchObject({ counter: 0 })
+  })
+
+  it('promises nothing once the battle is over', () => {
+    const state = battle('1.1')
+    expect(routeAhead({ ...state, phase: 'planning' }, [])).toBe(true)
+    expect(routeAhead({ ...state, phase: 'resolving' }, [])).toBe(true)
+    expect(routeAhead({ ...state, phase: 'victory' }, [])).toBe(false)
+    expect(routeAhead({ ...state, phase: 'gameover' }, [])).toBe(false)
+  })
+})
+
+describe('the keys of the hits on a Geek\'s bar', () => {
+  it('are unique when one release step hits the Geek twice', () => {
+    expect(segmentKeys([1, 2, 2])).toEqual(['1-0', '2-1', '2-0'])
+    const keys = segmentKeys([0, 0, 0, 1, 2, 2, 3])
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(segmentKeys([])).toEqual([])
+  })
+
+  it('do not change for a hit still to land as the ones before it land', () => {
+    const steps = [1, 2, 2, 3, 2]
+    const keys = segmentKeys(steps)
+    for (let landed = 1; landed <= steps.length; landed++) {
+      expect(segmentKeys(steps.slice(landed))).toEqual(keys.slice(landed))
+    }
   })
 })

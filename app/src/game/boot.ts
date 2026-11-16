@@ -1,9 +1,10 @@
 import { AudioSystem } from './audio'
 import { BattleRenderer } from './battle-renderer'
 import { battleStore } from './battle-store'
+import { controlHasKey, watchFocus } from './control-keys'
 import { campaignStore } from '@/campaign/campaign-store'
 import { modalOpen } from '@/ui/Modal'
-import { reportOutcome, titlePrimary } from '@/ui/flow'
+import { campaignBattle, reportOutcome, titlePrimary } from '@/ui/flow'
 
 declare global {
   interface Window {
@@ -46,6 +47,8 @@ export function startGame(canvas: HTMLCanvasElement): void {
     if (scene !== 'battle' && scene !== 'title') return
     // The manual or the settings are open: nothing acts underneath them.
     if (modalOpen()) return
+    // Space and Enter belong to the button, link or input that has keyboard focus.
+    if (controlHasKey(event)) return
     if (event.ctrlKey || event.metaKey) {
       if (['Equal', 'NumpadAdd'].includes(event.code)) { event.preventDefault(); renderer.zoomIn(); return }
       if (['Minus', 'NumpadSubtract'].includes(event.code)) { event.preventDefault(); renderer.zoomOut(); return }
@@ -58,7 +61,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
     if (event.code === 'Space') {
       if (scene === 'title') titlePrimary()
       else if (phase === 'planning') void battleStore.executeTurn()
-      // CONTINUE: the result goes to the run. R is the way to fight it again.
+      // CONTINUE: on from the result. R is the way to fight it again, where there is one.
       else if (phase === 'victory' || phase === 'gameover') reportOutcome()
       return
     }
@@ -70,7 +73,11 @@ export function startGame(canvas: HTMLCanvasElement): void {
     }
     if (event.code === 'Backspace') { battleStore.undo(); return }
     if (event.code === 'KeyO') { battleStore.requestOverload(); return }
-    if (event.code === 'KeyR' && (phase === 'victory' || phase === 'gameover')) { battleStore.restart(); return }
+    if (event.code === 'KeyR' && (phase === 'victory' || phase === 'gameover')) {
+      // A battle lost inside a layer is in the run already: there is nothing to fight again.
+      if (phase === 'victory' || !campaignBattle()) battleStore.restart()
+      return
+    }
     const moves: Record<string, [number, number]> = {
       KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1],
       KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0],
@@ -98,6 +105,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
     audio.duckMusic((event as CustomEvent<{ phase?: string }>).detail?.phase === 'start')
   }
 
+  const unwatchFocus = watchFocus()
   window.addEventListener('keydown', onMuteKey, true)
   window.addEventListener('stage-moment', onMoment)
   window.addEventListener('keydown', onKey)
@@ -118,6 +126,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
       audio.dispose()
       unsubscribe()
       unwatch()
+      unwatchFocus()
       window.removeEventListener('keydown', onMuteKey, true)
       window.removeEventListener('stage-moment', onMoment)
       window.removeEventListener('keydown', onKey)

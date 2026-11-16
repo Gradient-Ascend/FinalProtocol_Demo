@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { AttentionLine } from './AttentionLine'
-import { SeamText, pageStart } from './SeamText'
-import { HOLD_MS, StoryTicker, holdMs } from './StoryTicker'
+import { SeamText, afterPress, pageStart } from './SeamText'
+import type { Step } from './SeamText'
+import { HOLD_MS, StoryTicker, heldThroughPlanning, holdMs } from './StoryTicker'
 import { Transcript } from './Transcript'
 import { VoiceLine, voiceLabel } from './VoiceLine'
 import { HELD_FLOOR } from './attention'
@@ -65,6 +66,16 @@ describe('StoryTicker', () => {
     expect(holdMs('I saw it coming.', true)).toBe(2400 + 16 * 45)
     expect(holdMs('x'.repeat(400), true)).toBe(5000)
   })
+
+  it('holds a line that was leaving when planning began, and lets every other phase be', () => {
+    expect(heldThroughPlanning('fade', true)).toBe('hold')
+    // Resolution goes on, or the line coming next is the one that may arrive while planning: it leaves.
+    expect(heldThroughPlanning('fade', false)).toBe('fade')
+    for (const phase of ['wait', 'write', 'hold'] as const) {
+      expect(heldThroughPlanning(phase, true)).toBe(phase)
+      expect(heldThroughPlanning(phase, false)).toBe(phase)
+    }
+  })
 })
 
 describe('SeamText', () => {
@@ -87,6 +98,34 @@ describe('SeamText', () => {
     const voices = lines.map(line => line.voice)
     expect(voices).toEqual(['SELF', 'SELF', 'SYS', 'GOD', 'NOTE', 'NOTE', 'NOTE', 'NOTE', 'INSCRIPTION'])
     expect(lines.map((_, index) => pageStart(lines, index))).toEqual([0, 0, 0, 3, 4, 4, 4, 4, 8])
+  })
+
+  it('finishes the line on a first press and moves on at the next', () => {
+    const fresh: Step = { index: 0, whole: false, rushed: false, locked: false }
+    const rushed = afterPress(fresh, 0, lines)
+    expect(rushed).toEqual({ index: 0, whole: false, rushed: true, locked: false })
+    // Pressed again before the line has said it is whole: nothing more to do.
+    expect(afterPress(rushed, 0, lines)).toBe(rushed)
+    expect(afterPress({ ...rushed, whole: true }, 0, lines)).toEqual({ index: 1, whole: false, rushed: false, locked: false })
+    // A watcher's line is alone on its page and locked for a moment.
+    const watcher = afterPress({ index: 2, whole: true, rushed: false, locked: false }, 2, lines)
+    expect(watcher).toEqual({ index: 3, whole: false, rushed: false, locked: true })
+    expect(afterPress(watcher, 3, lines)).toBe(watcher)
+    // The last line stays: the screen ends, or its buttons take over.
+    const end: Step = { index: lines.length - 1, whole: true, rushed: false, locked: false }
+    expect(afterPress(end, lines.length - 1, lines)).toBe(end)
+  })
+
+  it('never undoes a line that became whole, or a move already made, when the key handler is a moment old', () => {
+    // The line reported itself whole between the handler being made and the
+    // press: it reports once, so a step in which it is not whole would hang.
+    const whole: Step = { index: 0, whole: true, rushed: false, locked: false }
+    expect(afterPress(whole, 0, lines).index).toBe(1)
+    // Two presses through one old handler: the second was not meant for the next line.
+    const next = afterPress(whole, 0, lines)
+    expect(afterPress(next, 0, lines)).toBe(next)
+    const settled: Step = { ...next, whole: true }
+    expect(afterPress(settled, 0, lines)).toBe(settled)
   })
 
   it('breaks a long run into pages of six', () => {

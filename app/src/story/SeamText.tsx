@@ -46,11 +46,23 @@ export function pageStart(lines: readonly SeamItem[], index: number): number {
   return run + Math.floor((index - run) / PAGE_LINES) * PAGE_LINES
 }
 
-type Step = { index: number; whole: boolean; rushed: boolean; locked: boolean }
+export type Step = { index: number; whole: boolean; rushed: boolean; locked: boolean }
 
 const stepAt = (lines: readonly SeamItem[], index: number, rushed = false): Step => ({
   index, whole: false, rushed, locked: !rushed && kindOf(lines[index]?.voice ?? '') === 'alone',
 })
+
+// What a press does to the step: a first press finishes the line being
+// written, the next one moves on. `current` is the step as it stands when the
+// press is applied, and that is what decides. `seenIndex` is the line the key
+// handler was made for, which can be a moment older: a line reports itself
+// whole once, so a press must never put back a step in which it was not, and
+// a press meant for a line already left is not a press on the next one.
+export function afterPress(current: Step, seenIndex: number, lines: readonly SeamItem[]): Step {
+  if (current.index !== seenIndex || current.locked) return current
+  if (!current.whole) return current.rushed ? current : { ...current, rushed: true }
+  return current.index < lines.length - 1 ? stepAt(lines, current.index + 1) : current
+}
 
 // A full-screen sequence of lines, one at a time, at the reader's pace. Any
 // key or a click advances; Escape or SKIP leaves the whole sequence.
@@ -91,10 +103,11 @@ export function SeamText({ lines, onDone, onLine, reducedMotion, label = 'Interl
 
   const advance = useCallback(() => {
     if (step.locked) return
-    // A first press finishes the line being written; the next one moves on.
-    if (!step.whole) setStep({ ...step, rushed: true })
-    else if (step.index < last) setStep(stepAt(lines, step.index + 1))
-    else if (!hasActions) finish()
+    if (step.whole && step.index >= last) {
+      if (!hasActions) finish()
+      return
+    }
+    setStep(current => afterPress(current, step.index, lines))
   }, [step, last, lines, hasActions, finish])
 
   const skip = useCallback(() => {

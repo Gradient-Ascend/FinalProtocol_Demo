@@ -37,8 +37,9 @@
   font-size: 13px; line-height: 1.6; text-align: center; text-wrap: balance;
   pointer-events: none;
 }
-.story-ticker-line { max-width: 64ch; opacity: 1; transition: opacity .42s ease; animation: story-arrive .2s ease-out; }
-.story-ticker-line[data-phase='fade'] { opacity: 0; }
+.story-ticker-line { max-width: 64ch; opacity: 1; animation: story-arrive .2s ease-out; }
+/* The transition belongs to leaving only: a line held again when planning begins is back at once. */
+.story-ticker-line[data-phase='fade'] { opacity: 0; transition: opacity .42s ease; }
 /* The thing in the room speaks between two thin rules. */
 .story-ticker .story-boss::before, .story-ticker .story-boss::after {
   content: ''; display: inline-block; width: 1.4em; height: 1px; margin: 0 .8em; vertical-align: middle;
