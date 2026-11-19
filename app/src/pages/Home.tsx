@@ -13,6 +13,7 @@ import { MAX_ACTIONS } from '@/game/battle-config'
 import { mechanicText, predictedSequence, rangeText, releaseCount, riderText } from '@/game/attack-methods'
 import { predictedEnemyIntent, predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from '@/game/enemy-attack-methods'
 import { disclosed } from '@/game/mechanics'
+import { VFX_QUALITY_MODES, vfxQualityDescription, vfxQualityStore } from '@/game/vfx-quality'
 import type { Coord, EnemyMarks, FlagKind } from '@/game/battle-types'
 import { Transcript } from '@/story/Transcript'
 import { VoiceLine } from '@/story/VoiceLine'
@@ -239,6 +240,7 @@ export default function Home() {
   const campaign = useCampaign()
   const { scene } = campaign
   const story = useSyncExternalStore(storyFeed.subscribe, storyFeed.getSnapshot)
+  const vfxQuality = useSyncExternalStore(vfxQualityStore.subscribe, vfxQualityStore.getSnapshot)
   useSuspension()
   const fullscreen = useFullscreen()
   const presets = state.presets
@@ -901,6 +903,26 @@ export default function Home() {
           <h2>SETTINGS</h2>
           <div className="setting-row"><div><strong>AUDIO</strong></div><button className={`toggle ${state.muted ? '' : 'on'}`} onClick={() => battleStore.toggleMute()} aria-label="Toggle audio"><span />{state.muted ? 'MUTED' : 'ON'}</button></div>
           <div className="setting-row"><div><strong>REDUCED MOTION</strong></div><button className={`toggle ${state.reducedMotion ? 'on' : ''}`} onClick={() => battleStore.toggleReducedMotion()} aria-label="Toggle reduced motion"><span />{state.reducedMotion ? 'ON' : 'OFF'}</button></div>
+          <div className="setting-row setting-row-quality">
+            <div>
+              <strong>VISUAL QUALITY</strong>
+              <p>{vfxQualityDescription(vfxQuality)}</p>
+            </div>
+            <div className="quality-lever" role="group" aria-label="Visual quality">
+              {VFX_QUALITY_MODES.map(mode => (
+                <button
+                  type="button"
+                  key={mode}
+                  className={`quality-stop ${vfxQuality === mode ? 'active' : ''}`}
+                  aria-pressed={vfxQuality === mode}
+                  aria-label={`Visual quality ${mode}`}
+                  onClick={() => { battleStore.sfx('ui'); vfxQualityStore.set(mode) }}
+                >
+                  {mode.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
           {!inLayer && <button className="secondary-action full-width" onClick={() => { setSettingsOpen(false); battleStore.restart() }}><RotateCcw size={15} /> RESTART BATTLE</button>}
           {state.phase !== 'title' && <button className="secondary-action full-width menu-return" onClick={() => { setSettingsOpen(false); returnToTitle() }}><HomeIcon size={15} /> RETURN TO MAIN MENU</button>}
         </Modal>

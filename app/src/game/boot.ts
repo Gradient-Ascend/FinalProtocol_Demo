@@ -14,6 +14,7 @@ declare global {
     __gameProbe?: () => { x: number; y: number; z: number }
     __battleProbe?: () => ReturnType<typeof battleStore.getSnapshot>
     __mapProbe?: () => ReturnType<BattleRenderer['viewState']>
+    __vfxProbe?: () => ReturnType<BattleRenderer['vfxStats']>
     __GAME_READY__?: boolean
   }
 }
@@ -166,6 +167,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
   window.__gameProbe = () => ({ ...battleStore.plannedPosition(), z: 0 })
   window.__battleProbe = () => battleStore.getSnapshot()
   window.__mapProbe = () => renderer.viewState()
+  window.__vfxProbe = () => renderer.vfxStats()
 
   session = {
     zoom: command => {
@@ -189,6 +191,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
       delete window.__gameProbe
       delete window.__battleProbe
       delete window.__mapProbe
+      delete window.__vfxProbe
       window.__GAME_READY__ = false
     },
   }

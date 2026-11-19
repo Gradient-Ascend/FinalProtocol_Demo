@@ -155,7 +155,7 @@ button:disabled { cursor: not-allowed; opacity: 0.38; }
   border-radius: 18px;
   background: radial-gradient(circle at 50% 45%, #181818, #090909 72%);
 }
-#game-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+#game-canvas { position: absolute; inset: 0; z-index: 1; display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
 .board-caption { position: absolute; left: 17px; right: 17px; bottom: 11px; display: flex; justify-content: space-between; align-items: center; gap: 12px; pointer-events: none; color: var(--muted); font-size: 8px; letter-spacing: .1em; }
 .board-caption span:last-child { max-width: 72%; text-align: right; letter-spacing: .02em; }
 
@@ -834,7 +834,7 @@ button:disabled { cursor: not-allowed; opacity: 0.38; }
    slot and the zoom controls. The strip has a fixed height, so the board never
    moves when a line comes or goes, and the controls never sit on a Warp. */
 .board-area { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
-.board-stage { position: relative; min-width: 0; min-height: 0; }
+.board-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
 .board-ticker-slot { display: contents; }
 .board-foot { position: relative; height: 46px; border-top: 1px solid var(--line-soft); container-type: inline-size; }
 /* (Two classes: the story's own stylesheet loads after this one.) */
@@ -1492,4 +1492,116 @@ button:disabled { cursor: not-allowed; opacity: 0.38; }
   .next-chip { min-height: 28px; padding: 3px 7px; font-size: 8px; }
   .dossier-step-row { min-height: 32px; font-size: 9px; }
   .dossier-close { width: 32px; height: 32px; }
+}
+
+/* Synchronized 2.5D WebGL2 VFX overlay & crisp post-bloom tactical readout pool */
+.vfx-canvas,
+.vfx-readout {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+.vfx-canvas {
+  z-index: 2;
+  display: block;
+}
+.vfx-readout {
+  z-index: 3;
+  overflow: hidden;
+}
+.vfx-pop {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  font-family: inherit;
+  line-height: 1;
+  text-align: center;
+  will-change: transform, opacity;
+  text-shadow:
+    -1px -1px 0 #050505,
+     1px -1px 0 #050505,
+    -1px  1px 0 #050505,
+     1px  1px 0 #050505,
+     0    0   6px rgba(5, 5, 5, 0.92);
+}
+.vfx-pop.is-tag {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.vfx-pop.is-num {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Terminal Visual Quality Lever in Settings */
+.setting-row-quality {
+  gap: 16px;
+}
+.quality-lever {
+  display: inline-grid;
+  grid-template-columns: repeat(4, minmax(54px, auto));
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #121212;
+  flex-shrink: 0;
+}
+.quality-stop {
+  height: 33px;
+  padding: 0 10px;
+  border: 0;
+  border-right: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.quality-stop:last-child {
+  border-right: 0;
+}
+.quality-stop:hover:not(.active) {
+  color: var(--white);
+  background: rgba(255, 255, 255, 0.06);
+}
+.quality-stop.active {
+  background: var(--white);
+  color: #080808;
+}
+.quality-stop:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+.reduced-motion .quality-stop {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .quality-stop {
+    transition: none;
+  }
+}
+@media (max-width: 900px), (hover: none) {
+  .quality-stop {
+    min-height: 44px;
+  }
+}
+@media (max-width: 580px) {
+  .setting-row-quality {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .quality-lever {
+    width: 100%;
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .quality-stop {
+    padding: 0 4px;
+  }
 }

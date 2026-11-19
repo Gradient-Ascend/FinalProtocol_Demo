@@ -137,6 +137,7 @@ export class BattleRenderer {
     this.canvas.addEventListener('pointercancel', this.onPointerUp)
     this.canvas.addEventListener('wheel', this.onWheel, { passive: false })
     window.addEventListener('battle-attack-effect', this.onAttackEffect)
+    this.fx.attachOverlay(this.canvas.parentElement)
     this.resize()
     this.loop(0)
   }
@@ -144,9 +145,11 @@ export class BattleRenderer {
   private onAttackEffect = (event: Event): void => {
     const effect = (event as CustomEvent<AttackEffect>).detail
     const state = this.store.getSnapshot()
-    this.fx.play(effect, state.reducedMotion)
+    const boss = state.encounter.god !== 'none' ? bossOf(state) : null
+    const bossGod = effect.source === 'enemy' && boss?.id === effect.presetId ? state.encounter.god : undefined
+    this.fx.play(effect, state.reducedMotion, bossGod)
     // The board answers its god: the sign pulses outward when the boss strikes.
-    if (effect.source === 'enemy' && state.encounter.god !== 'none' && bossOf(state)?.id === effect.presetId) {
+    if (effect.source === 'enemy' && state.encounter.god !== 'none' && boss?.id === effect.presetId) {
       this.pulseDue = { ...effect.origin }
     }
   }
@@ -297,6 +300,9 @@ export class BattleRenderer {
   resetZoom(): void { this.zoom = 1; this.applyZoom() }
   viewState(): { x: number; y: number; cell: number; zoom: number } {
     return { x: this.origin.x, y: this.origin.y, cell: this.cell, zoom: this.zoom }
+  }
+  vfxStats(): ReturnType<AttackFx['stats']> {
+    return this.fx.stats()
   }
   setHoveredEnemy(enemyId: string | null): void {
     this.panelHoveredEnemyId = enemyId
@@ -846,6 +852,6 @@ export class BattleRenderer {
     this.canvas.removeEventListener('pointercancel', this.onPointerUp)
     this.canvas.removeEventListener('wheel', this.onWheel)
     window.removeEventListener('battle-attack-effect', this.onAttackEffect)
-    this.fx.clear()
+    this.fx.dispose()
   }
 }

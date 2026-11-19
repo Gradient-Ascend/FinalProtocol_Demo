@@ -42,7 +42,7 @@ const waitPhase = phases => page.waitForFunction(
 )
 const keyFor = (a, b) => b.x > a.x ? 'KeyD' : b.x < a.x ? 'KeyA' : b.y > a.y ? 'KeyS' : 'KeyW'
 
-function bestRoute(state, focusOverload = false) {
+function bestRoute(state, focusOverload = false, targetEnemyForOverload = false) {
   const enemies = state.enemies.filter(enemy => enemy.robustness > 0)
   const blocked = new Set(enemies.map(enemy => `${enemy.pos.x},${enemy.pos.y}`))
   for (const curtain of state.curtains.filter(item => item.locked)) {
@@ -51,15 +51,27 @@ function bestRoute(state, focusOverload = false) {
       blocked.add(`${pos.x},${pos.y}`)
     }
   }
-  let best = { path: [], score: -1e9 }
+  function scoreOverloadPos(pos) {
+    return Math.max(...enemies.map(enemy => {
+      const dist = Math.abs(enemy.pos.x - pos.x) + Math.abs(enemy.pos.y - pos.y)
+      const aligned = (enemy.pos.x === pos.x || enemy.pos.y === pos.y) && dist <= 3
+      return (aligned ? 40 : 0) - dist * 35
+    }))
+  }
+  let best = { path: [], score: targetEnemyForOverload ? scoreOverloadPos(state.player.pos) : -1e9 }
   const start = state.player.pos
   function walk(pos, path, visited) {
     if (path.length) {
-      const counts = { bash: 0, core: 0, privilege: 0, overload: 0, blank: 0 }
-      for (const step of path) counts[state.flags[step.y][step.x]]++
-      const distance = Math.min(...enemies.map(enemy => Math.abs(enemy.pos.x - pos.x) + Math.abs(enemy.pos.y - pos.y)))
-      const releases = Math.min(counts.bash, 8 - path.length, 4)
-      const score = releases * 15 + counts.core * 5 + counts.privilege * 3 + counts.overload * (focusOverload ? 80 : 7) - distance * 1.4 + path.length * .15
+      let score
+      if (targetEnemyForOverload) {
+        score = scoreOverloadPos(pos)
+      } else {
+        const counts = { bash: 0, core: 0, privilege: 0, overload: 0, blank: 0 }
+        for (const step of path) counts[state.flags[step.y][step.x]]++
+        const distance = Math.min(...enemies.map(enemy => Math.abs(enemy.pos.x - pos.x) + Math.abs(enemy.pos.y - pos.y)))
+        const releases = Math.min(counts.bash, 8 - path.length, 4)
+        score = releases * 15 + counts.core * 5 + counts.privilege * 3 + counts.overload * (focusOverload ? 80 : 7) - distance * 1.4 + path.length * .15
+      }
       if (score > best.score) best = { path, score }
     }
     if (path.length >= 6) return
@@ -75,8 +87,9 @@ function bestRoute(state, focusOverload = false) {
   return best.path
 }
 
-async function playRoute(state, focusOverload = false, triggerOverload = false) {
-  const route = bestRoute(state, focusOverload)
+async function playRoute(state, focusOverload = false, triggerOverload = false, overloadShotPath = null) {
+  const targetEnemyForOverload = Boolean(overloadShotPath)
+  const route = bestRoute(state, focusOverload && !targetEnemyForOverload, targetEnemyForOverload)
   let cursor = state.player.pos
   for (const next of route) {
     await page.keyboard.press(keyFor(cursor, next))
@@ -86,12 +99,25 @@ async function playRoute(state, focusOverload = false, triggerOverload = false) 
     await page.keyboard.press('KeyO')
     if (!(await snapshot()).overloadArmed) throw new Error('First O did not arm Overload preview')
     const overloadPreview = await page.locator('.overload-preview-value').textContent()
-    if (!overloadPreview || (!/−\d+/.test(overloadPreview) && overloadPreview.trim() !== 'NO TARGET')) {
+    if (overloadShotPath) {
+      if (!overloadPreview || !/−\d+/.test(overloadPreview)) {
+        throw new Error(`Overload shot expected a concrete target damage preview, got: ${overloadPreview}`)
+      }
+    } else if (!overloadPreview || (!/−\d+/.test(overloadPreview) && overloadPreview.trim() !== 'NO TARGET')) {
       throw new Error(`Overload damage preview is missing: ${overloadPreview}`)
     }
     await page.screenshot({ path: join(SHOTS, '08-overload.png') })
     await page.keyboard.press('KeyO')
     if ((await snapshot()).overloadArmed) throw new Error('Second O did not release Overload')
+    if (overloadShotPath) {
+      await page.waitForFunction(
+        () => (window.__vfxProbe?.()?.activeRibbons ?? 0) > 0,
+        null,
+        { timeout: 3000 },
+      )
+      await page.waitForTimeout(360)
+      await page.screenshot({ path: overloadShotPath })
+    }
   }
   await page.getByRole('button', { name: /EXECUTE ROUTE/ }).click()
   await waitPhase(['planning', 'victory', 'gameover'])
@@ -103,6 +129,10 @@ try {
   await page.waitForFunction(() => window.__GAME_READY__ === true)
   await page.getByRole('button', { name: /BREACH SANDBOX/ }).click()
   await waitPhase(['planning'])
+  const vfxIdle = await page.evaluate(() => window.__vfxProbe?.())
+  if (!vfxIdle || vfxIdle.setting !== 'high' || vfxIdle.tier !== 'high' || vfxIdle.backend !== 'webgl2' || vfxIdle.renderPassesLastFrame !== 0) {
+    throw new Error(`Expected default HIGH WebGL2 idle VFX state in planning: ${JSON.stringify(vfxIdle)}`)
+  }
   if (await page.locator('.enemy-card').count() !== 3) throw new Error('All three hostiles should stay pinned in the right panel')
   if (await page.locator('.enemy-card.affected').count() !== 0) throw new Error('No hostile should be marked affected before planning')
   if (await page.locator('.enemy-next-attack').count() !== 3) throw new Error('Compact hostile cards should summarize armed next attacks')
@@ -165,6 +195,25 @@ try {
   await page.getByRole('button', { name: 'Toggle reduced motion' }).click()
   await page.getByRole('button', { name: 'Toggle audio' }).click()
   await page.getByRole('button', { name: 'Toggle audio' }).click()
+  const highQualityBtn = page.getByRole('button', { name: 'Visual quality high' })
+  if ((await highQualityBtn.getAttribute('aria-pressed')) !== 'true') {
+    throw new Error('VISUAL QUALITY should default to HIGH in Settings')
+  }
+  await page.getByRole('button', { name: 'Visual quality low' }).click()
+  const vfxLow = await page.evaluate(() => window.__vfxProbe?.())
+  if (!vfxLow || vfxLow.tier !== 'low' || vfxLow.backend !== '2d' || vfxLow.vramBytesApprox !== 0) {
+    throw new Error(`Visual quality LOW did not release FBO memory cleanly: ${JSON.stringify(vfxLow)}`)
+  }
+  await page.getByRole('button', { name: 'Visual quality medium' }).click()
+  const vfxMed = await page.evaluate(() => window.__vfxProbe?.())
+  if (!vfxMed || vfxMed.tier !== 'medium' || vfxMed.backend !== 'webgl2') {
+    throw new Error(`Visual quality MEDIUM did not switch live to WebGL2 medium: ${JSON.stringify(vfxMed)}`)
+  }
+  await highQualityBtn.click()
+  const vfxHigh = await page.evaluate(() => window.__vfxProbe?.())
+  if (!vfxHigh || vfxHigh.tier !== 'high' || vfxHigh.backend !== 'webgl2') {
+    throw new Error(`Visual quality HIGH did not restore cleanly: ${JSON.stringify(vfxHigh)}`)
+  }
   await page.screenshot({ path: join(SHOTS, '04-settings.png') })
   await page.getByRole('button', { name: 'Close' }).click()
 
@@ -261,10 +310,29 @@ try {
   if ((await snapshot()).playerTrail.length < 2) throw new Error('Gray trail did not appear during the current route')
   if (await page.locator('.player-sanity .incoming-segment').count() < 1) throw new Error('Incoming segments did not remain live during route resolution')
   await page.waitForFunction(() => window.__attackEffects.length > 0)
+  await page.waitForFunction(
+    () => (window.__vfxProbe?.()?.activeParticles ?? 0) > 0 || (window.__vfxProbe?.()?.activeRibbons ?? 0) > 0,
+    null,
+    { timeout: 3000 },
+  ).catch(() => {})
+  await page.waitForTimeout(50)
+  await page.screenshot({ path: join(SHOTS, '13a-vfx-25d-strike.png') })
   await page.waitForFunction(() => window.__battleProbe()?.playerAttackResolved === true)
   await page.waitForFunction(() => window.__battleProbe()?.outgoingForecast?.length === 0)
   if (await page.locator('.enemy-card.affected').count() !== 0) throw new Error('Enemy damage preview did not clear after the planned attack landed')
   await page.screenshot({ path: join(SHOTS, '13-action-effect.png') })
+  const vfxActive = await page.evaluate(() => window.__vfxProbe?.())
+  if (
+    !vfxActive ||
+    vfxActive.setting !== 'high' ||
+    vfxActive.tier !== 'high' ||
+    vfxActive.backend !== 'webgl2' ||
+    vfxActive.totalRenderedFrames < 1 ||
+    (vfxActive.peakParticles < 1 && vfxActive.peakRibbons < 1) ||
+    vfxActive.vramBytesApprox >= 12 * 1024 * 1024
+  ) {
+    throw new Error(`2.5D WebGL2 VFX did not render during strike: ${JSON.stringify(vfxActive)}`)
+  }
   await page.evaluate(() => { window.__battleProbe().reducedMotion = true })
   await waitPhase(['planning'])
   let state = await snapshot()
@@ -322,7 +390,9 @@ try {
     if (state.phase !== 'planning') break
     if (state.player.overload >= 5) {
       overloadUsed = true
-      await playRoute(state, true, true)
+      await page.evaluate(() => { window.__battleProbe().reducedMotion = false })
+      await playRoute(state, false, true, join(SHOTS, '08b-vfx-overload-3d.png'))
+      await page.evaluate(() => { window.__battleProbe().reducedMotion = true })
       break
     }
     await playRoute(state, true)
@@ -366,11 +436,33 @@ try {
     return { averageMs: Number(averageMs.toFixed(2)), fps: Number((1000 / averageMs).toFixed(1)), warps: 225 }
   })
 
+  // Exercise WebGL context loss + restoration and verify seamless 2D fallback + zero errors
+  await page.evaluate(() => {
+    const vfxCanvas = document.querySelector('.vfx-canvas')
+    const gl = vfxCanvas?.getContext('webgl2')
+    const ext = gl?.getExtension('WEBGL_lose_context')
+    window.__testLoseCtx = ext ?? null
+    ext?.loseContext()
+  })
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))
+  const vfxLost = await page.evaluate(() => window.__vfxProbe?.())
+  if (!vfxLost || !vfxLost.contextLost || vfxLost.backend !== '2d') {
+    throw new Error(`VFX failed to enter 2D fallback on WebGL context loss: ${JSON.stringify(vfxLost)}`)
+  }
+  await page.evaluate(() => { window.__testLoseCtx?.restoreContext?.() })
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))
+  const vfxRestored = await page.evaluate(() => window.__vfxProbe?.())
+  if (!vfxRestored || vfxRestored.contextLost || vfxRestored.backend !== 'webgl2') {
+    throw new Error(`VFX failed to recover WebGL2 context on restore: ${JSON.stringify(vfxRestored)}`)
+  }
+
   if (errors.length) throw new Error(`Browser errors: ${errors.join(' | ')}`)
   console.log(JSON.stringify({
     result: 'PASS', openingDamage: 3, victory: true, victoryStats, elimination: true,
     overloadTriggeredInBrowser: overloadUsed, menus: true, settings: true,
-    restart: true, resized: true, performance, consoleErrors: 0,
+    restart: true, resized: true, performance,
+    vfx: { tier: vfxActive.tier, hdrFloat: vfxActive.hdrFloat, peakParticles: vfxActive.peakParticles, peakRibbons: vfxActive.peakRibbons, vramBytesApprox: vfxActive.vramBytesApprox, contextRecovery: true },
+    consoleErrors: 0,
   }, null, 2))
 } finally {
   await browser.close()
