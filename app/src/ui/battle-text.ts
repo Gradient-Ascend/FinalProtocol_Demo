@@ -1,4 +1,4 @@
-import type { BattleState, EnemyState } from '@/game/battle-types'
+import type { BattleState, DesireStep, EnemyState } from '@/game/battle-types'
 import { layerName } from '@/game/encounters'
 import { desireStepsFor } from '@/game/enemy-attack-methods'
 import { disclosed, traceLevel } from '@/game/mechanics'
@@ -172,6 +172,19 @@ export function sureText(chips: readonly DesireChip[]): string {
   const sure = chips.filter(chip => chip.sure)
   if (!sure.length) return ''
   return `${sure.length > 1 ? `${sure[0].numeral}–${sure[sure.length - 1].numeral}` : sure[0].numeral} SURE`
+}
+
+/** Compact geometric reach label for an enemy Desire step. */
+export function desireShapeText(step: DesireStep): string {
+  if (step.shape === 'square') return `SQ R${step.range}`
+  if (step.shape === 'rectangle') return `BAND ±${step.width ?? 1}`
+  return `ORTHO R${step.range}`
+}
+
+/** Boss stage or act badge (e.g. 'STAGE I' or 'ACT II'), or null for minor Geeks. */
+export function stageBadgeText(state: BattleState, enemy: EnemyState): string | null {
+  if (!enemy.bossStages?.length) return null
+  return `${stageWord(state)} ${ROMAN[enemy.stage - 1] ?? enemy.stage}`
 }
 
 // What stands in the name slot of a Geek that has no name to print: one of

@@ -1105,3 +1105,391 @@ button:disabled { cursor: not-allowed; opacity: 0.38; }
 .enemy-panel .enemy-tags { margin-top: 6px; }
 /* Two lines hold the longest route (nine Warps). */
 @media (min-height: 801px) and (min-width: 901px) { .enemy-panel .route-text { min-height: 38px; } }
+
+/* ==========================================================================
+   Terminal hostile inspection: compact enemy cards, Player Sanity link, and
+   floating Terminal Dossier Pop-up. Zero glassmorphism on dossier surfaces.
+   ========================================================================== */
+.player-panel .stat-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.incoming-focus-tag {
+  font-family: "JetBrains Mono", "Cascadia Code", "SF Mono", SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  font-size: 8px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: .07em;
+  color: #ff8b8b;
+  white-space: nowrap;
+}
+.player-sanity.has-preview .incoming-segment.enemy-linked {
+  background: #ff7070;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .72);
+  animation: none;
+}
+.player-sanity.has-preview .incoming-segment.enemy-dimmed {
+  opacity: .24;
+  animation: none;
+}
+.player-sanity.has-preview.veiled-linked .health-unknown {
+  background: repeating-linear-gradient(115deg, #ff7070 0 3px, rgba(255, 112, 112, .32) 3px 5px);
+  animation: none;
+}
+
+.enemy-panel .enemy-list { gap: 7px; }
+.enemy-panel .enemy-card {
+  position: relative;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: rgba(16, 16, 16, .92);
+  font-variant-numeric: tabular-nums;
+  transition: border-color .14s ease, background .14s ease, box-shadow .14s ease;
+}
+.enemy-panel .enemy-card:focus-visible { outline: 2px solid var(--white); outline-offset: 2px; }
+.enemy-panel .enemy-card.affected { border-color: rgba(255, 255, 255, .28); background: rgba(26, 26, 26, .94); }
+.enemy-panel .enemy-card.map-hover {
+  border-color: var(--white);
+  background: rgba(255, 255, 255, .075);
+  box-shadow: inset 3px 0 0 #ff7070, 0 0 0 1px rgba(255, 255, 255, .36);
+}
+.enemy-panel .enemy-card.is-inspected {
+  border-color: var(--white);
+  background: rgba(255, 255, 255, .085);
+  box-shadow: inset 3px 0 0 var(--white), 0 0 0 1px rgba(255, 255, 255, .44);
+}
+.enemy-panel .enemy-card.map-hover.is-inspected {
+  box-shadow: inset 3px 0 0 #ff7070, 0 0 0 1px var(--white);
+}
+
+.enemy-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.enemy-identity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.enemy-id-badge {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--text);
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: .08em;
+}
+.enemy-card.map-hover .enemy-id-badge {
+  border-color: #ff7070;
+  background: #ff7070;
+  color: #080808;
+  font-weight: 700;
+}
+.enemy-card.is-inspected .enemy-id-badge,
+.enemy-id-badge.inverted {
+  border-color: var(--white);
+  background: var(--white);
+  color: #080808;
+  font-weight: 700;
+}
+.enemy-card.map-hover.is-inspected .enemy-id-badge {
+  border-color: #ff7070;
+  background: #ff7070;
+  color: #080808;
+}
+.enemy-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  letter-spacing: .05em;
+  color: var(--text);
+}
+.enemy-stage-pill {
+  flex: 0 0 auto;
+  padding: 1px 4px;
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+  color: var(--muted);
+  font-size: 6.5px;
+  font-style: normal;
+  letter-spacing: .09em;
+}
+.enemy-panel .enemy-hp {
+  flex: 0 0 auto;
+  margin: 0;
+  justify-content: flex-end;
+}
+.enemy-panel .enemy-hp strong { font-size: 13px; white-space: nowrap; }
+.enemy-panel .enemy-hp strong small { font-size: 9px; }
+
+.enemy-card .health-wrap { margin: 6px 0 5px; }
+
+.enemy-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px 8px;
+  margin-top: 6px;
+}
+.enemy-panel .enemy-tags {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  margin-top: 0;
+}
+.enemy-tag.sec {
+  border-color: rgba(121, 191, 255, .48);
+  background: rgba(121, 191, 255, .1);
+  color: #b7dcff;
+  font-weight: 600;
+}
+.enemy-next-attack {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+.enemy-next-attack > span:first-child {
+  color: var(--muted);
+  font-size: 6.5px;
+  letter-spacing: .1em;
+  margin-right: 1px;
+}
+.next-idle {
+  color: var(--muted);
+  font-size: 8px;
+  padding: 0 3px;
+}
+.next-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 5px;
+  border: 1px dashed var(--line);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 7px;
+  line-height: 1.25;
+  cursor: pointer;
+  transition: border-color .14s ease, background .14s ease, color .14s ease;
+}
+.next-chip i { font-style: normal; }
+.next-chip b { color: var(--text); font-weight: 650; }
+.next-chip.hits {
+  border-style: solid;
+  border-color: rgba(255, 112, 112, .65);
+  background: rgba(255, 112, 112, .12);
+  color: #ffb0b0;
+}
+.next-chip.hits b { color: var(--white); }
+.next-chip:hover,
+.next-chip:focus-visible,
+.next-chip.previewing {
+  border-style: solid;
+  border-color: #ff7070;
+  background: #ff7070;
+  color: #080808;
+}
+.next-chip:hover b,
+.next-chip:focus-visible b,
+.next-chip.previewing b { color: #080808; }
+
+/* Floating Terminal Dossier Pop-up */
+.enemy-dossier-popup {
+  position: fixed;
+  z-index: 16;
+  width: min(320px, calc(100vw - 20px));
+  padding: 11px 12px;
+  border: 1px solid rgba(245, 245, 245, .36);
+  border-radius: 2px;
+  background: #0b0b0b;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, .78);
+}
+.enemy-dossier-popup::before,
+.enemy-dossier-popup::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: var(--white);
+  border-style: solid;
+  pointer-events: none;
+}
+.enemy-dossier-popup::before {
+  top: -1px;
+  left: -1px;
+  border-width: 1.5px 0 0 1.5px;
+}
+.enemy-dossier-popup::after {
+  right: -1px;
+  bottom: -1px;
+  border-width: 0 1.5px 1.5px 0;
+}
+.dossier-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.dossier-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  letter-spacing: .06em;
+  color: var(--white);
+}
+.dossier-close {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dossier-close:hover,
+.dossier-close:focus-visible { border-color: var(--white); color: var(--white); }
+
+.dossier-directive {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 7.5px;
+  letter-spacing: .09em;
+}
+.dossier-directive span { color: var(--muted); }
+.dossier-directive strong { color: var(--white); font-weight: 600; text-align: right; }
+
+.dossier-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+.dossier-cell {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+}
+.dossier-cell > span {
+  color: var(--muted);
+  font-size: 6.5px;
+  letter-spacing: .1em;
+}
+.dossier-cell > strong {
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 650;
+}
+.dossier-cell > strong small {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 400;
+}
+.dossier-gain {
+  color: #b7dcff;
+  font-style: normal;
+  font-size: 8px;
+  font-weight: 600;
+}
+.dossier-gain.brood { color: var(--layer-ink, var(--white)); }
+.dossier-sub {
+  color: var(--muted);
+  font-size: 6.5px;
+  letter-spacing: .05em;
+}
+
+.dossier-section { margin-top: 8px; }
+.dossier-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  font-size: 7px;
+  letter-spacing: .11em;
+}
+.dossier-section-head span { color: var(--muted); }
+.dossier-section-head em { color: var(--text); font-style: normal; }
+
+.dossier-steps { display: grid; gap: 3px; }
+.dossier-step-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 20px 26px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px dashed var(--line-soft);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .015);
+  color: var(--muted);
+  font-size: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+.dossier-step-row.sure,
+.dossier-step-row.armed { border-style: solid; border-color: var(--line); color: var(--text); }
+.dossier-step-row.hits { border-color: rgba(255, 112, 112, .55); background: rgba(255, 112, 112, .08); }
+.dossier-step-row:hover,
+.dossier-step-row:focus-visible,
+.dossier-step-row.previewing { border-style: solid; border-color: #ff7070; background: rgba(255, 112, 112, .16); color: var(--white); }
+.dossier-step-row .step-roman { color: var(--muted); font-size: 7.5px; }
+.dossier-step-row .step-dmg { color: var(--white); font-weight: 650; }
+.dossier-step-row .step-geom { font-size: 7.5px; letter-spacing: .04em; }
+.dossier-step-row .step-rule { font-size: 6.5px; letter-spacing: .09em; color: var(--muted); }
+.dossier-step-row .step-state { font-size: 6.5px; font-style: normal; letter-spacing: .1em; color: var(--muted); }
+.dossier-step-row.armed .step-state { color: var(--text); }
+.dossier-step-row.hits .step-state { color: #ff8b8b; font-weight: 700; }
+
+.dossier-route-block {
+  padding-top: 7px;
+  border-top: 1px solid var(--line-soft);
+}
+.dossier-route,
+.dossier-pickups,
+.dossier-route-block .enemy-purge {
+  margin: 2px 0 0;
+  font-size: 8px;
+  line-height: 1.45;
+  color: var(--text);
+  word-break: break-word;
+}
+.dossier-pickups { color: var(--muted); font-size: 7.5px; }
+.dossier-route-block .enemy-purge { color: #ff7070; }
+
+@media (max-width: 900px), (hover: none) {
+  .next-chip { min-height: 28px; padding: 3px 7px; font-size: 8px; }
+  .dossier-step-row { min-height: 32px; font-size: 9px; }
+  .dossier-close { width: 32px; height: 32px; }
+}

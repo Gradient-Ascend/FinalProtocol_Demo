@@ -105,6 +105,52 @@ try {
   await waitPhase(['planning'])
   if (await page.locator('.enemy-card').count() !== 3) throw new Error('All three hostiles should stay pinned in the right panel')
   if (await page.locator('.enemy-card.affected').count() !== 0) throw new Error('No hostile should be marked affected before planning')
+  if (await page.locator('.enemy-next-attack').count() !== 3) throw new Error('Compact hostile cards should summarize armed next attacks')
+  if (await page.locator('.enemy-dossier-popup').count() !== 0) throw new Error('Dossier popup should remain closed until a panel card is inspected')
+
+  const mapMetrics = await page.evaluate(() => {
+    const rect = document.getElementById('game-canvas').getBoundingClientRect()
+    const map = window.__mapProbe()
+    return { x: rect.left, y: rect.top, map }
+  })
+  const b01Point = {
+    x: mapMetrics.x + mapMetrics.map.x + (7 + 0.5) * mapMetrics.map.cell,
+    y: mapMetrics.y + mapMetrics.map.y + (4 + 0.5) * mapMetrics.map.cell,
+  }
+  await page.mouse.move(b01Point.x, b01Point.y)
+  await page.waitForSelector('.enemy-card[data-enemy="B01"].map-hover')
+  if (await page.locator('.enemy-dossier-popup').count() !== 0) throw new Error('Map hover must not open dossier popup over the board')
+  const focusText = await page.locator('.incoming-focus-tag').textContent()
+  if (!focusText?.includes('B01')) throw new Error(`Missing B01 focus tag on Player Sanity bar: ${focusText}`)
+  if (await page.locator('.player-sanity .incoming-segment.enemy-linked').count() < 1) {
+    throw new Error('Map hover on B01 did not link its incoming damage segments on Player Sanity bar')
+  }
+  await page.screenshot({ path: join(SHOTS, '05a-map-hover-multi-attack.png') })
+  await page.mouse.click(b01Point.x, b01Point.y)
+  await page.waitForFunction(() => window.__battleProbe()?.enemyAttackPreview?.enemyId === 'B01' && window.__battleProbe()?.enemyAttackPreview?.stepIndex === 0)
+  await page.mouse.move(mapMetrics.x + 8, mapMetrics.y + 8)
+  await page.waitForFunction(() => window.__battleProbe()?.enemyAttackPreview === null)
+
+  await page.locator('.enemy-card[data-enemy="B01"]').hover()
+  await page.waitForSelector('.enemy-dossier-popup[data-enemy-dossier="B01"]')
+  const dossierMetrics = await page.evaluate(() => {
+    const popup = document.querySelector('.enemy-dossier-popup')?.getBoundingClientRect()
+    const panel = document.querySelector('.enemy-panel')?.getBoundingClientRect()
+    const text = document.querySelector('.enemy-dossier-popup')?.textContent ?? ''
+    return { popup, panel, text, vw: window.innerWidth, vh: window.innerHeight }
+  })
+  if (!dossierMetrics.popup || dossierMetrics.popup.left < 0 || dossierMetrics.popup.right > dossierMetrics.vw || dossierMetrics.popup.bottom > dossierMetrics.vh) {
+    throw new Error(`Enemy dossier popup clipped out of viewport: ${JSON.stringify(dossierMetrics.popup)}`)
+  }
+  if (dossierMetrics.panel && dossierMetrics.popup.right > dossierMetrics.panel.left + 1) {
+    throw new Error(`Enemy dossier popup overlapped right panel: ${JSON.stringify(dossierMetrics)}`)
+  }
+  for (const required of ['REHEARSAL', 'CLOSE', 'REPAIR', 'CLOSES ON YOU', '0x74']) {
+    if (!dossierMetrics.text.includes(required)) throw new Error(`Enemy dossier popup missing "${required}"`)
+  }
+  await page.screenshot({ path: join(SHOTS, '05b-enemy-dossier-popup.png') })
+  await page.mouse.move(0, 0)
+  await page.waitForFunction(() => !document.querySelector('.enemy-dossier-popup'))
   await page.getByRole('button', { name: 'Show CoT' }).click()
   if (!(await page.locator('.preset-title strong').textContent())?.includes('CoT')) throw new Error('Display dot did not show CoT')
   if ((await snapshot()).player.activeBash !== 0) throw new Error('Display dot changed the mechanical Bash preset')

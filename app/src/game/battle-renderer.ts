@@ -1,11 +1,13 @@
-import { bossOf, livingEnemies } from './battle-rules'
+import { bossOf, livingEnemies, sameCoord } from './battle-rules'
 import { AttackFx } from './attack-fx'
 import { inAttackRange } from './attack-methods'
-import { predictedEnemySequence } from './enemy-attack-methods'
+import { desireInRange, predictedEnemyIntent, predictedEnemySequence } from './enemy-attack-methods'
+import { disclosed } from './mechanics'
 import type { BattleStore } from './battle-store'
 import type { AttackEffect, BattleState, Coord, FlagKind } from './battle-types'
 import type { Encounter, GodId } from './encounters'
 import { MONO } from '../cinematic/display'
+import { ROMAN, WITHHELD } from '../ui/battle-text'
 
 const COLORS = {
   bg: '#090909', cell: '#0D0D0D', grid: '#343434', wall: '#272727',
@@ -102,6 +104,7 @@ export class BattleRenderer {
   private boardPx = 540
   private baseCell = 36
   private hover: Coord | null = null
+  private panelHoveredEnemyId: string | null = null
   private unitSeen = new Map<string, string>()
   private movingUntil = new Map<string, number>()
   private fx = new AttackFx()
@@ -295,6 +298,9 @@ export class BattleRenderer {
   viewState(): { x: number; y: number; cell: number; zoom: number } {
     return { x: this.origin.x, y: this.origin.y, cell: this.cell, zoom: this.zoom }
   }
+  setHoveredEnemy(enemyId: string | null): void {
+    this.panelHoveredEnemyId = enemyId
+  }
   consumeGesture(): boolean {
     const suppressed = this.suppressClick
     this.suppressClick = false
@@ -402,12 +408,22 @@ export class BattleRenderer {
     }
   }
 
-  private drawEnemy(pos: Coord, id: string): void {
+  private drawEnemy(pos: Coord, id: string, focused = false): void {
     const ctx = this.ctx
     const { x, y } = this.center(pos)
-    const r = this.cell * 0.32
-    ctx.strokeStyle = COLORS.light
-    ctx.lineWidth = 1.6
+    if (focused) {
+      const s = this.cell * 0.84
+      const l = s * 0.22
+      for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        const cx = x + sx * s * 0.5
+        const cy = y + sy * s * 0.5
+        this.line({ x: cx - sx * l, y: cy }, { x: cx, y: cy }, COLORS.white, 1.3)
+        this.line({ x: cx, y: cy - sy * l }, { x: cx, y: cy }, COLORS.white, 1.3)
+      }
+    }
+    const r = this.cell * (focused ? 0.34 : 0.32)
+    ctx.strokeStyle = focused ? COLORS.white : COLORS.light
+    ctx.lineWidth = focused ? 1.8 : 1.6
     ctx.beginPath()
     for (let i = 0; i < 6; i++) {
       const angle = Math.PI / 6 + i * Math.PI / 3
@@ -417,13 +433,67 @@ export class BattleRenderer {
       else ctx.lineTo(px, py)
     }
     ctx.closePath()
+    if (focused) {
+      ctx.fillStyle = 'rgba(9,9,9,0.78)'
+      ctx.fill()
+    }
     ctx.stroke()
-    this.line({ x: x - r * 0.35, y: y - r * 0.35 }, { x: x + r * 0.35, y: y + r * 0.35 }, COLORS.light, 1.5)
+    this.line(
+      { x: x - r * 0.36, y: y - r * 0.36 },
+      { x: x + r * 0.36, y: y + r * 0.36 },
+      focused ? COLORS.red : COLORS.light,
+      focused ? 1.7 : 1.5,
+    )
+    const fontSize = Math.max(8, Math.round(this.cell * 0.23))
+    ctx.font = `600 ${fontSize}px ${MONO}`
+    if (focused) {
+      const padX = 4
+      const tagW = Math.ceil(ctx.measureText(id).width) + padX * 2
+      const tagH = fontSize + 4
+      const tagX = Math.round(x - tagW / 2)
+      const tagY = pos.y > 0 ? Math.round(y - r - tagH - 3) : Math.round(y + r + 4)
+      ctx.fillStyle = COLORS.bg
+      ctx.fillRect(tagX, tagY, tagW, tagH)
+      ctx.strokeStyle = COLORS.white
+      ctx.lineWidth = 1
+      ctx.strokeRect(tagX + 0.5, tagY + 0.5, tagW - 1, tagH - 1)
+      ctx.fillStyle = COLORS.white
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(id, x, tagY + tagH / 2 + 0.5)
+      return
+    }
     ctx.fillStyle = COLORS.light
-    ctx.font = `500 ${Math.max(8, this.cell * 0.22)}px ${MONO}`
     ctx.textAlign = 'left'
     ctx.textBaseline = 'top'
     ctx.fillText(id, x - r, y - r - 12)
+  }
+
+  private drawThreatPill(origin: Coord, text: string, preferBelow = false): void {
+    const ctx = this.ctx
+    const { x, y } = this.center(origin)
+    const fontSize = 9
+    ctx.font = `600 ${fontSize}px ${MONO}`
+    const padX = 5
+    const width = Math.ceil(ctx.measureText(text).width) + padX * 2
+    const height = fontSize + 6
+    const rect = this.canvas.getBoundingClientRect()
+    const rawX = Math.round(x - width / 2)
+    const boxX = Math.max(6, Math.min(Math.round(rect.width) - width - 6, rawX))
+    const wantBelow = preferBelow ? origin.y < 14 : origin.y === 0
+    const rawY = wantBelow
+      ? Math.round(y + this.cell * 0.52 + 2)
+      : Math.round(y - this.cell * 0.52 - height - 2)
+    const boxY = Math.max(6, Math.min(Math.round(rect.height) - height - 6, rawY))
+    ctx.fillStyle = 'rgba(9,9,9,0.94)'
+    ctx.fillRect(boxX, boxY, width, height)
+    ctx.strokeStyle = COLORS.red
+    ctx.lineWidth = 1
+    ctx.strokeRect(boxX + 0.5, boxY + 0.5, width - 1, height - 1)
+    ctx.fillStyle = COLORS.white
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, boxX + width / 2, boxY + height / 2 + 0.5)
   }
 
   private drawBreathingDot(pos: Coord, color: string, time: number, ghost = false): void {
@@ -574,43 +644,130 @@ export class BattleRenderer {
       }
     }
 
+    const previewState = state.overloadArmed
+      ? { ...state, player: { ...state.player, activeBash: 1 - state.player.activeBash, pos: this.store.plannedPosition() } }
+      : state
+    const stepsOverride = state.overloadArmed ? 4 : undefined
+    const living = livingEnemies(state)
+    const mapEnemy = this.hover ? living.find(enemy => sameCoord(enemy.pos, this.hover!)) ?? null : null
+    const focusedEnemyId = state.enemyAttackPreview?.enemyId ?? this.panelHoveredEnemyId ?? mapEnemy?.id ?? null
+    const focusedEnemy = focusedEnemyId ? living.find(enemy => enemy.id === focusedEnemyId) ?? null : null
+    const focusedIntent = focusedEnemy && (state.phase === 'planning' || state.phase === 'resolving')
+      ? predictedEnemyIntent(previewState, focusedEnemy.id, stepsOverride)
+      : null
+    let threatPill: { origin: Coord; text: string; below: boolean } | null = null
+
     if (state.enemyAttackPreview) {
       const preview = state.enemyAttackPreview
-      const hit = predictedEnemySequence(state).find(candidate =>
-        candidate.enemyId === preview.enemyId && candidate.stepIndex === preview.stepIndex)
-      if (hit) {
+      const previewEnemy = living.find(enemy => enemy.id === preview.enemyId)
+      const intentStep = previewEnemy
+        ? predictedEnemyIntent(previewState, previewEnemy.id, stepsOverride)?.steps.find(s => s.stepIndex === preview.stepIndex)
+        : undefined
+      const seqHit = !intentStep
+        ? predictedEnemySequence(state).find(candidate => candidate.enemyId === preview.enemyId && candidate.stepIndex === preview.stepIndex)
+        : undefined
+      const origin = intentStep?.origin ?? seqHit?.origin
+      const step = intentStep?.step ?? (seqHit ? { amount: seqHit.damage, shape: seqHit.shape, range: seqHit.range, width: seqHit.width } : undefined)
+      if (origin && step) {
         for (let y = 0; y < 15; y++) {
           for (let x = 0; x < 15; x++) {
-            if (!inAttackRange(hit.origin, { x, y }, {
-              name: '', amount: 0, area: 'nearest', shape: hit.shape, range: hit.range, width: hit.width,
-            })) continue
+            if (state.walls[y][x] || !desireInRange(origin, { x, y }, step)) continue
             const px = this.origin.x + x * this.cell
             const py = this.origin.y + y * this.cell
-            ctx.fillStyle = 'rgba(255,112,112,0.13)'
+            ctx.fillStyle = 'rgba(255,112,112,0.14)'
             ctx.fillRect(px + 1, py + 1, this.cell - 2, this.cell - 2)
-            ctx.strokeStyle = 'rgba(255,112,112,0.45)'
-            ctx.lineWidth = 0.9
+            ctx.strokeStyle = 'rgba(255,112,112,0.52)'
+            ctx.lineWidth = 1
             ctx.strokeRect(px + 2.5, py + 2.5, this.cell - 5, this.cell - 5)
           }
+        }
+        const prefix = previewEnemy && !previewEnemy.hidden ? `${previewEnemy.id} ` : ''
+        const amountLabel = previewEnemy && !disclosed(state, previewEnemy) ? WITHHELD : step.amount
+        threatPill = {
+          origin,
+          text: `${prefix}${ROMAN[preview.stepIndex] ?? preview.stepIndex + 1}:${amountLabel}`,
+          below: Boolean(previewEnemy && !previewEnemy.hidden && sameCoord(origin, previewEnemy.pos)),
+        }
+      }
+    } else if (focusedEnemy && focusedIntent) {
+      const armed = focusedIntent.steps.filter(step => step.armed)
+      if (armed.length > 0) {
+        for (let y = 0; y < 15; y++) {
+          for (let x = 0; x < 15; x++) {
+            if (state.walls[y][x]) continue
+            let hitsHere = 0
+            for (const candidate of armed) {
+              if (desireInRange(focusedIntent.endpoint, { x, y }, candidate.step)) hitsHere++
+            }
+            if (!hitsHere) continue
+            const px = this.origin.x + x * this.cell
+            const py = this.origin.y + y * this.cell
+            if (hitsHere === 1) {
+              ctx.fillStyle = 'rgba(255,112,112,0.08)'
+              ctx.fillRect(px + 1, py + 1, this.cell - 2, this.cell - 2)
+              ctx.strokeStyle = 'rgba(255,112,112,0.36)'
+              ctx.lineWidth = 0.85
+              ctx.setLineDash([3, 3])
+              ctx.strokeRect(px + 2.5, py + 2.5, this.cell - 5, this.cell - 5)
+              ctx.setLineDash([])
+            } else {
+              ctx.fillStyle = `rgba(255,112,112,${Math.min(0.24, 0.1 + hitsHere * 0.06).toFixed(3)})`
+              ctx.fillRect(px + 1, py + 1, this.cell - 2, this.cell - 2)
+              ctx.strokeStyle = 'rgba(255,112,112,0.62)'
+              ctx.lineWidth = 1
+              ctx.strokeRect(px + 2.5, py + 2.5, this.cell - 5, this.cell - 5)
+              this.line(
+                { x: px + 4, y: py + this.cell - 4 },
+                { x: px + this.cell - 4, y: py + 4 },
+                'rgba(255,112,112,0.24)',
+                0.85,
+              )
+            }
+          }
+        }
+        const open = disclosed(state, focusedEnemy)
+        const summary = armed.map(s => `${ROMAN[s.stepIndex] ?? s.stepIndex + 1}:${open ? s.step.amount : WITHHELD}`).join(' · ')
+        const canCycle = mapEnemy?.id === focusedEnemy.id && !focusedEnemy.hidden && armed.length > 1
+        threatPill = {
+          origin: focusedIntent.endpoint,
+          text: `${summary}${canCycle ? ' [CLICK]' : ''}`,
+          below: !focusedEnemy.hidden && sameCoord(focusedIntent.endpoint, focusedEnemy.pos),
         }
       }
     }
 
-    for (const enemy of livingEnemies(state)) {
+    const orderedEnemies = focusedEnemy
+      ? [...living.filter(enemy => enemy.id !== focusedEnemy.id), focusedEnemy]
+      : living
+    for (const enemy of orderedEnemies) {
+      const isFocused = focusedEnemy?.id === enemy.id
+      const dim = Boolean(focusedEnemy && !isFocused)
+      const routeColor = isFocused ? COLORS.red : dim ? 'rgba(119,119,119,0.26)' : COLORS.muted
+      const routeWidth = isFocused ? 1.9 : dim ? 1.1 : 1.4
+      const routeDash = isFocused ? [5, 4] : [4, 5]
       let previous = enemy.pos
       for (const pos of enemy.route) {
-        this.line(this.center(previous), this.center(pos), COLORS.muted, 1.4, [4, 5])
+        this.line(this.center(previous), this.center(pos), routeColor, routeWidth, routeDash)
         previous = pos
+      }
+      if (isFocused && enemy.route.length > 0) {
+        const stop = focusedIntent?.endpoint ?? previous
+        const { x: sx, y: sy } = this.center(stop)
+        ctx.fillStyle = COLORS.bg
+        ctx.fillRect(sx - 4, sy - 4, 8, 8)
+        ctx.strokeStyle = COLORS.red
+        ctx.lineWidth = 1.4
+        ctx.strokeRect(sx - 4, sy - 4, 8, 8)
       }
       if (enemy.effectCell) {
         const px = this.origin.x + enemy.effectCell.x * this.cell
         const py = this.origin.y + enemy.effectCell.y * this.cell
-        ctx.strokeStyle = COLORS.red
-        ctx.lineWidth = 1.2
+        ctx.strokeStyle = dim ? 'rgba(255,112,112,0.35)' : COLORS.red
+        ctx.lineWidth = isFocused ? 1.5 : 1.2
         ctx.setLineDash([2, 3])
         ctx.strokeRect(px + 3.5, py + 3.5, this.cell - 7, this.cell - 7)
         ctx.setLineDash([])
-        this.line(this.center(previous), this.center(enemy.effectCell), COLORS.red, 1, [2, 4])
+        this.line(this.center(previous), this.center(enemy.effectCell), dim ? 'rgba(255,112,112,0.35)' : COLORS.red, isFocused ? 1.3 : 1, [2, 4])
       }
     }
 
@@ -653,7 +810,10 @@ export class BattleRenderer {
         this.movingUntil.set(unit.id, time + 280)
       }
       this.unitSeen.set(unit.id, key)
-      if ((this.movingUntil.get(unit.id) ?? 0) > time) {
+      const isFocusedEnemy = unit.id !== 'P' && focusedEnemy?.id === unit.id
+      if (isFocusedEnemy) {
+        this.drawEnemy(unit.pos, unit.id, true)
+      } else if ((this.movingUntil.get(unit.id) ?? 0) > time) {
         if (unit.id === 'P') this.drawPlayer(unit.pos)
         else this.drawEnemy(unit.pos, unit.id)
       } else {
@@ -662,6 +822,9 @@ export class BattleRenderer {
     }
     if (route.length && state.phase === 'planning') {
       this.drawBreathingDot(this.store.plannedPosition(), COLORS.blue, time, true)
+    }
+    if (threatPill) {
+      this.drawThreatPill(threatPill.origin, threatPill.text, threatPill.below)
     }
     ctx.restore()
     this.fx.draw(ctx, { origin: this.origin, cell: this.cell, dpr: this.canvas.width / Math.max(1, rect.width) }, shake)

@@ -1,7 +1,10 @@
 import { AudioSystem } from './audio'
 import { BattleRenderer } from './battle-renderer'
+import { livingEnemies, sameCoord } from './battle-rules'
 import { battleStore } from './battle-store'
+import type { Coord } from './battle-types'
 import { controlHasKey, watchFocus } from './control-keys'
+import { predictedEnemyIntent } from './enemy-attack-methods'
 import { campaignStore } from '@/campaign/campaign-store'
 import { modalOpen } from '@/ui/Modal'
 import { campaignBattle, reportOutcome, titlePrimary } from '@/ui/flow'
@@ -16,10 +19,18 @@ declare global {
 }
 
 export type MapZoomCommand = 'in' | 'out' | 'reset'
-let session: { dispose: () => void; zoom: (command: MapZoomCommand) => void } | null = null
+let session: {
+  dispose: () => void
+  zoom: (command: MapZoomCommand) => void
+  hoverEnemy: (enemyId: string | null) => void
+} | null = null
 
 export function zoomMap(command: MapZoomCommand): void {
   session?.zoom(command)
+}
+
+export function hoverEnemyOnMap(enemyId: string | null): void {
+  session?.hoverEnemy(enemyId)
 }
 
 export function startGame(canvas: HTMLCanvasElement): void {
@@ -86,13 +97,53 @@ export function startGame(canvas: HTMLCanvasElement): void {
     if (move) battleStore.addStep(...move)
   }
 
+  let mapPinnedEnemyId: string | null = null
+  const onMapHover = (event: Event): void => {
+    if (!mapPinnedEnemyId) return
+    const hoveredCell = (event as CustomEvent<Coord | null>).detail
+    const snap = battleStore.getSnapshot()
+    const pinned = livingEnemies(snap).find(enemy => enemy.id === mapPinnedEnemyId)
+    if (!pinned || !hoveredCell || !sameCoord(pinned.pos, hoveredCell)) {
+      mapPinnedEnemyId = null
+      if (snap.enemyAttackPreview) battleStore.setEnemyAttackPreview(null)
+    }
+  }
+
   const onClick = (event: MouseEvent): void => {
     if (renderer.consumeGesture()) return
     const cell = renderer.cellAt(event.clientX, event.clientY)
-    if (cell) battleStore.addMove(cell)
+    if (!cell) return
+    const snap = battleStore.getSnapshot()
+    // Clicking a visible living hostile cycles its armed Desire steps individually before returning to union view.
+    const clickedEnemy = snap.phase === 'planning'
+      ? livingEnemies(snap).find(enemy => !enemy.hidden && sameCoord(enemy.pos, cell))
+      : undefined
+    if (clickedEnemy) {
+      const previewState = snap.overloadArmed
+        ? { ...snap, player: { ...snap.player, activeBash: 1 - snap.player.activeBash, pos: battleStore.plannedPosition() } }
+        : snap
+      const intent = predictedEnemyIntent(previewState, clickedEnemy.id, snap.overloadArmed ? 4 : undefined)
+      const armed = intent?.steps.filter(step => step.armed) ?? []
+      if (armed.length > 0) {
+        const current = snap.enemyAttackPreview
+        const currentIdx = current?.enemyId === clickedEnemy.id
+          ? armed.findIndex(step => step.stepIndex === current.stepIndex)
+          : -1
+        const nextStep = currentIdx === -1
+          ? armed[0]
+          : currentIdx + 1 < armed.length
+            ? armed[currentIdx + 1]
+            : null
+        mapPinnedEnemyId = nextStep ? clickedEnemy.id : null
+        battleStore.setEnemyAttackPreview(nextStep ? { enemyId: clickedEnemy.id, stepIndex: nextStep.stepIndex } : null)
+        return
+      }
+    }
+    battleStore.addMove(cell)
   }
   const unsubscribe = battleStore.subscribe(() => {
     if (audio.muted !== battleStore.getSnapshot().muted) audio.toggleMute()
+    if (mapPinnedEnemyId && battleStore.getSnapshot().phase !== 'planning') mapPinnedEnemyId = null
   })
   // The battle's tone belongs to the battle: it stops when the scene leaves it.
   const unwatch = campaignStore.subscribe(() => {
@@ -108,6 +159,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
   const unwatchFocus = watchFocus()
   window.addEventListener('keydown', onMuteKey, true)
   window.addEventListener('stage-moment', onMoment)
+  window.addEventListener('map-hover-changed', onMapHover)
   window.addEventListener('keydown', onKey)
   window.addEventListener('resize', renderer.resize)
   canvas.addEventListener('click', onClick)
@@ -121,6 +173,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
       else if (command === 'out') renderer.zoomOut()
       else renderer.resetZoom()
     },
+    hoverEnemy: enemyId => renderer.setHoveredEnemy(enemyId),
     dispose: () => {
       renderer.dispose()
       audio.dispose()
@@ -129,6 +182,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
       unwatchFocus()
       window.removeEventListener('keydown', onMuteKey, true)
       window.removeEventListener('stage-moment', onMoment)
+      window.removeEventListener('map-hover-changed', onMapHover)
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('resize', renderer.resize)
       canvas.removeEventListener('click', onClick)

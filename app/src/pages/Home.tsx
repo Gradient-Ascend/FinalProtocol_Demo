@@ -1,29 +1,30 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
   ArrowRight, BookOpen, Check, ChevronRight, Circle, Cpu, Gauge,
-  Hexagon, Home as HomeIcon, Maximize2, Minimize2, Play, RotateCcw, Settings, Shield, ShieldAlert, SquareTerminal,
+  Home as HomeIcon, Maximize2, Minimize2, Play, RotateCcw, Settings, Shield, ShieldAlert, SquareTerminal,
   Zap,
 } from 'lucide-react'
 import { useCampaign } from '@/hooks/useCampaign'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { useSuspension } from '@/hooks/useSuspension'
-import { startGame, stopGame, zoomMap } from '@/game/boot'
+import { hoverEnemyOnMap, startGame, stopGame, zoomMap } from '@/game/boot'
 import { battleStore } from '@/game/battle-store'
 import { MAX_ACTIONS } from '@/game/battle-config'
-import { coordKey } from '@/game/battle-rules'
 import { mechanicText, predictedSequence, rangeText, releaseCount, riderText } from '@/game/attack-methods'
-import { predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from '@/game/enemy-attack-methods'
-import { disclosed, mysteryActive } from '@/game/mechanics'
+import { predictedEnemyIntent, predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from '@/game/enemy-attack-methods'
+import { disclosed } from '@/game/mechanics'
 import type { Coord, EnemyMarks, FlagKind } from '@/game/battle-types'
 import { Transcript } from '@/story/Transcript'
 import { VoiceLine } from '@/story/VoiceLine'
 import { BattleTicker } from '@/ui/BattleTicker'
+import { EnemyDossierPopup } from '@/ui/EnemyDossierPopup'
+import type { DossierAnchorRect } from '@/ui/EnemyDossierPopup'
 import { Manual } from '@/ui/Manual'
 import { Modal } from '@/ui/Modal'
 import { ProtocolPanel } from '@/ui/ProtocolPanel'
 import { Scenes } from '@/ui/Scenes'
 import { TitleScreen } from '@/ui/TitleScreen'
-import { ROMAN, WITHHELD, behaviourText, desireChips, glitchName, heardSoFar, panelLine, routeAhead, segmentKeys, sureText } from '@/ui/battle-text'
+import { ROMAN, WITHHELD, glitchName, heardSoFar, panelLine, routeAhead, segmentKeys, shown, stageBadgeText } from '@/ui/battle-text'
 import { bootCampaign, campaignBattle, reportOutcome, returnToTitle } from '@/ui/flow'
 import { layerHue, layerInk } from '@/ui/layers'
 import { storyFeed } from '@/ui/story-feed'
@@ -248,7 +249,15 @@ export default function Home() {
   const [devicePanel, setDevicePanel] = useState<'operator' | 'geeks'>('operator')
   const [mapZoom, setMapZoom] = useState(1)
   const clearTimer = useRef<number | null>(null)
+  const dossierTimer = useRef<number | null>(null)
+  const enemyPanelRef = useRef<HTMLElement>(null)
   const [mapHover, setMapHover] = useState<Coord | null>(null)
+  const [inspectedEnemy, setInspectedEnemy] = useState<{
+    id: string
+    rect: DossierAnchorRect
+    panelLeft: number | null
+    pinned?: boolean
+  } | null>(null)
   const enemyList = useRef<HTMLDivElement>(null)
 
   // The Bash panel follows the active set, so an Overload shows its switch at once.
@@ -334,10 +343,46 @@ export default function Home() {
   const inspector = methodInspector ?? state.attackPreview
   // The Geek under the cursor on the map lights its card in the list.
   const hoveredEnemy = mapHover ? aliveEnemies.find(enemy => enemy.pos.x === mapHover.x && enemy.pos.y === mapHover.y)?.id ?? null : null
+  const focusedEnemyId = state.enemyAttackPreview?.enemyId ?? inspectedEnemy?.id ?? hoveredEnemy
+  const focusedEnemy = focusedEnemyId ? aliveEnemies.find(enemy => enemy.id === focusedEnemyId) ?? null : null
+  const enemyHoverLinking = !state.enemyAttackPreview && focusedEnemyId !== null
   useEffect(() => {
     if (!hoveredEnemy) return
     enemyList.current?.querySelector(`[data-enemy="${hoveredEnemy}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [hoveredEnemy])
+  useEffect(() => {
+    hoverEnemyOnMap(inspectedEnemy?.id ?? hoveredEnemy)
+  }, [inspectedEnemy?.id, hoveredEnemy])
+
+  const measureEnemyAnchor = (el: HTMLElement | null): { rect: DossierAnchorRect; panelLeft: number | null } => {
+    const r = el?.getBoundingClientRect()
+    const panelRect = enemyPanelRef.current?.getBoundingClientRect()
+    const rect: DossierAnchorRect = r
+      ? { top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height }
+      : { top: 80, bottom: 160, left: window.innerWidth - 340, right: window.innerWidth - 14, width: 326, height: 80 }
+    return { rect, panelLeft: panelRect ? panelRect.left : null }
+  }
+  const cancelDossierClose = () => {
+    if (dossierTimer.current !== null) window.clearTimeout(dossierTimer.current)
+    dossierTimer.current = null
+  }
+  const openDossier = (id: string, el: HTMLElement | null, pinned = false) => {
+    cancelDossierClose()
+    const { rect, panelLeft } = measureEnemyAnchor(el)
+    setInspectedEnemy(prev => ({ id, rect, panelLeft, pinned: pinned || (prev?.id === id && prev?.pinned) }))
+  }
+  const scheduleCloseDossier = () => {
+    cancelDossierClose()
+    dossierTimer.current = window.setTimeout(() => {
+      setInspectedEnemy(prev => (prev?.pinned ? prev : null))
+    }, 130)
+  }
+  const closeDossier = () => {
+    cancelDossierClose()
+    setInspectedEnemy(null)
+    battleStore.setEnemyAttackPreview(null)
+  }
+  useEffect(() => () => cancelDossierClose(), [])
 
   const previewMethod = (presetIndex: number, stepIndex: number) => {
     cancelMethodClear()
@@ -381,6 +426,71 @@ export default function Home() {
   const inLayer = campaignBattle()
   const lostInLayer = inLayer && state.phase === 'gameover'
   const outcomeLines = story.lines.filter(line => line.event === 'victory' || line.event === 'defeat')
+
+  useEffect(() => {
+    if (covered || ended || state.phase === 'paused' || (inspectedEnemy && !aliveEnemies.some(enemy => enemy.id === inspectedEnemy.id))) {
+      setInspectedEnemy(null)
+    }
+  }, [covered, ended, state.phase, inspectedEnemy, aliveEnemies])
+
+  let incomingFocusText: string | null = null
+  if ((forecast || live) && focusedEnemy) {
+    const tagId = focusedEnemy.hidden ? 'HOSTILE' : focusedEnemy.id
+    if (state.enemyAttackPreview?.enemyId === focusedEnemy.id) {
+      const stepIdx = state.enemyAttackPreview.stepIndex
+      const stepNumeral = ROMAN[stepIdx] ?? String(stepIdx + 1)
+      const matched = incomingSequence.filter(hit => hit.enemyId === focusedEnemy.id && hit.stepIndex === stepIdx && hit.damage > 0)
+      const raw = veiledIds.has(focusedEnemy.id)
+        ? WITHHELD
+        : String(matched.reduce((total, hit) => total + hit.damage, 0))
+      incomingFocusText = matched.length > 0
+        ? `${tagId} / ${stepNumeral} · −${raw}`
+        : `${tagId} / ${stepNumeral} · OUT OF RANGE`
+    } else {
+      const matched = incomingSequence.filter(hit => hit.enemyId === focusedEnemy.id && hit.damage > 0)
+      if (matched.length > 0) {
+        const raw = veiledIds.has(focusedEnemy.id)
+          ? WITHHELD
+          : String(matched.reduce((total, hit) => total + hit.damage, 0))
+        const stepsLabel = matched.map(hit => ROMAN[hit.stepIndex] ?? String(hit.stepIndex + 1)).join('+')
+        incomingFocusText = `${tagId} · −${raw} (${stepsLabel})`
+      } else {
+        incomingFocusText = `${tagId} · NO HIT`
+      }
+    }
+  }
+
+  const enemyCards = aliveEnemies.map(enemy => {
+    const allHits = sequence.filter(hit => hit.enemyId === enemy.id)
+    const barHits = allHits.filter(hit => hit.damage > 0)
+    const barKeys = segmentKeys(barHits.map(hit => hit.stepIndex))
+    const hits = visibleSequence.filter(hit => hit.enemyId === enemy.id)
+    const projected = hits.length ? hits[hits.length - 1].after : enemy.robustness
+    const resources = enemyResources(enemy.id)
+    const intent = forecast || live
+      ? predictedEnemyIntent(attackSequenceState, enemy.id, state.overloadArmed ? 4 : undefined)
+      : null
+    const showForecast = hits.length > 0
+    // Tags the Geek has now, and how the hits still to land change them.
+    const tags = tagList(enemy)
+    const tagsAfter = hits.length && !live ? tagList(hits[hits.length - 1].marks) : tags
+    const events = live ? [] : [...new Set(hits.flatMap(hit => hit.events))]
+      .filter(word => !['LIVE', 'BREACH', 'DROP'].includes(word))
+    // UNDISCLOSED: its Robustness and Desire amounts are printed only while the sandbox allows.
+    const open = !veiledIds.has(enemy.id)
+    const pending = hits.reduce((total, hit) => total + landed(hit), 0)
+    // A Geek with nothing to print has a glitch in its name slot. It is
+    // picked by what the card shows (never by a withheld number), so it
+    // changes when the card does and at no other time.
+    const nameShown = enemy.hidden
+      ? glitchName(state.encounter.layer, JSON.stringify([state.turn, live, enemy.block, enemy.soulCounter, tags, tagsAfter, events, pending, resources.securityGain, resources.soulCounterAfter, enemy.route]))
+      : enemy.name
+    return {
+      enemy, allHits, barHits, barKeys, projected, resources, intent,
+      showForecast, tags, tagsAfter, events, open, pending, nameShown,
+    }
+  })
+  const inspectedCard = inspectedEnemy ? enemyCards.find(card => card.enemy.id === inspectedEnemy.id) ?? null : null
 
   return (
     <>
@@ -431,22 +541,30 @@ export default function Home() {
                   ? <em className="player-to-be">→ {WITHHELD}</em>
                   : forecast && projectedSanity !== state.player.sanity && <em className="player-to-be">→ {projectedSanity}</em>}
               </div>
-              <div className="stat-label">Desires' Scissors</div>
+              <div className="stat-label">
+                <span>Desires' Scissors</span>
+                {incomingFocusText && <strong className="incoming-focus-tag">{incomingFocusText}</strong>}
+              </div>
             </div>
           </section>
           <HealthBar
-            className="player-sanity"
+            className={`player-sanity ${focusedEnemyId && veiledIds.has(focusedEnemyId) ? 'veiled-linked' : ''}`}
             value={state.player.sanity}
             max={state.player.maxSanity}
-            hits={incomingSequence.filter(hit => hit.damage > 0).map(hit => ({
-              key: `${hit.enemyId}-${hit.stepIndex}`,
-              amount: hit.damage,
-              unknown: veiledIds.has(hit.enemyId),
-              className: 'incoming-segment',
-              label: `Preview ${hit.enemyId} attack ${hit.stepIndex + 1}: ${veiledIds.has(hit.enemyId) ? 'withheld' : hit.damage} raw damage`,
-              active: state.enemyAttackPreview?.enemyId === hit.enemyId && state.enemyAttackPreview.stepIndex === hit.stepIndex,
-              onPreview: () => previewEnemyAttack(hit.enemyId, hit.stepIndex),
-            }))}
+            hits={incomingSequence.filter(hit => hit.damage > 0).map(hit => {
+              const isStepMatch = state.enemyAttackPreview?.enemyId === hit.enemyId && state.enemyAttackPreview.stepIndex === hit.stepIndex
+              const isEnemyMatch = enemyHoverLinking && hit.enemyId === focusedEnemyId
+              const dimmed = (state.enemyAttackPreview !== null && !isStepMatch) || (enemyHoverLinking && hit.enemyId !== focusedEnemyId)
+              return {
+                key: `${hit.enemyId}-${hit.stepIndex}`,
+                amount: hit.damage,
+                unknown: veiledIds.has(hit.enemyId),
+                className: ['incoming-segment', isEnemyMatch ? 'enemy-linked' : '', dimmed ? 'enemy-dimmed' : ''].filter(Boolean).join(' '),
+                label: `Preview ${hit.enemyId} attack ${hit.stepIndex + 1}: ${veiledIds.has(hit.enemyId) ? 'withheld' : hit.damage} raw damage`,
+                active: isStepMatch || isEnemyMatch,
+                onPreview: () => previewEnemyAttack(hit.enemyId, hit.stepIndex),
+              }
+            })}
             live={live}
             lossColor="#ff5d73"
             absorbed={state.absorbedTotals.player ?? 0}
@@ -597,7 +715,7 @@ export default function Home() {
           </div>
         </section>
 
-        <aside className="side-panel enemy-panel">
+        <aside className="side-panel enemy-panel" ref={enemyPanelRef}>
           <section className="route-section">
             <div className="panel-kicker">PATH TAKEN</div>
             <div className="route-text">{battleStore.routeText()}</div>
@@ -612,45 +730,43 @@ export default function Home() {
           <section className="enemy-list-section">
             <div className="section-heading"><span>HOSTILES</span><strong>{aliveEnemies.length}</strong></div>
             <div className="enemy-list" ref={enemyList}>
-              {aliveEnemies.map(enemy => {
-                const allHits = sequence.filter(hit => hit.enemyId === enemy.id)
-                const barHits = allHits.filter(hit => hit.damage > 0)
-                const barKeys = segmentKeys(barHits.map(hit => hit.stepIndex))
-                const hits = visibleSequence.filter(hit => hit.enemyId === enemy.id)
-                const projected = hits.length ? hits[hits.length - 1].after : enemy.robustness
-                const resources = enemyResources(enemy.id)
-                const showForecast = hits.length > 0
-                // Tags the Geek has now, and how the hits still to land change them.
-                const tags = tagList(enemy)
-                const tagsAfter = hits.length && !live ? tagList(hits[hits.length - 1].marks) : tags
-                const events = live ? [] : [...new Set(hits.flatMap(hit => hit.events))]
-                  .filter(word => !['LIVE', 'BREACH', 'DROP'].includes(word))
-                // UNDISCLOSED: its Robustness and Desire amounts are printed only while the sandbox allows.
-                const open = !veiledIds.has(enemy.id)
-                const pending = hits.reduce((total, hit) => total + landed(hit), 0)
-                const chips = desireChips(state, enemy)
-                const sure = sureText(chips)
-                // A Geek with nothing to print has a glitch in its name slot. It is
-                // picked by what the card shows (never by a withheld number), so it
-                // changes when the card does and at no other time.
-                const nameShown = enemy.hidden
-                  ? glitchName(state.encounter.layer, JSON.stringify([state.turn, live, enemy.block, enemy.soulCounter, tags, tagsAfter, events, pending, resources.securityGain, resources.soulCounterAfter, enemy.route]))
-                  : enemy.name
+              {enemyCards.map(({ enemy, allHits, barHits, barKeys, projected, intent, showForecast, tags, tagsAfter, events, open, pending, nameShown }) => {
+                const mapFocused = hoveredEnemy === enemy.id || state.enemyAttackPreview?.enemyId === enemy.id
+                const panelFocused = inspectedEnemy?.id === enemy.id
+                const stageBadge = stageBadgeText(state, enemy)
+                const armedSteps = intent?.steps.filter(step => step.armed) ?? []
                 return (
-                  <article className={`enemy-card ${showForecast ? 'affected' : ''} ${hoveredEnemy === enemy.id ? 'map-hover' : ''} ${open ? '' : 'withheld'}`} key={enemy.id} data-enemy={enemy.id}>
-                    <div className="enemy-card-head">
-                      {/* The one that comes in person has no glyph and no label. */}
-                      <div className="enemy-avatar">{!enemy.hidden && <><Hexagon size={27} strokeWidth={1.4} /><span>{enemy.id}</span></>}</div>
-                      <div className="enemy-name">
-                        <strong>{nameShown || '\u00a0'}</strong>
-                        <span>{behaviourText(enemy)}</span>
+                  <article
+                    className={`enemy-card ${showForecast ? 'affected' : ''} ${mapFocused ? 'map-hover' : ''} ${panelFocused ? 'is-inspected' : ''} ${open ? '' : 'withheld'}`}
+                    key={enemy.id}
+                    data-enemy={enemy.id}
+                    tabIndex={0}
+                    onMouseEnter={event => openDossier(enemy.id, event.currentTarget)}
+                    onMouseLeave={scheduleCloseDossier}
+                    onFocus={event => {
+                      if (event.target === event.currentTarget) openDossier(enemy.id, event.currentTarget)
+                    }}
+                    onBlur={event => {
+                      if (!event.currentTarget.contains(event.relatedTarget)) scheduleCloseDossier()
+                    }}
+                    onClick={event => {
+                      if (typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches) {
+                        if (inspectedEnemy?.id === enemy.id && inspectedEnemy.pinned) closeDossier()
+                        else openDossier(enemy.id, event.currentTarget, true)
+                      }
+                    }}
+                  >
+                    <div className="enemy-card-top">
+                      <div className="enemy-identity">
+                        {!enemy.hidden && <span className="enemy-id-badge">{enemy.id}</span>}
+                        <strong className="enemy-name-text">{nameShown || '\u00a0'}</strong>
+                        {stageBadge && <em className="enemy-stage-pill">{stageBadge}</em>}
                       </div>
-                    </div>
-                    <div className="enemy-hp">
-                      {open
-                        ? <strong>{enemy.robustness}{showForecast && !live && <em className="to-be"> → {projected}</em>}<small> / {enemy.maxRobustness}</small></strong>
-                        : <strong>{WITHHELD}{showForecast && !live && pending > 0 && <em className="to-be"> −{pending}</em>}<small> / {WITHHELD}</small></strong>}
-                      <span>ROBUSTNESS</span>
+                      <div className="enemy-hp">
+                        {open
+                          ? <strong>{enemy.robustness}{showForecast && !live && <em className="to-be"> → {projected}</em>}<small> / {enemy.maxRobustness}</small></strong>
+                          : <strong>{WITHHELD}{showForecast && !live && pending > 0 && <em className="to-be"> −{pending}</em>}<small> / {WITHHELD}</small></strong>}
+                      </div>
                     </div>
                     {open ? <HealthBar
                       value={enemy.robustness}
@@ -672,35 +788,39 @@ export default function Home() {
                       // No fill, no pips: nothing on this bar can be measured.
                       <div className="health-wrap"><div className={`health-withheld ${showForecast && !live ? 'struck' : ''}`} role="img" aria-label="Robustness withheld" /></div>
                     )}
-                    <div className="enemy-tags" aria-label={`Tags on ${enemy.id}`}>
-                      {tags.map(tag => <span className={`enemy-tag ${tagsAfter.includes(tag) ? '' : 'spent'}`} key={tag}>{tag}</span>)}
-                      {tagsAfter.filter(tag => !tags.includes(tag)).map(tag => <span className="enemy-tag pending" key={tag}>→ {tag}</span>)}
-                      {events.map(word => <span className="enemy-tag event pending" key={word}>{word}</span>)}
-                      {!tags.length && tagsAfter.length === 0 && !events.length && <span className="enemy-tag none">NO TAGS</span>}
-                    </div>
-                    {/* Its Desire steps in release order. A SURE step needs no Bash Flag. */}
-                    <div className="enemy-desire" aria-label={`Desire steps of ${enemy.id}${sure ? `; ${sure}` : ''}`}>
-                      <span>DESIRE</span>
-                      {chips.map(chip => (
-                        <i className={chip.sure ? 'sure' : ''} key={chip.numeral} title={chip.sure ? 'Released every turn' : 'Released for a Bash Flag on its route'}>
-                          {chip.numeral}<b>{chip.amount}</b>
-                        </i>
-                      ))}
-                      {sure && <em>{sure}</em>}
-                    </div>
-                    <div className="enemy-status">
-                      {/* MYSTERY does not add to its Security: it puts it back. */}
-                      <span className={enemy.block ? 'has-block' : ''}>SECURITY {enemy.block}{forecast && resources.securityGain > 0 && <em className="gain"> {mysteryActive(enemy) ? '→ ' : '+'}{resources.securityGain}</em>}</span>
-                      <span>
-                        SOUL {enemy.soulCounter}/{enemy.soulThreshold}
-                        {forecast && resources.brood && <em className="gain brood"> BROOD</em>}
-                        {forecast && resources.recovery > 0 && <em className="gain"> +{open ? resources.recovery : WITHHELD} HP</em>}
-                      </span>
-                    </div>
-                    <div className="enemy-route">
-                      <span>ROUTE</span>
-                      <p>{[enemy.pos, ...enemy.route].map(coordKey).join(' → ')}</p>
-                      {enemy.effectCell && <p className="enemy-purge">PURGE → {coordKey(enemy.effectCell)}</p>}
+                    <div className="enemy-card-meta">
+                      <div className="enemy-tags" aria-label={`Tags on ${enemy.id}`}>
+                        {enemy.block > 0 && <span className="enemy-tag sec">SEC {enemy.block}</span>}
+                        {tags.map(tag => <span className={`enemy-tag ${tagsAfter.includes(tag) ? '' : 'spent'}`} key={tag}>{tag}</span>)}
+                        {tagsAfter.filter(tag => !tags.includes(tag)).map(tag => <span className="enemy-tag pending" key={tag}>→ {tag}</span>)}
+                        {events.map(word => <span className="enemy-tag event pending" key={word}>{word}</span>)}
+                        {!enemy.block && !tags.length && tagsAfter.length === 0 && !events.length && <span className="enemy-tag none">NO TAGS</span>}
+                      </div>
+                      <div className="enemy-next-attack" aria-label={`Next attacks of ${enemy.id}`}>
+                        <span>NEXT</span>
+                        {armedSteps.length > 0 ? armedSteps.map(step => {
+                          const previewing = state.enemyAttackPreview?.enemyId === enemy.id && state.enemyAttackPreview.stepIndex === step.stepIndex
+                          return (
+                            <button
+                              type="button"
+                              key={step.stepIndex}
+                              className={`next-chip ${step.hitsPlayer ? 'hits' : ''} ${previewing ? 'previewing' : ''}`}
+                              onMouseEnter={() => previewEnemyAttack(enemy.id, step.stepIndex)}
+                              onMouseLeave={clearEnemyAttackPreview}
+                              onFocus={() => previewEnemyAttack(enemy.id, step.stepIndex)}
+                              onBlur={clearEnemyAttackPreview}
+                              onClick={event => {
+                                event.stopPropagation()
+                                previewEnemyAttack(enemy.id, step.stepIndex)
+                              }}
+                              aria-label={`Preview ${enemy.id} attack ${ROMAN[step.stepIndex] ?? step.stepIndex + 1}: ${open ? step.step.amount : 'withheld'}`}
+                            >
+                              <i>{ROMAN[step.stepIndex] ?? String(step.stepIndex + 1)}</i>
+                              <b>{shown(state, enemy, step.step.amount)}</b>
+                            </button>
+                          )
+                        }) : <span className="next-idle">—</span>}
+                      </div>
                     </div>
                   </article>
                 )
@@ -709,6 +829,30 @@ export default function Home() {
           </section>
         </aside>
       </main>
+
+      {inspectedEnemy && inspectedCard && !covered && !ended && state.phase !== 'paused' && (
+        <EnemyDossierPopup
+          state={state}
+          enemy={inspectedCard.enemy}
+          nameShown={inspectedCard.nameShown}
+          open={inspectedCard.open}
+          projectedRobustness={inspectedCard.projected}
+          showForecast={inspectedCard.showForecast}
+          live={live}
+          forecast={forecast}
+          pending={inspectedCard.pending}
+          resources={inspectedCard.resources}
+          intent={inspectedCard.intent}
+          activePreviewStepIndex={state.enemyAttackPreview?.enemyId === inspectedCard.enemy.id ? state.enemyAttackPreview.stepIndex : null}
+          anchorRect={inspectedEnemy.rect}
+          panelLeft={inspectedEnemy.panelLeft}
+          onMouseEnter={cancelDossierClose}
+          onMouseLeave={scheduleCloseDossier}
+          onPreviewStep={stepIndex => previewEnemyAttack(inspectedCard.enemy.id, stepIndex)}
+          onClearStep={clearEnemyAttackPreview}
+          onClose={closeDossier}
+        />
+      )}
 
       {scene === 'title' && state.phase === 'title' && <TitleScreen state={state} campaign={campaign} />}
 

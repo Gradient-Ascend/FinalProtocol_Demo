@@ -4,14 +4,14 @@ import { predictedSequence } from '@/game/attack-methods'
 import { createInitialState } from '@/game/battle-rules'
 import { BattleStore } from '@/game/battle-store'
 import type { BattleState, EnemyState } from '@/game/battle-types'
-import { predictedPlayerResources } from '@/game/enemy-attack-methods'
+import { predictedEnemyIntent, predictedPlayerResources } from '@/game/enemy-attack-methods'
 import { ENCOUNTERS, encounterById } from '@/game/encounters'
 import { DEFAULT_LOADOUT } from '@/game/skills'
 import { DEFAULT_TUNING } from '@/game/tuning'
 import { layerAt, script } from '@/story/script'
 import {
-  WITHHELD, behaviourText, bossRule, bossTitle, breakdownText, broodCount, desireChips, glitchName,
-  heardSoFar, panelLine, protocolHeading, routeAhead, segmentKeys, shown, speaksInPanel, sureText, tickerInsertAt, traceText,
+  WITHHELD, behaviourText, bossRule, bossTitle, breakdownText, broodCount, desireChips, desireShapeText, glitchName,
+  heardSoFar, panelLine, protocolHeading, routeAhead, segmentKeys, shown, speaksInPanel, stageBadgeText, sureText, tickerInsertAt, traceText,
 } from './battle-text'
 
 const battle = (id: string): BattleState => createInitialState(false, false, DEFAULT_LOADOUT, encounterById(id))
@@ -342,5 +342,36 @@ describe('the keys of the hits on a Geek\'s bar', () => {
     for (let landed = 1; landed <= steps.length; landed++) {
       expect(segmentKeys(steps.slice(landed))).toEqual(keys.slice(landed))
     }
+  })
+})
+
+describe('predictedEnemyIntent and shape formatting', () => {
+  it('formats square, cross, and band Desire shapes concisely', () => {
+    expect(desireShapeText({ amount: 3, range: 4, shape: 'square' })).toBe('SQ R4')
+    expect(desireShapeText({ amount: 2, range: 6, shape: 'cross' })).toBe('ORTHO R6')
+    expect(desireShapeText({ amount: 4, range: 15, shape: 'rectangle', width: 2 })).toBe('BAND ±2')
+  })
+
+  it('projects armed Desire steps and hitsPlayer on the Warden opening turn', () => {
+    const store = new BattleStore()
+    store.start()
+    const state = store.getSnapshot()
+    const boss = bossIn(state)
+    const intent = predictedEnemyIntent(state, boss.id)!
+    expect(intent.releaseCount).toBe(2)
+    expect(intent.steps.map(s => s.armed)).toEqual([true, true, false])
+    expect(intent.steps.map(s => s.sure)).toEqual([true, false, false])
+    expect(intent.steps.map(s => s.hitsPlayer)).toEqual([true, true, false])
+    expect(stageBadgeText(state, boss)).toBe('STAGE I')
+    expect(stageBadgeText(state, state.enemies[1])).toBeNull()
+  })
+
+  it('keeps undisclosed enemy amounts withheld by shown() while projecting armed count', () => {
+    const state = battle('3.B')
+    const boss = bossIn(state)
+    const intent = predictedEnemyIntent(state, boss.id)!
+    expect(intent.releaseCount).toBe(1)
+    expect(shown(state, boss, intent.steps[0].step.amount)).toBe(WITHHELD)
+    expect(stageBadgeText(state, boss)).toBe('ACT I')
   })
 })

@@ -2,7 +2,7 @@ import { simulateRelease } from './attack-methods'
 import { livingEnemies, routeStops } from './battle-rules'
 import { broods, securityAfterResolve } from './mechanics'
 import type {
-  BattleState, Coord, DesireStep, EnemyResourcePreview, EnemyState, PlayerResourcePreview, PredictedEnemyHit,
+  BattleState, Coord, DesireStep, EnemyResourcePreview, EnemyState, FlagKind, PlayerResourcePreview, PredictedEnemyHit,
 } from './battle-types'
 export type { EnemyResourcePreview, PlayerResourcePreview, PredictedEnemyHit } from './battle-types'
 
@@ -147,4 +147,48 @@ export function predictedEnemySequence(state: BattleState, playerPos?: Coord, pl
     }
   }
   return hits
+}
+
+export type PredictedEnemyStep = {
+  stepIndex: number
+  step: DesireStep
+  sure: boolean
+  armed: boolean
+  hitsPlayer: boolean
+  origin: Coord
+}
+
+export type PredictedEnemyIntent = {
+  endpoint: Coord
+  counts: Record<FlagKind, number>
+  releaseCount: number
+  steps: PredictedEnemyStep[]
+}
+
+/** Projects an enemy's walk endpoint, armed Desire steps, and whether each hits the player. */
+export function predictedEnemyIntent(
+  state: BattleState,
+  enemyId: string,
+  playerStepsOverride?: number,
+): PredictedEnemyIntent | null {
+  if (state.phase === 'victory' || state.phase === 'gameover') return null
+  const moves = state.actions.filter(action => action.type === 'move')
+  const targetPos = moves.length ? moves[moves.length - 1].to : state.player.pos
+  const walk = projectedWalks(state, targetPos, playerStepsOverride).find(candidate => candidate.enemy.id === enemyId)
+  if (!walk) return null
+  const { enemy, cursor, counts } = walk
+  const sureCount = Math.max(0, (enemy.desireFloor ?? 0) - (enemy.dropped ?? 0))
+  const releaseCount = desireReleaseCount(enemy, counts.bash)
+  const steps: PredictedEnemyStep[] = desireStepsFor(enemy).map((step, stepIndex) => {
+    const armed = stepIndex < releaseCount
+    return {
+      stepIndex,
+      step,
+      sure: stepIndex < sureCount,
+      armed,
+      hitsPlayer: armed && desireInRange(cursor, targetPos, step),
+      origin: { ...cursor },
+    }
+  })
+  return { endpoint: { ...cursor }, counts: { ...counts }, releaseCount, steps }
 }
