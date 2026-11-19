@@ -22,6 +22,7 @@ import { EnemyDossierPopup } from '@/ui/EnemyDossierPopup'
 import type { DossierAnchorRect } from '@/ui/EnemyDossierPopup'
 import { Manual } from '@/ui/Manual'
 import { Modal } from '@/ui/Modal'
+import { ProgressSaver } from '@/ui/ProgressSaver'
 import { ProtocolPanel } from '@/ui/ProtocolPanel'
 import { Scenes } from '@/ui/Scenes'
 import { TitleScreen } from '@/ui/TitleScreen'
@@ -922,6 +923,9 @@ export default function Home() {
                 </button>
               ))}
             </div>
+          </div>
+          <div className="setting-row setting-row-saver">
+            <ProgressSaver compact />
           </div>
           {!inLayer && <button className="secondary-action full-width" onClick={() => { setSettingsOpen(false); battleStore.restart() }}><RotateCcw size={15} /> RESTART BATTLE</button>}
           {state.phase !== 'title' && <button className="secondary-action full-width menu-return" onClick={() => { setSettingsOpen(false); returnToTitle() }}><HomeIcon size={15} /> RETURN TO MAIN MENU</button>}

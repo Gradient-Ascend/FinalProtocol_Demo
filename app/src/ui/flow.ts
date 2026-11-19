@@ -2,6 +2,7 @@ import { battleStore } from '@/game/battle-store'
 import type { StoryEvent } from '@/game/battle-store'
 import { WARDEN_ENCOUNTER } from '@/game/encounters'
 import type { Encounter } from '@/game/encounters'
+import { connectProgressSaver } from '@/game/progress-saver'
 import type { Carry } from '@/game/tuning'
 import { campaignStore, runCarry } from '@/campaign/campaign-store'
 import type { Scene } from '@/campaign/campaign-store'
@@ -26,6 +27,7 @@ export function bootCampaign(): void {
   logHarness()
   campaignStore.boot(window.location.search)
   storyFeed.seed()
+  connectProgressSaver()
   battleStore.onStoryEvent = onStoryEvent
   let scene: Scene = campaignStore.getSnapshot().scene
   campaignStore.subscribe(() => {

@@ -127,6 +127,19 @@ try {
   // ?intro=0: straight to the title, without the attach screen and the opening sequence.
   await page.goto(`http://127.0.0.1:${port}/?intro=0`, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => window.__GAME_READY__ === true)
+
+  // Verify Title-screen Progress Saver + multi-user host isolation
+  await page.getByRole('button', { name: /SAVE \/ USER/ }).click()
+  await page.getByRole('textbox', { name: 'User ID' }).fill('qa-guest')
+  await page.getByRole('button', { name: /SWITCH \/ CREATE/ }).click()
+  await page.waitForFunction(() => window.location.search.includes('user=qa-guest'))
+  await page.getByRole('button', { name: /SAVE NOW/ }).click()
+  await page.screenshot({ path: join(SHOTS, '01b-progress-saver.png') })
+  await page.getByRole('button', { name: /REMOVE USER/ }).click()
+  await page.getByRole('button', { name: /CONFIRM REMOVE\?/ }).click()
+  await page.waitForFunction(() => !window.location.search.includes('user='))
+  await page.getByRole('dialog', { name: 'Progress saver' }).getByRole('button', { name: 'Close', exact: true }).click()
+
   await page.getByRole('button', { name: /BREACH SANDBOX/ }).click()
   await waitPhase(['planning'])
   const vfxIdle = await page.evaluate(() => window.__vfxProbe?.())

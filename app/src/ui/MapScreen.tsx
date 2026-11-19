@@ -16,6 +16,7 @@ import { inscriptionLines, releaseNoteLines } from '@/story/seams'
 import { layerAt, nodeById, weightById } from '@/story/script'
 import { LoadoutEditor } from './LoadoutEditor'
 import { Modal } from './Modal'
+import { ProgressSaver } from './ProgressSaver'
 import { brokenJustNow, brokenWasDrawn, enterNode, parkBattle, returnToTitle } from './flow'
 import { godShown, layerHue, layerInk, layerSigil } from './layers'
 import { playMoment } from './moments'
@@ -69,7 +70,7 @@ export function MapScreen({ campaign, state, reducedMotion }: { campaign: Campai
   const firstOpen = () => nodes.find(node => campaignStore.nodeState(node.id) === 'open')?.id ?? null
   const [stage, setStage] = useState<Stage>(() => (hasSeen(seamKey(run)) ? 'ready' : 'seam'))
   const [selected, setSelected] = useState<string | null>(firstOpen)
-  const [modal, setModal] = useState<'rewire' | 'log' | null>(null)
+  const [modal, setModal] = useState<'rewire' | 'log' | 'save' | null>(null)
   const [god] = useState(() => godShown(run.layer))
   // The node just broken, until the map has shown it breaking.
   const [pending, setPending] = useState<string | null>(() => {
@@ -244,6 +245,7 @@ export function MapScreen({ campaign, state, reducedMotion }: { campaign: Campai
           </div>
           <div className="map-foot">
             <button onClick={returnToTitle}>TITLE</button>
+            <button type="button" onClick={() => setModal('save')}>SAVE / USER</button>
             <button onClick={() => battleStore.toggleMute()} aria-label="Toggle audio">{state.muted ? 'SOUND OFF' : 'SOUND ON'}</button>
           </div>
         </section>
@@ -274,6 +276,12 @@ export function MapScreen({ campaign, state, reducedMotion }: { campaign: Campai
           <div className="eyebrow">ITERATION {meta.iteration}</div>
           <h2>LOG</h2>
           <Transcript entries={meta.transcript} />
+        </Modal>
+      )}
+      {modal === 'save' && (
+        <Modal onClose={() => setModal(null)} label="Progress saver">
+          <h2>PROGRESS &amp; USER</h2>
+          <ProgressSaver />
         </Modal>
       )}
     </div>

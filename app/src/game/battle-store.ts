@@ -199,6 +199,19 @@ export class BattleStore {
     this.commit()
   }
 
+  /** Reloads active user preferences and custom deck loadout from storage. */
+  reloadFromStorage(): void {
+    const muted = storage.flag('muted')
+    const reducedMotion = storage.flag('reducedMotion')
+    this.loadout = sanitizeLoadout(storage.get<unknown>('loadout', null))
+    this.encounter = WARDEN_ENCOUNTER
+    this.carry = undefined
+    this.state.muted = muted
+    this.state.reducedMotion = reducedMotion
+    this.rebuild()
+    this.commit()
+  }
+
   start(): void {
     if (this.state.phase !== 'title') return
     this.state.phase = 'planning'

@@ -136,3 +136,72 @@ describe('storage', () => {
     expect(() => { blocked.set('muted', true); blocked.remove('run') }).not.toThrow()
   })
 })
+
+function onSession() {
+  const items = new Map<string, string>()
+  vi.stubGlobal('sessionStorage', {
+    getItem: (key: string): string | null => items.get(key) ?? null,
+    setItem: (key: string, value: string): void => { items.set(key, String(value)) },
+    removeItem: (key: string): void => { items.delete(key) },
+  })
+  return items
+}
+
+describe('host scoping & multi-user profiles', () => {
+  it('resolves subpath host scopes cleanly for GitHub Pages and root localhost', async () => {
+    vi.resetModules()
+    const mod = await import('./storage')
+    expect(mod.resolveHostScope('/')).toBe('')
+    expect(mod.resolveHostScope('/index.html')).toBe('')
+    expect(mod.resolveHostScope('/FinalProtocol_Demo/')).toBe('finalprotocol_demo')
+    expect(mod.resolveHostScope('/FinalProtocol_Demo/index.html')).toBe('finalprotocol_demo')
+    expect(mod.prefixFor('', 'default')).toBe('fp.')
+    expect(mod.prefixFor('finalprotocol_demo', 'default')).toBe('fp@finalprotocol_demo.')
+    expect(mod.prefixFor('finalprotocol_demo', 'alice')).toBe('fp@finalprotocol_demo:u/alice.')
+  })
+
+  it('seeds GitHub Pages subpath storage non-destructively from root fp.* once', async () => {
+    const disk = onDisk({ 'fp.meta': JSON.stringify({ introSeen: true, iteration: 4 }) })
+    onSession()
+    vi.stubGlobal('window', { location: { pathname: '/FinalProtocol_Demo/', search: '', href: 'https://user.github.io/FinalProtocol_Demo/' } })
+    const storage = await pageLoad()
+
+    expect(storage.getHostScope()).toBe('finalprotocol_demo')
+    expect(storage.get('meta', null)).toEqual({ introSeen: true, iteration: 4 })
+    expect(disk.get('fp@finalprotocol_demo.meta')).toBe(JSON.stringify({ introSeen: true, iteration: 4 }))
+    expect(disk.get('fp@finalprotocol_demo:__saver.seeded')).toBe('1')
+    expect(disk.get('fp.meta')).toBe(JSON.stringify({ introSeen: true, iteration: 4 }))
+  })
+
+  it('isolates single save slots per user ID on a shared host and supports ?user= selection', async () => {
+    const disk = onDisk()
+    const session = onSession()
+    let currentHref = 'https://user.github.io/FinalProtocol_Demo/?user=Alice'
+    vi.stubGlobal('window', {
+      location: { pathname: '/FinalProtocol_Demo/', search: '?user=Alice', href: currentHref },
+      history: {
+        replaceState: (_s: unknown, _t: string, nextUrl: string) => { currentHref = nextUrl },
+      },
+    })
+    const storage = await pageLoad()
+
+    expect(storage.getUser()).toBe('alice')
+    storage.set('meta', { introSeen: true, iteration: 3 })
+    expect(storage.listUsers()).toEqual(['default', 'alice'])
+    expect(session.get('fp@finalprotocol_demo:__saver.active')).toBe('alice')
+
+    storage.setUser('bob')
+    expect(currentHref).toContain('user=bob')
+    expect(storage.get('meta', null)).toBeNull()
+    storage.set('meta', { introSeen: true, iteration: 7 })
+    expect(storage.peekForUser('alice', 'meta', null)).toEqual({ introSeen: true, iteration: 3 })
+    expect(storage.peekForUser('bob', 'meta', null)).toEqual({ introSeen: true, iteration: 7 })
+    expect(disk.get('fp@finalprotocol_demo.meta')).toBeUndefined()
+
+    const fallback = storage.clearUserSave('bob', true)
+    expect(fallback).toBe('default')
+    expect(currentHref).not.toContain('user=')
+    expect(storage.listUsers()).toEqual(['default', 'alice'])
+    expect(storage.peekForUser('bob', 'meta', null)).toBeNull()
+  })
+})

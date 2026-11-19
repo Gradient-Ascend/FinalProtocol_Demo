@@ -116,6 +116,14 @@ export const vfxQualityStore = {
     qualityListeners.add(listener)
     return () => qualityListeners.delete(listener)
   },
+  reload(): void {
+    const prev = cachedQuality
+    cachedQuality = null
+    const next = this.getSnapshot()
+    if (prev !== next) {
+      for (const listener of qualityListeners) listener()
+    }
+  },
   resetForTests(): void {
     cachedQuality = null
   },

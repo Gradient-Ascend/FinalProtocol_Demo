@@ -48,6 +48,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
   // display does not take it for a held key. A modal keeps its own keys.
   const onMuteKey = (event: KeyboardEvent): void => {
     if (event.code !== 'KeyM' || event.ctrlKey || event.metaKey || event.altKey || modalOpen()) return
+    if (event.target instanceof Element && event.target.matches('input, select, textarea')) return
     event.stopImmediatePropagation()
     if (!event.repeat) battleStore.toggleMute()
   }
