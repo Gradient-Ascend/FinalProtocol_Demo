@@ -8,7 +8,7 @@ import {
 } from './battle-rules'
 import type {
   AttackEffect, AttackPreview, BattleAction, BattleState, BossStageDefinition, Coord, EnemyAttackPreview,
-  EnemyState, FlagKind,
+  EnemyState, FlagKind, OverloadSubStep,
 } from './battle-types'
 import { WARDEN_ENCOUNTER, layerName } from './encounters'
 import type { Encounter, EncounterKind } from './encounters'
@@ -475,12 +475,22 @@ export class BattleStore {
   private playerEffect(hit: ReturnType<typeof predictedSequence>[number], origin = this.state.player.pos): AttackEffect {
     const enemy = this.state.enemies.find(candidate => candidate.id === hit.enemyId)
     const step = activePreset(this.state).steps[hit.stepIndex]
+    const readTags: ('LIVE' | 'BREACH' | 'SHIFT')[] = []
+    if (enemy?.live) readTags.push('LIVE')
+    if (enemy?.breached) readTags.push('BREACH')
+    if (enemy?.shifted) readTags.push('SHIFT')
     return {
       source: 'player', presetId: activePreset(this.state).id,
       origin: { ...origin }, target: { ...(enemy?.pos ?? this.state.player.pos) },
       stepIndex: hit.stepIndex, shape: step.shape, range: step.range, width: step.width, fx: step.fx,
       amount: hit.damage, cap: step.mode === 'random' ? step.amount : undefined,
       dealt: hit.dealt, absorbed: hit.absorbed, events: hit.events,
+      slotAmount: step.amount,
+      pierce: step.pierce,
+      movedTo: { ...hit.marks.pos },
+      blank: hit.blank ? { ...hit.blank } : undefined,
+      securityBefore: enemy?.block ?? 0,
+      readTags: readTags.length ? readTags : undefined,
     }
   }
 
@@ -494,13 +504,31 @@ export class BattleStore {
     const effects = new Map<string, AttackEffect>()
     for (const hit of hits) {
       const effect = this.playerEffect(hit, origin)
+      const sub: OverloadSubStep = {
+        fx: effect.fx,
+        stepIndex: hit.stepIndex,
+        slotAmount: effect.slotAmount,
+        pierce: effect.pierce,
+        amount: effect.amount,
+        cap: effect.cap,
+        dealt: hit.dealt,
+        absorbed: hit.absorbed,
+        events: [...hit.events],
+        blank: hit.blank ? { ...hit.blank } : undefined,
+        movedTo: { ...hit.marks.pos },
+        securityBefore: effect.securityBefore,
+        readTags: effect.readTags,
+      }
       const total = effects.get(hit.enemyId)
       if (total) {
         total.amount = (total.amount ?? 0) + hit.damage
         total.dealt = (total.dealt ?? 0) + hit.dealt
         total.absorbed = (total.absorbed ?? 0) + hit.absorbed
         total.events = [...new Set([...(total.events ?? []), ...hit.events])]
-      } else effects.set(hit.enemyId, { ...effect, fx: 'overload', cap: undefined, overload: true })
+        total.overloadSteps = [...(total.overloadSteps ?? []), sub]
+      } else {
+        effects.set(hit.enemyId, { ...effect, fx: 'overload', cap: undefined, overload: true, overloadSteps: [sub] })
+      }
       this.applyPlayerHit(preset.name, hit)
     }
     effects.forEach(effect => this.emitEffect(effect))

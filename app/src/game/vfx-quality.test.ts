@@ -90,13 +90,21 @@ describe('resolveVfxProfile device compatibility & quality lever', () => {
     const forcedHigh = resolveVfxProfile(swDevice, 'high')
     expect(forcedHigh.tier).toBe('high')
     expect(forcedHigh.maxParticles).toBe(8192)
+    expect(forcedHigh.maxSolids).toBe(96)
+    expect(forcedHigh.maxClouds).toBe(160)
     expect(forcedHigh.bloomLevels).toBe(4)
     expect(forcedHigh.governorEnabled).toBe(false)
 
     const forcedMedium = resolveVfxProfile({ hasWebGL: true, shortSidePx: 1080, cores: 16, deviceMemoryGb: 16 }, 'medium')
     expect(forcedMedium.tier).toBe('medium')
+    expect(forcedMedium.maxSolids).toBe(48)
+    expect(forcedMedium.maxClouds).toBe(80)
     expect(forcedMedium.bloomLevels).toBe(2)
     expect(forcedMedium.governorEnabled).toBe(false)
+
+    const lowProfile = resolveVfxProfile({ hasWebGL: true, shortSidePx: 1080, cores: 16, deviceMemoryGb: 16 }, 'low')
+    expect(lowProfile.maxSolids).toBe(0)
+    expect(lowProfile.maxClouds).toBe(0)
   })
 
   it('adapts automatically with governor enabled when setting is auto', () => {
@@ -169,27 +177,91 @@ describe('FrameBudgetGovernor hysteresis', () => {
 })
 
 describe('AttackFx Node-safety', () => {
-  it('plays, steps, reports stats, and disposes cleanly without DOM globals', () => {
+  it('plays, steps, reports stats, and disposes cleanly without DOM globals across all 11 skills, overload, and enemy hits', () => {
     const fx = new AttackFx()
+    const skills = ['base', 'manhattan', 'array', 'zero', 'off', 'on', 'high', 'ultra', 'spike', 'flood', 'probe'] as const
+    const eventsBySkill: Record<string, string[]> = {
+      base: ['PUSH', 'BUMP'],
+      array: ['PULL'],
+      zero: ['BREACH'],
+      off: ['DROP'],
+      on: ['LIVE'],
+      high: ['SPREAD'],
+      ultra: ['RAIL +3'],
+      spike: ['PINNED'],
+      flood: ['FILL'],
+      probe: ['LIVE'],
+    }
+    for (const [idx, skillFx] of skills.entries()) {
+      fx.clear()
+      fx.play(
+        {
+          source: 'player',
+          presetId: idx % 2 === 0 ? 'vector' : 'cot',
+          origin: { x: 7, y: 8 },
+          target: { x: 7, y: 4 },
+          stepIndex: idx % 4,
+          shape: idx % 2 === 0 ? 'square' : 'cross',
+          range: idx % 2 === 0 ? 2 : 5,
+          fx: skillFx,
+          amount: 3,
+          dealt: 3,
+          securityBefore: skillFx === 'zero' ? 2 : 0,
+          blank: skillFx === 'flood' ? { x: 6, y: 4 } : undefined,
+          movedTo: skillFx === 'base' ? { x: 7, y: 3 } : skillFx === 'array' ? { x: 7, y: 5 } : undefined,
+          readTags: skillFx === 'ultra' ? ['LIVE', 'BREACH', 'SHIFT'] : undefined,
+          events: eventsBySkill[skillFx] ?? [],
+        },
+        false,
+        undefined,
+        { peers: skillFx === 'high' ? [{ x: 7, y: 4 }, { x: 9, y: 8 }] : undefined },
+      )
+      for (let t = 0; t <= 950; t += 16) fx.step(t)
+    }
+
+    fx.clear()
     fx.play(
       {
         source: 'player',
-        presetId: 'vector',
+        presetId: 'deck-1',
         origin: { x: 7, y: 8 },
         target: { x: 7, y: 4 },
         stepIndex: 0,
-        shape: 'square',
-        range: 4,
-        fx: 'spike',
-        amount: 3,
-        dealt: 3,
-        events: ['PINNED'],
+        shape: 'cross',
+        range: 5,
+        fx: 'overload',
+        overload: true,
+        amount: 9,
+        dealt: 9,
+        events: ['BREACH', 'LIVE', 'RAIL +2'],
+        overloadSteps: [
+          { fx: 'zero', stepIndex: 0, amount: 2, dealt: 2, securityBefore: 2, events: ['BREACH'] },
+          { fx: 'ultra', stepIndex: 3, amount: 5, dealt: 5, readTags: ['LIVE', 'BREACH'], events: ['RAIL +2'] },
+        ],
       },
       false,
     )
-    for (let t = 0; t <= 900; t += 16) fx.step(t)
+    fx.play(
+      {
+        source: 'enemy',
+        presetId: 'B01',
+        origin: { x: 7, y: 4 },
+        target: { x: 7, y: 8 },
+        stepIndex: 0,
+        shape: 'square',
+        range: 4,
+        amount: 3,
+        dealt: 3,
+      },
+      false,
+      'carcosa',
+    )
+    for (let t = 0; t <= 950; t += 16) fx.step(t)
+
     expect(fx.stats().backend).toBe('2d')
     expect(fx.stats().tier).toBe('low')
+    expect(fx.stats().activeSolids).toBe(0)
+    expect(fx.stats().activeClouds).toBe(0)
     expect(fx.cellOffset(7, 4)).toEqual({ x: expect.any(Number), y: expect.any(Number) })
     expect(fx.shakeOffset()).toEqual({ x: expect.any(Number), y: expect.any(Number) })
     fx.clear()

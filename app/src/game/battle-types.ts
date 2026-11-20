@@ -153,6 +153,22 @@ export type EnemyAttackPreview = {
   stepIndex: number
 }
 
+export type OverloadSubStep = {
+  fx?: string
+  stepIndex: number
+  slotAmount?: number
+  pierce?: number
+  amount?: number
+  cap?: number
+  dealt?: number
+  absorbed?: number
+  events?: string[]
+  blank?: Coord
+  movedTo?: Coord
+  securityBefore?: number
+  readTags?: ('LIVE' | 'BREACH' | 'SHIFT')[]
+}
+
 export type AttackEffect = {
   source: 'player' | 'enemy'
   presetId: string
@@ -173,6 +189,14 @@ export type AttackEffect = {
   overload?: boolean
   // Interaction words to print with the hit: PUSH, BUMP, PINNED, BREACH, LIVE…
   events?: string[]
+  // Rich VFX-only telemetry (never serialized onto BattleState)
+  slotAmount?: number
+  pierce?: number
+  movedTo?: Coord
+  blank?: Coord
+  securityBefore?: number
+  readTags?: ('LIVE' | 'BREACH' | 'SHIFT')[]
+  overloadSteps?: OverloadSubStep[]
 }
 
 export type BattleAction =

@@ -147,7 +147,14 @@ export class BattleRenderer {
     const state = this.store.getSnapshot()
     const boss = state.encounter.god !== 'none' ? bossOf(state) : null
     const bossGod = effect.source === 'enemy' && boss?.id === effect.presetId ? state.encounter.god : undefined
-    this.fx.play(effect, state.reducedMotion, bossGod)
+    const peers = effect.fx === 'high'
+      ? livingEnemies(state)
+        .filter(e => inAttackRange(effect.origin, e.pos, {
+          name: '', amount: 0, area: 'all', shape: effect.shape, range: effect.range, width: effect.width,
+        }))
+        .map(e => ({ ...e.pos }))
+      : undefined
+    this.fx.play(effect, state.reducedMotion, bossGod, { walls: state.walls, peers })
     // The board answers its god: the sign pulses outward when the boss strikes.
     if (effect.source === 'enemy' && state.encounter.god !== 'none' && boss?.id === effect.presetId) {
       this.pulseDue = { ...effect.origin }

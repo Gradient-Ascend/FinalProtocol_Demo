@@ -19,6 +19,8 @@ export type VfxProfile = {
   maxRibbons: number
   maxWaves: number
   maxDecals: number
+  maxSolids: number
+  maxClouds: number
   maxDpr: number
   sceneScale: number
   maxFboPixels: number
@@ -43,6 +45,8 @@ const PROFILES: Record<VfxTier, Omit<VfxProfile, 'governorEnabled'>> = {
     maxRibbons: 96,
     maxWaves: 64,
     maxDecals: 160,
+    maxSolids: 96,
+    maxClouds: 160,
     maxDpr: 2.0,
     sceneScale: 1.0,
     maxFboPixels: 960_000,
@@ -55,6 +59,8 @@ const PROFILES: Record<VfxTier, Omit<VfxProfile, 'governorEnabled'>> = {
     maxRibbons: 48,
     maxWaves: 32,
     maxDecals: 96,
+    maxSolids: 48,
+    maxClouds: 80,
     maxDpr: 1.35,
     sceneScale: 0.78,
     maxFboPixels: 320_000,
@@ -67,6 +73,8 @@ const PROFILES: Record<VfxTier, Omit<VfxProfile, 'governorEnabled'>> = {
     maxRibbons: 0,
     maxWaves: 0,
     maxDecals: 0,
+    maxSolids: 0,
+    maxClouds: 0,
     maxDpr: 1.5,
     sceneScale: 0,
     maxFboPixels: 0,

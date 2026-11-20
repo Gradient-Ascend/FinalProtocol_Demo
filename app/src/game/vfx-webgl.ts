@@ -59,6 +59,8 @@ export const enum ParticleShape {
   Mote = 1,
   Shard = 2,
   Ash = 3,
+  Droplet = 4,
+  Cuboid = 5,
 }
 
 export const enum RibbonStyle {
@@ -66,6 +68,29 @@ export const enum RibbonStyle {
   Slash = 1,
   Trail = 2,
   Arc = 3,
+  VectorRay = 4,
+  TwinHitscan = 5,
+  TractorDash = 6,
+  SawtoothZigzag = 7,
+  SilkMist = 8,
+}
+
+export const enum SolidKind {
+  Wedge = 0,
+  Monolith = 1,
+  CornerBracket = 2,
+  HexPlate = 3,
+  NullGlyph = 4,
+  Spike = 5,
+  Octahedron = 6,
+  ScanPlane = 7,
+}
+
+export const enum CloudMode {
+  Mist = 0,
+  Plume = 1,
+  Corona = 2,
+  LiquidCell = 3,
 }
 
 export const enum DecalKind {
@@ -93,8 +118,12 @@ export type VfxStats = {
   activeRibbons: number
   activeWaves: number
   activeDecals: number
+  activeSolids: number
+  activeClouds: number
   peakParticles: number
   peakRibbons: number
+  peakSolids: number
+  peakClouds: number
   renderPassesLastFrame: number
   totalRenderedFrames: number
   vramBytesApprox: number
@@ -174,11 +203,55 @@ export type DecalSpawn = {
   kind: DecalKind
 }
 
+export type SolidSpawn = {
+  kind: SolidKind
+  x0: number
+  y0: number
+  z0: number
+  x1?: number
+  y1?: number
+  z1?: number
+  sx: number
+  sy: number
+  sz: number
+  scaleEnd?: number
+  yaw?: number
+  spin?: number
+  pitch0?: number
+  pitch1?: number
+  dur: number
+  lut: LutRow
+  quantSteps?: number
+  wireOnly?: number
+}
+
+export type CloudSpawn = {
+  x: number
+  y: number
+  z: number
+  vx?: number
+  vy?: number
+  vz?: number
+  radius: number
+  endRadius?: number
+  height?: number
+  dur: number
+  lut: LutRow
+  mode: CloudMode
+  seed?: number
+  dark?: boolean
+  whirlpool?: boolean
+}
+
 const DECAL_STRIDE = 4
 const RIBBON_STRIDE = 4
 const WAVE_STRIDE = 4
 const DOME_STRIDE = 4
 const PART_STRIDE = 4
+const SOLID_KIND_COUNT = 8
+const SOLID_PER_KIND_CAP = 48
+const CLOUD_ADD_CAP = 160
+const CLOUD_DARK_CAP = 64
 
 function buildBrushNoiseTexture(): { texture: DataTexture; bytes: number } {
   const size = 128
@@ -395,7 +468,7 @@ function makeInstancedQuadGeometry(): InstancedBufferGeometry {
   return geo
 }
 
-function makeInstancedRibbonGeometry(segments = 24): InstancedBufferGeometry {
+function makeInstancedRibbonGeometry(segments = 40): InstancedBufferGeometry {
   const geo = new InstancedBufferGeometry()
   geo.instanceCount = 0
   const verts = new Float32Array((segments + 1) * 2 * 2)
@@ -453,6 +526,140 @@ function makeInstancedDomeGeometry(): InstancedBufferGeometry {
   if (ico.getIndex()) geo.setIndex(ico.getIndex()!.clone())
   ico.dispose()
   return geo
+}
+
+type Vec3 = [number, number, number]
+
+function makeSolidGeometry(kind: SolidKind): { geo: InstancedBufferGeometry; bytes: number } {
+  const pos: number[] = []
+  const norm: number[] = []
+  const edge: number[] = []
+
+  const faceNorm = (a: Vec3, b: Vec3, c: Vec3): Vec3 => {
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2]
+    const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2]
+    const nx = uy * vz - uz * vy
+    const ny = uz * vx - ux * vz
+    const nz = ux * vy - uy * vx
+    const l = Math.hypot(nx, ny, nz) || 1
+    return [nx / l, ny / l, nz / l]
+  }
+
+  const pushTriRaw = (a: Vec3, b: Vec3, c: Vec3, ea: [number, number, number, number], eb: [number, number, number, number], ec: [number, number, number, number], n?: Vec3) => {
+    const fn = n ?? faceNorm(a, b, c)
+    pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2])
+    norm.push(fn[0], fn[1], fn[2], fn[0], fn[1], fn[2], fn[0], fn[1], fn[2])
+    edge.push(ea[0], ea[1], ea[2], ea[3], eb[0], eb[1], eb[2], eb[3], ec[0], ec[1], ec[2], ec[3])
+  }
+
+  const pushTri = (a: Vec3, b: Vec3, c: Vec3) => {
+    pushTriRaw(a, b, c, [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0])
+  }
+
+  const pushQuad = (a: Vec3, b: Vec3, c: Vec3, d: Vec3, mode = 1) => {
+    const fn = faceNorm(a, b, c)
+    pushTriRaw(a, b, c, [0, 0, 0, mode], [1, 0, 0, mode], [1, 1, 0, mode], fn)
+    pushTriRaw(a, c, d, [0, 0, 0, mode], [1, 1, 0, mode], [0, 1, 0, mode], fn)
+  }
+
+  const pushBox = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, rotZ = 0) => {
+    const cr = Math.cos(rotZ), sr = Math.sin(rotZ)
+    const pt = (x: number, y: number, z: number): Vec3 =>
+      rotZ === 0 ? [x, y, z] : [x * cr - y * sr, x * sr + y * cr, z]
+    const p000 = pt(x0, y0, z0), p100 = pt(x1, y0, z0), p110 = pt(x1, y1, z0), p010 = pt(x0, y1, z0)
+    const p001 = pt(x0, y0, z1), p101 = pt(x1, y0, z1), p111 = pt(x1, y1, z1), p011 = pt(x0, y1, z1)
+    pushQuad(p001, p101, p111, p011)
+    pushQuad(p010, p110, p100, p000)
+    pushQuad(p000, p100, p101, p001)
+    pushQuad(p110, p010, p011, p111)
+    pushQuad(p100, p110, p111, p101)
+    pushQuad(p010, p000, p001, p011)
+  }
+
+  if (kind === SolidKind.Wedge) {
+    const tip: Vec3 = [0.55, 0, 0.04]
+    const ridge: Vec3 = [0.0, 0, 0.46]
+    const lw: Vec3 = [-0.46, 0.48, 0.08]
+    const rw: Vec3 = [-0.46, -0.48, 0.08]
+    const back: Vec3 = [-0.20, 0, 0.18]
+    const tipB: Vec3 = [0.55, 0, -0.06]
+    const lwB: Vec3 = [-0.46, 0.48, -0.06]
+    const rwB: Vec3 = [-0.46, -0.48, -0.06]
+    const backB: Vec3 = [-0.20, 0, -0.06]
+    pushTri(tip, ridge, lw)
+    pushTri(tip, rw, ridge)
+    pushTri(ridge, back, lw)
+    pushTri(ridge, rw, back)
+    pushQuad(lw, lwB, tipB, tip)
+    pushQuad(tip, tipB, rwB, rw)
+    pushQuad(back, backB, lwB, lw)
+    pushQuad(rw, rwB, backB, back)
+    pushTri(tipB, lwB, backB)
+    pushTri(tipB, backB, rwB)
+  } else if (kind === SolidKind.Monolith) {
+    pushBox(-0.5, 0.5, -0.5, 0.5, 0.0, 1.0)
+  } else if (kind === SolidKind.CornerBracket) {
+    pushBox(0.06, 0.5, 0.34, 0.5, -0.22, 0.22)
+    pushBox(0.34, 0.5, 0.06, 0.34, -0.22, 0.22)
+  } else if (kind === SolidKind.HexPlate) {
+    const topC: Vec3 = [0, 0, 0.12]
+    const botC: Vec3 = [0, 0, -0.12]
+    const r = 0.5
+    for (let k = 0; k < 6; k++) {
+      const a0 = (k / 6) * Math.PI * 2
+      const a1 = ((k + 1) / 6) * Math.PI * 2
+      const t0: Vec3 = [Math.cos(a0) * r, Math.sin(a0) * r, 0.12]
+      const t1: Vec3 = [Math.cos(a1) * r, Math.sin(a1) * r, 0.12]
+      const b0: Vec3 = [Math.cos(a0) * r, Math.sin(a0) * r, -0.12]
+      const b1: Vec3 = [Math.cos(a1) * r, Math.sin(a1) * r, -0.12]
+      pushQuad(b0, b1, t1, t0)
+      pushTriRaw(t0, t1, topC, [0.5, 0, 0, 1], [0.5, 0, 0, 1], [0.5, 0.9, 0, 1], [0, 0, 1])
+      pushTriRaw(b1, b0, botC, [0.5, 0, 0, 1], [0.5, 0, 0, 1], [0.5, 0.9, 0, 1], [0, 0, -1])
+    }
+  } else if (kind === SolidKind.NullGlyph) {
+    const rIn = 0.31, rOut = 0.50, z0 = -0.11, z1 = 0.11
+    for (let k = 0; k < 8; k++) {
+      const a0 = (k / 8) * Math.PI * 2
+      const a1 = ((k + 1) / 8) * Math.PI * 2
+      const i0: Vec3 = [Math.cos(a0) * rIn, Math.sin(a0) * rIn, z1]
+      const o0: Vec3 = [Math.cos(a0) * rOut, Math.sin(a0) * rOut, z1]
+      const o1: Vec3 = [Math.cos(a1) * rOut, Math.sin(a1) * rOut, z1]
+      const i1: Vec3 = [Math.cos(a1) * rIn, Math.sin(a1) * rIn, z1]
+      const bi0: Vec3 = [i0[0], i0[1], z0], bo0: Vec3 = [o0[0], o0[1], z0]
+      const bo1: Vec3 = [o1[0], o1[1], z0], bi1: Vec3 = [i1[0], i1[1], z0]
+      pushQuad(i0, o0, o1, i1)
+      pushQuad(bi1, bo1, bo0, bi0)
+      pushQuad(bo0, bo1, o1, o0)
+      pushQuad(i0, i1, bi1, bi0)
+    }
+    pushBox(-0.62, 0.62, -0.06, 0.06, -0.16, 0.16, Math.PI * 0.25)
+  } else if (kind === SolidKind.Spike) {
+    const apex: Vec3 = [0, 0, 1.0]
+    const b0: Vec3 = [0.26, 0, 0], b1: Vec3 = [0, 0.26, 0], b2: Vec3 = [-0.26, 0, 0], b3: Vec3 = [0, -0.26, 0]
+    pushTri(b0, b1, apex)
+    pushTri(b1, b2, apex)
+    pushTri(b2, b3, apex)
+    pushTri(b3, b0, apex)
+    pushQuad(b3, b2, b1, b0)
+  } else if (kind === SolidKind.Octahedron) {
+    const px: Vec3 = [0.5, 0, 0], nx: Vec3 = [-0.5, 0, 0]
+    const py: Vec3 = [0, 0.5, 0], ny: Vec3 = [0, -0.5, 0]
+    const pz: Vec3 = [0, 0, 0.5], nz: Vec3 = [0, 0, -0.5]
+    pushTri(px, py, pz); pushTri(py, nx, pz); pushTri(nx, ny, pz); pushTri(ny, px, pz)
+    pushTri(py, px, nz); pushTri(nx, py, nz); pushTri(ny, nx, nz); pushTri(px, ny, nz)
+  } else {
+    pushQuad([-0.5, -0.5, 0], [0.5, -0.5, 0], [0.5, 0.5, 0], [-0.5, 0.5, 0], 2)
+  }
+
+  const posArr = new Float32Array(pos)
+  const normArr = new Float32Array(norm)
+  const edgeArr = new Float32Array(edge)
+  const geo = new InstancedBufferGeometry()
+  geo.instanceCount = 0
+  geo.setAttribute('position', new BufferAttribute(posArr, 3))
+  geo.setAttribute('normal', new BufferAttribute(normArr, 3))
+  geo.setAttribute('aEdge', new BufferAttribute(edgeArr, 4))
+  return { geo, bytes: posArr.byteLength + normArr.byteLength + edgeArr.byteLength }
 }
 
 function createDynamicInstAttr(capacity: number, itemSize: number): InstancedBufferAttribute {
@@ -578,6 +785,38 @@ export class VfxWebglEngine {
   private readonly partAttrC: InstancedBufferAttribute
   private partCount = 0
 
+  // Pool E: Instanced 3D Geometric Solids (Wedge, Monolith, CornerBracket, HexPlate, NullGlyph, Spike, Octahedron, ScanPlane)
+  private readonly solidPools: Array<{
+    geo: InstancedBufferGeometry
+    mesh: Mesh
+    pos0: InstancedBufferAttribute
+    pos1: InstancedBufferAttribute
+    size: InstancedBufferAttribute
+    rot: InstancedBufferAttribute
+    time: InstancedBufferAttribute
+    count: number
+  }> = []
+
+  // Pool F: Volumetric Clouds, Convection Plumes, Coronas & Flood Caustic Liquid Cells
+  private readonly cloudAdd: {
+    geo: InstancedBufferGeometry
+    mesh: Mesh
+    attrA: InstancedBufferAttribute
+    attrB: InstancedBufferAttribute
+    attrC: InstancedBufferAttribute
+    attrD: InstancedBufferAttribute
+    count: number
+  }
+  private readonly cloudDark: {
+    geo: InstancedBufferGeometry
+    mesh: Mesh
+    attrA: InstancedBufferAttribute
+    attrB: InstancedBufferAttribute
+    attrC: InstancedBufferAttribute
+    attrD: InstancedBufferAttribute
+    count: number
+  }
+
   // SoA CPU storage for particle physics (zero allocations per frame)
   private readonly pCap: number
   private readonly px: Float32Array
@@ -614,6 +853,8 @@ export class VfxWebglEngine {
   private wasBusy = false
   private peakParticles = 0
   private peakRibbons = 0
+  private peakSolids = 0
+  private peakClouds = 0
   private renderPassesLastFrame = 0
   private totalRenderedFrames = 0
   private disposed = false
@@ -702,9 +943,9 @@ export class VfxWebglEngine {
     this.disposables.push(this.decalGeo, decalMat)
     this.geometryBytes += dCap * 8 * 4
 
-    // Pool B: 3D Bezier Ribbons & Beams
+    // Pool B: 3D Bezier Ribbons, CAD Rays & Zigzags
     const rCap = highCap.maxRibbons
-    this.ribbonGeo = makeInstancedRibbonGeometry(24)
+    this.ribbonGeo = makeInstancedRibbonGeometry(40)
     this.ribbonStart = createDynamicInstAttr(rCap, RIBBON_STRIDE)
     this.ribbonCtrl = createDynamicInstAttr(rCap, RIBBON_STRIDE)
     this.ribbonEnd = createDynamicInstAttr(rCap, RIBBON_STRIDE)
@@ -779,6 +1020,55 @@ export class VfxWebglEngine {
     this.fxScene.add(partMesh)
     this.disposables.push(this.partGeo, partMat)
     this.geometryBytes += this.pCap * 12 * 4
+
+    // Pool E: Instanced 3D Geometric Solids
+    const solidMat = this.createSolidMaterial()
+    this.disposables.push(solidMat)
+    for (let kind = 0; kind < SOLID_KIND_COUNT; kind++) {
+      const built = makeSolidGeometry(kind as SolidKind)
+      const pos0 = createDynamicInstAttr(SOLID_PER_KIND_CAP, 4)
+      const pos1 = createDynamicInstAttr(SOLID_PER_KIND_CAP, 4)
+      const size = createDynamicInstAttr(SOLID_PER_KIND_CAP, 4)
+      const rot = createDynamicInstAttr(SOLID_PER_KIND_CAP, 4)
+      const time = createDynamicInstAttr(SOLID_PER_KIND_CAP, 4)
+      built.geo.setAttribute('aSolPos0', pos0)
+      built.geo.setAttribute('aSolPos1', pos1)
+      built.geo.setAttribute('aSolSize', size)
+      built.geo.setAttribute('aSolRot', rot)
+      built.geo.setAttribute('aSolTime', time)
+      const mesh = new Mesh(built.geo, solidMat)
+      mesh.frustumCulled = false
+      mesh.visible = false
+      mesh.renderOrder = 4
+      this.fxScene.add(mesh)
+      this.disposables.push(built.geo)
+      this.geometryBytes += built.bytes + SOLID_PER_KIND_CAP * 20 * 4
+      this.solidPools.push({ geo: built.geo, mesh, pos0, pos1, size, rot, time, count: 0 })
+    }
+
+    // Pool F: Volumetric Clouds & Liquid Flood Cells
+    const makeCloudPool = (cap: number, dark: boolean, renderOrder: number) => {
+      const geo = makeInstancedQuadGeometry()
+      const attrA = createDynamicInstAttr(cap, 4)
+      const attrB = createDynamicInstAttr(cap, 4)
+      const attrC = createDynamicInstAttr(cap, 4)
+      const attrD = createDynamicInstAttr(cap, 4)
+      geo.setAttribute('aCloudA', attrA)
+      geo.setAttribute('aCloudB', attrB)
+      geo.setAttribute('aCloudC', attrC)
+      geo.setAttribute('aCloudD', attrD)
+      const mat = this.createCloudMaterial(dark)
+      const mesh = new Mesh(geo, mat)
+      mesh.frustumCulled = false
+      mesh.visible = false
+      mesh.renderOrder = renderOrder
+      this.fxScene.add(mesh)
+      this.disposables.push(geo, mat)
+      this.geometryBytes += cap * 16 * 4
+      return { geo, mesh, attrA, attrB, attrC, attrD, count: 0 }
+    }
+    this.cloudDark = makeCloudPool(CLOUD_DARK_CAP, true, 1)
+    this.cloudAdd = makeCloudPool(CLOUD_ADD_CAP, false, 4)
 
     // Post-processing shaders
     this.triGeo = makeFullscreenTriangleGeometry()
@@ -921,6 +1211,19 @@ export class VfxWebglEngine {
     this.partAttrA.needsUpdate = true
     this.partAttrB.needsUpdate = true
     this.partAttrC.needsUpdate = true
+    for (const pool of this.solidPools) {
+      pool.pos0.needsUpdate = true
+      pool.pos1.needsUpdate = true
+      pool.size.needsUpdate = true
+      pool.rot.needsUpdate = true
+      pool.time.needsUpdate = true
+    }
+    for (const pool of [this.cloudAdd, this.cloudDark]) {
+      pool.attrA.needsUpdate = true
+      pool.attrB.needsUpdate = true
+      pool.attrC.needsUpdate = true
+      pool.attrD.needsUpdate = true
+    }
     this.disposeTargets()
     const w = this.cssW
     const h = this.cssH
@@ -1103,6 +1406,57 @@ export class VfxWebglEngine {
     bArr[base] = 0; bArr[base + 1] = Math.max(0.04, d.dur); bArr[base + 2] = d.lut; bArr[base + 3] = d.kind
   }
 
+  private totalSolidCount(): number {
+    let total = 0
+    for (const pool of this.solidPools) total += pool.count
+    return total
+  }
+
+  private totalCloudCount(): number {
+    return this.cloudAdd.count + this.cloudDark.count
+  }
+
+  spawnSolid(s: SolidSpawn): void {
+    if (this.disposed || this.profile.tier === 'low') return
+    const total = this.totalSolidCount()
+    if (total >= this.profile.maxSolids) return
+    const pool = this.solidPools[s.kind]
+    if (!pool || pool.count >= SOLID_PER_KIND_CAP) return
+    const i = pool.count++
+    const b = i * 4
+    const p0 = pool.pos0.array as Float32Array
+    const p1 = pool.pos1.array as Float32Array
+    const sz = pool.size.array as Float32Array
+    const rt = pool.rot.array as Float32Array
+    const tm = pool.time.array as Float32Array
+    p0[b] = s.x0; p0[b + 1] = s.y0; p0[b + 2] = s.z0; p0[b + 3] = s.sx
+    p1[b] = s.x1 ?? s.x0; p1[b + 1] = s.y1 ?? s.y0; p1[b + 2] = s.z1 ?? s.z0; p1[b + 3] = s.sy
+    sz[b] = s.sz; sz[b + 1] = s.scaleEnd ?? 1.0; sz[b + 2] = s.yaw ?? 0; sz[b + 3] = s.spin ?? 0
+    rt[b] = s.pitch0 ?? 0; rt[b + 1] = s.pitch1 ?? (s.pitch0 ?? 0); rt[b + 2] = s.lut; rt[b + 3] = s.quantSteps ?? 0
+    tm[b] = 0; tm[b + 1] = Math.max(0.03, s.dur); tm[b + 2] = s.wireOnly ?? 0; tm[b + 3] = 0
+    if (total + 1 > this.peakSolids) this.peakSolids = total + 1
+  }
+
+  spawnCloud(c: CloudSpawn): void {
+    if (this.disposed || this.profile.tier === 'low') return
+    const total = this.totalCloudCount()
+    if (total >= this.profile.maxClouds) return
+    const pool = c.dark || c.whirlpool ? this.cloudDark : this.cloudAdd
+    if (pool.count >= pool.attrA.count) return
+    const i = pool.count++
+    const b = i * 4
+    const aA = pool.attrA.array as Float32Array
+    const aB = pool.attrB.array as Float32Array
+    const aC = pool.attrC.array as Float32Array
+    const aD = pool.attrD.array as Float32Array
+    aA[b] = c.x; aA[b + 1] = c.y; aA[b + 2] = c.z; aA[b + 3] = c.radius
+    aB[b] = c.vx ?? 0; aB[b + 1] = c.vy ?? 0; aB[b + 2] = c.vz ?? 0; aB[b + 3] = c.endRadius ?? c.radius
+    aC[b] = c.height ?? 1.0; aC[b + 1] = 0; aC[b + 2] = Math.max(0.04, c.dur); aC[b + 3] = c.lut
+    const flags = c.whirlpool ? 2 : c.dark ? 1 : 0
+    aD[b] = c.mode; aD[b + 1] = c.seed ?? Math.random() * 6.283; aD[b + 2] = flags; aD[b + 3] = 0
+    if (total + 1 > this.peakClouds) this.peakClouds = total + 1
+  }
+
   clear(): void {
     this.partCount = 0
     this.ribbonCount = 0
@@ -1116,6 +1470,16 @@ export class VfxWebglEngine {
     this.domeGeo.instanceCount = 0
     this.domeVoidGeo.instanceCount = 0
     this.decalGeo.instanceCount = 0
+    for (const pool of this.solidPools) {
+      pool.count = 0
+      pool.geo.instanceCount = 0
+      pool.mesh.visible = false
+    }
+    for (const pool of [this.cloudAdd, this.cloudDark]) {
+      pool.count = 0
+      pool.geo.instanceCount = 0
+      pool.mesh.visible = false
+    }
     this.renderPassesLastFrame = 0
     if (this.wasBusy && this.isAvailable) {
       this.renderer.setRenderTarget(null)
@@ -1131,7 +1495,9 @@ export class VfxWebglEngine {
       this.waveCount > 0 ||
       this.domeCount > 0 ||
       this.voidCount > 0 ||
-      this.decalCount > 0
+      this.decalCount > 0 ||
+      this.totalSolidCount() > 0 ||
+      this.totalCloudCount() > 0
     )
   }
 
@@ -1149,6 +1515,9 @@ export class VfxWebglEngine {
     this.domeCount = this.stepDomePool(this.domeCount, this.domePos.array as Float32Array, this.domeMeta.array as Float32Array, dt)
     this.voidCount = this.stepDomePool(this.voidCount, this.domeVoidPos.array as Float32Array, this.domeVoidMeta.array as Float32Array, dt)
     this.ribbonCount = this.stepRibbonPool(dt)
+    for (const pool of this.solidPools) pool.count = this.stepSolidPool(pool, dt)
+    this.cloudAdd.count = this.stepCloudPool(this.cloudAdd, dt)
+    this.cloudDark.count = this.stepCloudPool(this.cloudDark, dt)
 
     const t = this.simTime * 2.1
     let i = this.partCount - 1
@@ -1346,6 +1715,62 @@ export class VfxWebglEngine {
     return count
   }
 
+  private stepSolidPool(pool: VfxWebglEngine['solidPools'][number], dt: number): number {
+    let count = pool.count
+    const p0 = pool.pos0.array as Float32Array
+    const p1 = pool.pos1.array as Float32Array
+    const sz = pool.size.array as Float32Array
+    const rt = pool.rot.array as Float32Array
+    const tm = pool.time.array as Float32Array
+    let i = count - 1
+    while (i >= 0) {
+      const b = i * 4
+      const t = tm[b] + dt
+      if (t >= tm[b + 1]) {
+        const last = --count
+        if (i !== last) {
+          const lb = last * 4
+          p0[b] = p0[lb]; p0[b + 1] = p0[lb + 1]; p0[b + 2] = p0[lb + 2]; p0[b + 3] = p0[lb + 3]
+          p1[b] = p1[lb]; p1[b + 1] = p1[lb + 1]; p1[b + 2] = p1[lb + 2]; p1[b + 3] = p1[lb + 3]
+          sz[b] = sz[lb]; sz[b + 1] = sz[lb + 1]; sz[b + 2] = sz[lb + 2]; sz[b + 3] = sz[lb + 3]
+          rt[b] = rt[lb]; rt[b + 1] = rt[lb + 1]; rt[b + 2] = rt[lb + 2]; rt[b + 3] = rt[lb + 3]
+          tm[b] = tm[lb]; tm[b + 1] = tm[lb + 1]; tm[b + 2] = tm[lb + 2]; tm[b + 3] = tm[lb + 3]
+        }
+      } else {
+        tm[b] = t
+      }
+      i--
+    }
+    return count
+  }
+
+  private stepCloudPool(pool: VfxWebglEngine['cloudAdd'], dt: number): number {
+    let count = pool.count
+    const aA = pool.attrA.array as Float32Array
+    const aB = pool.attrB.array as Float32Array
+    const aC = pool.attrC.array as Float32Array
+    const aD = pool.attrD.array as Float32Array
+    let i = count - 1
+    while (i >= 0) {
+      const b = i * 4
+      const t = aC[b + 1] + dt
+      if (t >= aC[b + 2]) {
+        const last = --count
+        if (i !== last) {
+          const lb = last * 4
+          aA[b] = aA[lb]; aA[b + 1] = aA[lb + 1]; aA[b + 2] = aA[lb + 2]; aA[b + 3] = aA[lb + 3]
+          aB[b] = aB[lb]; aB[b + 1] = aB[lb + 1]; aB[b + 2] = aB[lb + 2]; aB[b + 3] = aB[lb + 3]
+          aC[b] = aC[lb]; aC[b + 1] = aC[lb + 1]; aC[b + 2] = aC[lb + 2]; aC[b + 3] = aC[lb + 3]
+          aD[b] = aD[lb]; aD[b + 1] = aD[lb + 1]; aD[b + 2] = aD[lb + 2]; aD[b + 3] = aD[lb + 3]
+        }
+      } else {
+        aC[b + 1] = t
+      }
+      i--
+    }
+    return count
+  }
+
   render(
     cssWidth: number,
     cssHeight: number,
@@ -1428,6 +1853,29 @@ export class VfxWebglEngine {
       uploadActiveRange(this.partAttrC, this.partCount)
     }
 
+    for (const pool of this.solidPools) {
+      pool.mesh.visible = pool.count > 0
+      pool.geo.instanceCount = pool.count
+      if (pool.count > 0) {
+        uploadActiveRange(pool.pos0, pool.count)
+        uploadActiveRange(pool.pos1, pool.count)
+        uploadActiveRange(pool.size, pool.count)
+        uploadActiveRange(pool.rot, pool.count)
+        uploadActiveRange(pool.time, pool.count)
+      }
+    }
+
+    for (const pool of [this.cloudAdd, this.cloudDark]) {
+      pool.mesh.visible = pool.count > 0
+      pool.geo.instanceCount = pool.count
+      if (pool.count > 0) {
+        uploadActiveRange(pool.attrA, pool.count)
+        uploadActiveRange(pool.attrB, pool.count)
+        uploadActiveRange(pool.attrC, pool.count)
+        uploadActiveRange(pool.attrD, pool.count)
+      }
+    }
+
     let passes = 0
 
     this.renderer.setRenderTarget(this.sceneTarget)
@@ -1493,8 +1941,12 @@ export class VfxWebglEngine {
       activeRibbons: this.ribbonCount,
       activeWaves: this.waveCount + this.domeCount + this.voidCount,
       activeDecals: this.decalCount,
+      activeSolids: this.totalSolidCount(),
+      activeClouds: this.totalCloudCount(),
       peakParticles: this.peakParticles,
       peakRibbons: this.peakRibbons,
+      peakSolids: this.peakSolids,
+      peakClouds: this.peakClouds,
       renderPassesLastFrame: this.renderPassesLastFrame,
       totalRenderedFrames: this.totalRenderedFrames,
       vramBytesApprox: this.targetBytes + this.textureBytes + this.geometryBytes,
@@ -1620,6 +2072,7 @@ export class VfxWebglEngine {
       varying vec2 vUv;
       varying vec4 vMeta;
       varying float vProgress;
+      varying float vSpin;
 
       vec3 evalBezier(vec3 a, vec3 c, vec3 b, float u) {
         float iu = 1.0 - u;
@@ -1637,6 +2090,7 @@ export class VfxWebglEngine {
         float dur = max(0.001, aRibTime.y);
         float f = clamp(t / dur, 0.0, 1.0);
         float seed = aRibTime.z;
+        float spin = aRibTime.w;
         float style = aRibEnd.w;
 
         vec3 A = aRibStart.xyz;
@@ -1645,12 +2099,25 @@ export class VfxWebglEngine {
         vec3 pos = evalBezier(A, C, B, u);
         vec3 tan3 = evalTangent(A, C, B, u);
         if (dot(tan3, tan3) < 1e-6) tan3 = vec3(1.0, 0.0, 0.0);
+        vec2 perp3 = normalize(vec2(-tan3.y, tan3.x) + vec2(1e-4));
 
-        if (style > 2.5) {
+        if (style > 2.5 && style < 3.5) {
           float env = sin(u * 3.1415926);
           float j = sin(u * 28.0 + seed + t * 44.0) * 0.55 + cos(u * 53.0 - t * 68.0) * 0.45;
           pos.z += j * env * 0.48;
-          pos.xy += normalize(vec2(-tan3.y, tan3.x) + vec2(1e-4)) * j * env * 0.28;
+          pos.xy += perp3 * j * env * 0.28;
+        } else if (style > 6.5 && style < 7.5) {
+          float tri = abs(fract(u * 9.0 + seed) * 4.0 - 2.0) - 1.0;
+          float tri2 = abs(fract(u * 19.0 + seed * 1.7) * 4.0 - 2.0) - 1.0;
+          float wave = tri * 0.72 + tri2 * 0.28;
+          float ramp = smoothstep(0.08, 0.72, u) * smoothstep(1.0, 0.92, u);
+          pos.z += max(0.0, wave) * ramp * 0.95;
+          pos.xy += perp3 * wave * ramp * 0.46;
+        } else if (style > 7.5) {
+          float env = sin(u * 3.1415926);
+          float sw = sin(u * 9.4247 + seed - f * 7.2) * 0.65 + cos(u * 15.7 + seed * 0.6 + f * 4.5) * 0.35;
+          pos.z += sw * env * 0.38;
+          pos.xy += perp3 * sw * env * 0.24;
         }
 
         vec4 clipP = uProj * vec4(pos, 1.0);
@@ -1673,8 +2140,16 @@ export class VfxWebglEngine {
           taper = sin(u * 3.1415926) * (1.0 - 0.3 * f);
         } else if (style < 2.5) {
           taper = smoothstep(0.0, 0.88, u) * (1.0 - 0.42 * f);
-        } else {
+        } else if (style < 3.5) {
           taper = (0.35 + 0.65 * sin(u * 3.1415926)) * (1.0 - f);
+        } else if (style < 5.5) {
+          taper = 1.0 - 0.32 * f;
+        } else if (style < 6.5) {
+          taper = 1.0 - 0.22 * f;
+        } else if (style < 7.5) {
+          taper = (0.55 + 0.45 * smoothstep(0.0, 0.4, u)) * (1.0 - 0.3 * f);
+        } else {
+          taper = (0.35 + 0.65 * sin(min(1.0, u * 4.0) * 1.5708) * sin(min(1.0, (1.0 - u) * 4.0) * 1.5708)) * (1.0 - 0.35 * f);
         }
 
         float ndcPerCell = (2.0 * uCell) / max(1.0, uResolution.y);
@@ -1683,6 +2158,7 @@ export class VfxWebglEngine {
         vUv = vec2(u, side * 0.5 + 0.5);
         vMeta = vec4(f, aRibCtrl.w, style, seed);
         vProgress = f;
+        vSpin = spin;
       }
       `,
       /* glsl */ `
@@ -1690,6 +2166,7 @@ export class VfxWebglEngine {
       varying vec2 vUv;
       varying vec4 vMeta;
       varying float vProgress;
+      varying float vSpin;
 
       void main() {
         float f = vProgress;
@@ -1697,6 +2174,64 @@ export class VfxWebglEngine {
         float style = vMeta.z;
         float seed = vMeta.w;
         float across = abs(vUv.y * 2.0 - 1.0);
+
+        if (style > 3.5 && style < 4.5) {
+          float line = exp(-across * across * 24.0);
+          float tick = vSpin >= 1.5
+            ? smoothstep(0.11, 0.015, abs(fract(vUv.x * vSpin) - 0.5)) * smoothstep(0.96, 0.28, across)
+            : 0.0;
+          float head = clamp(f * 3.8, 0.0, 1.0);
+          float vis = smoothstep(head + 0.04, head - 0.06, vUv.x) * smoothstep(1.0, 0.14, f);
+          float alpha = clamp((line + tick * 0.85) * vis, 0.0, 1.0);
+          if (alpha <= 0.002) discard;
+          vec4 col = sampleLut(row, clamp(0.66 + line * 0.32, 0.1, 0.99));
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
+
+        if (style >= 4.5 && style < 5.5) {
+          float rail = exp(-pow((across - 0.58) / 0.16, 2.0));
+          float alpha = clamp(rail * 1.25 * smoothstep(1.0, 0.08, f), 0.0, 1.0);
+          if (alpha <= 0.002) discard;
+          vec4 col = sampleLut(row, clamp(0.72 + rail * 0.27, 0.1, 0.99));
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
+
+        if (style >= 5.5 && style < 6.5) {
+          float dash = step(0.42, fract(vUv.x * 7.0 + f * 4.6));
+          float bar = smoothstep(0.92, 0.42, across);
+          float alpha = clamp(dash * bar * smoothstep(1.0, 0.12, f), 0.0, 1.0);
+          if (alpha <= 0.002) discard;
+          vec4 col = sampleLut(row, clamp(0.62 + bar * 0.34, 0.1, 0.99));
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
+
+        if (style >= 6.5 && style < 7.5) {
+          float trace = exp(-across * across * 14.0);
+          float head = clamp(f * 2.4, 0.0, 1.0);
+          float vis = smoothstep(head + 0.05, head - 0.08, vUv.x) * smoothstep(1.0, 0.16, f);
+          float alpha = clamp(trace * 1.2 * vis, 0.0, 1.0);
+          if (alpha <= 0.002) discard;
+          vec4 col = sampleLut(row, clamp(0.72 + trace * 0.27, 0.1, 0.99));
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
+
+        if (style >= 7.5) {
+          float mistNoise = texture2D(uBrush, vec2(vUv.x * 1.6 - f * 1.5 + seed, vUv.y * 1.4 + f * 0.4)).g;
+          float fbm = texture2D(uBrush, vec2(vUv.x * 3.1 + seed, vUv.y * 2.2 - f * 0.8)).b;
+          float soft = exp(-across * across * 2.4) * (0.45 + 0.72 * mistNoise * 0.65 + 0.35 * fbm);
+          float head = clamp(f * 1.65, 0.0, 1.0);
+          float reveal = smoothstep(head + 0.08, head - 0.22, vUv.x) * smoothstep(1.0, 0.14, f);
+          float alpha = clamp(soft * reveal, 0.0, 1.0);
+          if (alpha <= 0.002) discard;
+          float glow = exp(-across * across * 7.5);
+          vec4 col = sampleLut(row, clamp(0.4 + glow * 0.48 * (1.0 - 0.3 * f), 0.12, 0.99));
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
 
         float streak = texture2D(uBrush, vec2(vUv.x * 2.2 - f * 2.0 + seed, vUv.y * 1.4)).b;
         float grain = texture2D(uBrush, vec2(vUv.x * 1.5 + seed, vUv.y * 2.0)).g;
@@ -1910,17 +2445,17 @@ export class VfxWebglEngine {
         vec2 dir = vec2(1.0, 0.0);
         float stretch = 1.0;
 
-        if (shape < 0.5) {
+        if (shape < 0.5 || (shape > 3.5 && shape < 4.5)) {
           vec4 tipClip = uProj * vec4(world + vel * 0.055, 1.0);
           vec2 delta = (tipClip.xy / max(0.08, tipClip.w) - centerClip.xy / wSafe) * vec2(aspect, 1.0);
           float len = length(delta);
           if (len > 1e-4) {
             dir = delta / len;
             float speedCells = length(vel);
-            stretch = clamp(1.8 + speedCells * 0.7, 1.8, 9.0);
+            stretch = shape < 0.5 ? clamp(1.8 + speedCells * 0.7, 1.8, 9.0) : clamp(1.1 + speedCells * 0.18, 1.1, 2.2);
           }
         } else {
-          float spinSpeed = shape > 1.5 ? 7.5 : 1.8;
+          float spinSpeed = shape > 4.5 ? 6.2 : shape > 1.5 ? 7.5 : 1.8;
           float ang = seed * 6.2831853 + (1.0 - lifeFrac) * spinSpeed;
           dir = vec2(cos(ang), sin(ang));
         }
@@ -1947,6 +2482,32 @@ export class VfxWebglEngine {
         float shape = vMeta.y;
         float seed = vMeta.z;
         float r2 = dot(vQuad, vQuad);
+
+        if (shape > 4.5) {
+          float box = max(abs(vQuad.x) * 1.15, abs(vQuad.y) * 0.78);
+          if (box > 0.92) discard;
+          float edge = smoothstep(0.92, 0.74, box);
+          float bevel = smoothstep(0.56, 0.16, box);
+          float alpha = edge * clamp(vLife * 1.7, 0.0, 1.0);
+          vec4 col = sampleLut(row, clamp(0.56 + bevel * 0.4, 0.1, 0.99));
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
+
+        if (shape > 3.5) {
+          if (r2 > 1.0) discard;
+          float d = sqrt(r2);
+          float rim = pow(d, 2.2) * smoothstep(1.0, 0.78, d);
+          vec2 specD = vQuad - vec2(-0.28, -0.32);
+          float glint = exp(-dot(specD, specD) * 16.0);
+          float body = smoothstep(1.0, 0.45, d) * 0.35;
+          float alpha = (rim * 0.9 + glint * 1.2 + body) * clamp(vLife * 1.6, 0.0, 1.0);
+          if (alpha <= 0.003) discard;
+          float energy = clamp(0.54 + glint * 0.45 + rim * 0.25, 0.1, 0.99);
+          vec4 col = sampleLut(row, energy);
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
 
         if (shape > 2.5) {
           float box = max(abs(vQuad.x), abs(vQuad.y));
@@ -2000,6 +2561,261 @@ export class VfxWebglEngine {
         uSceneGain: this.uSceneGainUniform,
       },
       AdditiveBlending,
+    )
+  }
+
+  private createSolidMaterial(): ShaderMaterial {
+    return makeShaderMaterial(
+      /* glsl */ `
+      attribute vec4 aEdge;
+      attribute vec4 aSolPos0;
+      attribute vec4 aSolPos1;
+      attribute vec4 aSolSize;
+      attribute vec4 aSolRot;
+      attribute vec4 aSolTime;
+
+      uniform mat4 uProj;
+      varying vec3 vNormal;
+      varying vec4 vEdge;
+      varying vec4 vMeta;
+
+      void main() {
+        float t = aSolTime.x;
+        float dur = max(0.001, aSolTime.y);
+        float f = clamp(t / dur, 0.0, 1.0);
+        float quant = aSolRot.w;
+        float uMotion = (quant >= 1.5)
+          ? floor(min(0.999, f) * quant) / max(1.0, quant - 1.0)
+          : (1.0 - pow(1.0 - f, 2.4));
+
+        vec3 center = mix(aSolPos0.xyz, aSolPos1.xyz, uMotion);
+        float sc = mix(1.0, aSolSize.y, 1.0 - pow(1.0 - f, 2.2));
+        vec3 scale3 = vec3(aSolPos0.w, aSolPos1.w, aSolSize.x) * sc;
+        vec3 local = position * scale3;
+        vec3 nLocal = normal / max(vec3(0.01), scale3);
+
+        float pitch = mix(aSolRot.x, aSolRot.y, 1.0 - pow(1.0 - f, 2.4));
+        float cp = cos(pitch), sp = sin(pitch);
+        vec3 p1 = vec3(local.x * cp + local.z * sp, local.y, -local.x * sp + local.z * cp);
+        vec3 n1 = vec3(nLocal.x * cp + nLocal.z * sp, nLocal.y, -nLocal.x * sp + nLocal.z * cp);
+
+        float yaw = aSolSize.z + aSolSize.w * t;
+        float cy = cos(yaw), sy = sin(yaw);
+        vec3 p2 = vec3(p1.x * cy - p1.y * sy, p1.x * sy + p1.y * cy, p1.z);
+        vec3 n2 = vec3(n1.x * cy - n1.y * sy, n1.x * sy + n1.y * cy, n1.z);
+
+        vec3 world = center + p2;
+        world.z = max(0.01, world.z);
+        gl_Position = uProj * vec4(world, 1.0);
+        vNormal = normalize(n2);
+        vEdge = aEdge;
+        vMeta = vec4(f, aSolRot.z, aSolTime.z, quant);
+      }
+      `,
+      /* glsl */ `
+      ${SHARED_GLSL_LUT}
+      varying vec3 vNormal;
+      varying vec4 vEdge;
+      varying vec4 vMeta;
+
+      void main() {
+        float f = vMeta.x;
+        float row = vMeta.y;
+        float wireOnly = vMeta.z;
+        float quant = vMeta.w;
+
+        if (vEdge.w > 1.5) {
+          vec2 g = abs(fract(vEdge.xy * 4.0) - 0.5);
+          float grid = smoothstep(0.08, 0.01, min(g.x, g.y));
+          float border = smoothstep(0.06, 0.01, min(min(vEdge.x, 1.0 - vEdge.x), min(vEdge.y, 1.0 - vEdge.y)));
+          float bar = exp(-pow((vEdge.y - fract(f * 3.0)) * 14.0, 2.0));
+          float alpha = clamp((grid * 0.36 + border * 0.92 + bar * 0.95) * smoothstep(1.0, 0.14, f), 0.0, 1.0);
+          if (alpha <= 0.002) discard;
+          vec4 col = sampleLut(row, clamp(0.55 + bar * 0.42, 0.1, 0.99));
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
+
+        float edgeDist = (vEdge.w > 0.5)
+          ? min(min(vEdge.x, 1.0 - vEdge.x), min(vEdge.y, 1.0 - vEdge.y))
+          : min(min(vEdge.x, vEdge.y), vEdge.z) * 1.5;
+        float edgeMask = smoothstep(0.09, 0.012, edgeDist);
+        float shade = 0.34 + 0.66 * abs(dot(normalize(vNormal), normalize(vec3(0.45, -0.55, 0.72))));
+        float fillAlpha = (1.0 - wireOnly) * shade * 0.58;
+        float fade = (quant >= 1.5) ? (1.0 - f * 0.32) : smoothstep(1.0, 0.14, f);
+        float alpha = clamp((fillAlpha + edgeMask * 0.96) * fade, 0.0, 1.0);
+        if (alpha <= 0.002) discard;
+
+        float energy = clamp(0.42 + shade * 0.25 + edgeMask * 0.35 - f * 0.18, 0.12, 0.99);
+        vec4 col = sampleLut(row, energy);
+        gl_FragColor = vec4(col.rgb * alpha, 0.0);
+      }
+      `,
+      {
+        uProj: this.uProj,
+        uLut: { value: this.lutTex },
+        uBrush: { value: this.brushNoiseTex },
+        uSceneGain: this.uSceneGainUniform,
+      },
+      AdditiveBlending,
+    )
+  }
+
+  private createCloudMaterial(isDark: boolean): ShaderMaterial {
+    return makeShaderMaterial(
+      /* glsl */ `
+      attribute vec2 aQuad;
+      attribute vec4 aCloudA;
+      attribute vec4 aCloudB;
+      attribute vec4 aCloudC;
+      attribute vec4 aCloudD;
+
+      uniform mat4 uProj;
+      uniform vec2 uResolution;
+      uniform float uCell;
+
+      varying vec2 vUv;
+      varying vec4 vMeta;
+      varying float vSeed;
+      varying float vFlags;
+
+      void main() {
+        float t = aCloudC.y;
+        float dur = max(0.001, aCloudC.z);
+        float f = clamp(t / dur, 0.0, 1.0);
+        float lutRow = aCloudC.w;
+        float mode = aCloudD.x;
+        float seed = aCloudD.y;
+        float flags = aCloudD.z;
+
+        float r0 = aCloudA.w;
+        float r1 = aCloudB.w;
+        float ease = 1.0 - pow(1.0 - f, 2.2);
+        float r = mix(r0, r1, ease);
+        vec3 world = aCloudA.xyz + aCloudB.xyz * (t * (1.0 - 0.32 * f));
+
+        if (mode >= 1.5) {
+          vec3 p3 = vec3(world.xy + aQuad * 2.0 * r, max(0.02, world.z));
+          gl_Position = uProj * vec4(p3, 1.0);
+        } else if (mode >= 0.5) {
+          float yNorm = aQuad.y + 0.5;
+          float curH = aCloudC.x * ease;
+          float twist = sin(yNorm * 8.5 - f * 10.0 + seed) * 0.3 * yNorm;
+          float wSpread = r * (0.45 + 0.95 * yNorm);
+          vec3 p3 = vec3(world.x + aQuad.x * wSpread + twist, world.y + twist * 0.45, max(0.02, world.z + yNorm * curH));
+          gl_Position = uProj * vec4(p3, 1.0);
+        } else {
+          vec4 centerClip = uProj * vec4(world, 1.0);
+          float wSafe = max(0.08, centerClip.w);
+          float scale = clamp(1.0 / wSafe, 0.65, 3.0);
+          float aspect = uResolution.x / max(1.0, uResolution.y);
+          float ndcPerCell = (2.0 * uCell) / max(1.0, uResolution.y);
+          vec2 offset = vec2(aQuad.x * 2.0 * r * scale / aspect, aQuad.y * 2.0 * r * scale) * ndcPerCell;
+          gl_Position = vec4(centerClip.xy + offset * centerClip.w, centerClip.z, centerClip.w);
+        }
+
+        vUv = aQuad + 0.5;
+        vMeta = vec4(f, lutRow, mode, 0.0);
+        vSeed = seed;
+        vFlags = flags;
+      }
+      `,
+      /* glsl */ `
+      ${SHARED_GLSL_LUT}
+      uniform float uIsDark;
+      varying vec2 vUv;
+      varying vec4 vMeta;
+      varying float vSeed;
+      varying float vFlags;
+
+      void main() {
+        float f = vMeta.x;
+        float row = vMeta.y;
+        float mode = vMeta.z;
+        vec2 p = vUv * 2.0 - 1.0;
+        float d = length(p);
+
+        if (mode >= 2.5) {
+          vec2 edge = abs(p);
+          float box = max(edge.x, edge.y);
+          if (box > 0.98) discard;
+          if (vFlags > 1.5) {
+            float ang = atan(p.y, p.x) + 5.2 / max(0.18, d) - f * 14.0;
+            float arms = pow(0.5 + 0.5 * cos(ang * 4.0 + vSeed), 2.2);
+            float drain = smoothstep(0.08, 0.28, d) * smoothstep(0.98, 0.28, box);
+            float pit = smoothstep(0.32, 0.05, d);
+            float alpha = clamp((arms * 0.78 * drain + pit * 0.92) * smoothstep(1.0, 0.14, f), 0.0, 0.96);
+            if (alpha <= 0.003) discard;
+            vec4 col = sampleLut(row, clamp(0.45 + arms * 0.45, 0.1, 0.99));
+            gl_FragColor = vec4(col.rgb * arms * (1.0 - pit * 0.85) * alpha, alpha);
+            return;
+          }
+          float v1 = texture2D(uBrush, vUv * 1.6 + vec2(f * 0.32, vSeed * 0.1)).r;
+          float v2 = texture2D(uBrush, vUv * 2.2 - vec2(f * 0.24, 0.15)).r;
+          float caustic = smoothstep(0.28, 0.05, min(v1, v2)) * smoothstep(0.98, 0.72, box);
+          float rim = smoothstep(0.76, 0.88, box) * smoothstep(0.98, 0.91, box);
+          float waveRing = smoothstep(0.1, 0.0, abs(fract(d * 2.2 - f * 2.4) - 0.5)) * 0.35 * smoothstep(0.96, 0.4, box);
+          float alpha = clamp((caustic * 0.68 + rim * 0.82 + waveRing + 0.12 * smoothstep(0.95, 0.5, box)) * smoothstep(1.0, 0.16, f), 0.0, 1.0);
+          if (alpha <= 0.002) discard;
+          vec4 col = sampleLut(row, clamp(0.45 + caustic * 0.48 + rim * 0.35, 0.1, 0.99));
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
+
+        if (mode >= 1.5) {
+          if (d > 1.0) discard;
+          float n1 = texture2D(uBrush, vUv * 1.7 + vec2(f * 0.28, vSeed * 0.1)).g;
+          float n2 = texture2D(uBrush, vUv * 2.9 - vec2(f * 0.36, 0.2)).g;
+          float fbm = n1 * 0.6 + n2 * 0.4;
+          float ring = exp(-pow((d - 0.56 - (fbm - 0.5) * 0.18) / 0.19, 2.0));
+          float alpha = clamp(ring * (0.55 + 0.65 * fbm) * sin(clamp(f, 0.02, 0.98) * 3.1415926), 0.0, 1.0);
+          if (alpha <= 0.002) discard;
+          vec4 col = sampleLut(row, clamp(0.46 + 0.45 * ring * fbm, 0.1, 0.99));
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
+
+        if (mode >= 0.5) {
+          float across = abs(p.x);
+          float n1 = texture2D(uBrush, vec2(vUv.x * 1.8 + sin(vUv.y * 5.0 + vSeed) * 0.22, vUv.y * 1.5 - f * 2.2 + vSeed)).g;
+          float n2 = texture2D(uBrush, vec2(vUv.x * 3.1 - f * 0.6, vUv.y * 2.4 - f * 3.1)).b;
+          float billow = smoothstep(0.98, 0.15, across + (1.0 - n1) * 0.32);
+          float vertFade = smoothstep(0.0, 0.16, vUv.y) * smoothstep(1.0, 0.22, vUv.y);
+          float alpha = clamp(billow * vertFade * (0.45 + 0.65 * n2) * smoothstep(1.0, 0.14, f), 0.0, 1.0);
+          if (alpha <= 0.002) discard;
+          vec4 col = sampleLut(row, clamp(0.44 + (1.0 - across) * 0.48 * n1, 0.1, 0.99));
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
+
+        if (d > 1.0) discard;
+        float radial = 1.0 - d;
+        float fbmA = texture2D(uBrush, vUv * 1.4 + vec2(f * 0.35 + vSeed * 0.1, -f * 0.22)).g;
+        float fbmB = texture2D(uBrush, vUv * 2.5 - vec2(f * 0.28, f * 0.31 + vSeed * 0.2)).g;
+        float cloud = smoothstep(0.05, 0.68, pow(radial, 1.3) * (0.42 + 0.78 * (fbmA * 0.6 + fbmB * 0.4)));
+        float env = sin(clamp(f, 0.02, 0.98) * 3.1415926);
+        float alpha = clamp(cloud * env * (uIsDark > 0.5 ? 0.88 : 0.72), 0.0, uIsDark > 0.5 ? 0.92 : 1.0);
+        if (alpha <= 0.003) discard;
+        if (uIsDark > 0.5) {
+          vec4 rim = sampleLut(row, 0.28);
+          vec3 smoke = mix(vec3(0.03, 0.035, 0.05) * uSceneGain, rim.rgb * 0.28, (1.0 - radial) * 0.55);
+          gl_FragColor = vec4(smoke * alpha, alpha);
+          return;
+        }
+        vec4 col = sampleLut(row, clamp(0.38 + cloud * 0.48, 0.1, 0.99));
+        gl_FragColor = vec4(col.rgb * alpha, 0.0);
+      }
+      `,
+      {
+        uProj: this.uProj,
+        uResolution: this.uResUniform,
+        uCell: this.uCellUniform,
+        uIsDark: { value: isDark ? 1.0 : 0.0 },
+        uLut: { value: this.lutTex },
+        uBrush: { value: this.brushNoiseTex },
+        uSceneGain: this.uSceneGainUniform,
+      },
+      isDark ? NormalBlending : AdditiveBlending,
     )
   }
 
