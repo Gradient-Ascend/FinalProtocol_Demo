@@ -179,11 +179,11 @@ describe('FrameBudgetGovernor hysteresis', () => {
 describe('AttackFx Node-safety', () => {
   it('plays, steps, reports stats, and disposes cleanly without DOM globals across all 11 skills, overload, and enemy hits', () => {
     const fx = new AttackFx()
-    const skills = ['base', 'manhattan', 'array', 'zero', 'off', 'on', 'high', 'ultra', 'spike', 'flood', 'probe'] as const
+    const skills = ['base', 'manhattan', 'array', 'manifold', 'off', 'on', 'high', 'ultra', 'spike', 'flood', 'probe'] as const
     const eventsBySkill: Record<string, string[]> = {
       base: ['PUSH', 'BUMP'],
       array: ['PULL'],
-      zero: ['BREACH'],
+      manifold: ['BREACH'],
       off: ['DROP'],
       on: ['LIVE'],
       high: ['SPREAD'],
@@ -206,7 +206,7 @@ describe('AttackFx Node-safety', () => {
           fx: skillFx,
           amount: 3,
           dealt: 3,
-          securityBefore: skillFx === 'zero' ? 2 : 0,
+          securityBefore: skillFx === 'manifold' ? 2 : 0,
           blank: skillFx === 'flood' ? { x: 6, y: 4 } : undefined,
           movedTo: skillFx === 'base' ? { x: 7, y: 3 } : skillFx === 'array' ? { x: 7, y: 5 } : undefined,
           readTags: skillFx === 'ultra' ? ['LIVE', 'BREACH', 'SHIFT'] : undefined,
@@ -235,7 +235,7 @@ describe('AttackFx Node-safety', () => {
         dealt: 9,
         events: ['BREACH', 'LIVE', 'RAIL +2'],
         overloadSteps: [
-          { fx: 'zero', stepIndex: 0, amount: 2, dealt: 2, securityBefore: 2, events: ['BREACH'] },
+          { fx: 'manifold', stepIndex: 0, amount: 2, dealt: 2, securityBefore: 2, events: ['BREACH'] },
           { fx: 'ultra', stepIndex: 3, amount: 5, dealt: 5, readTags: ['LIVE', 'BREACH'], events: ['RAIL +2'] },
         ],
       },
@@ -256,7 +256,7 @@ describe('AttackFx Node-safety', () => {
       false,
       'carcosa',
     )
-    for (let t = 0; t <= 950; t += 16) fx.step(t)
+    for (let t = 0; t <= 1300; t += 16) fx.step(t)
 
     expect(fx.stats().backend).toBe('2d')
     expect(fx.stats().tier).toBe('low')
@@ -266,5 +266,114 @@ describe('AttackFx Node-safety', () => {
     expect(fx.shakeOffset()).toEqual({ x: expect.any(Number), y: expect.any(Number) })
     fx.clear()
     fx.dispose()
+  })
+
+  it('OVERLOAD triggers 3 chronological time-pause stages and 3 spatial-distortion grid shockwaves', () => {
+    const fx = new AttackFx()
+    fx.play(
+      {
+        source: 'player',
+        presetId: 'deck-1',
+        origin: { x: 7, y: 9 },
+        target: { x: 7, y: 4 },
+        stepIndex: 0,
+        shape: 'cross',
+        range: 5,
+        fx: 'overload',
+        overload: true,
+        amount: 11,
+        dealt: 11,
+      },
+      false,
+    )
+
+    const freezeStages = new Set<number>()
+    let maxWarpMag = 0
+    let maxCrest = 0
+    for (let t = 0; t <= 1250; t += 16) {
+      fx.step(t)
+      const freeze = fx.timeFreezeState()
+      if (freeze.intensity > 0.05) freezeStages.add(freeze.stage)
+      if (t >= 700) {
+        const warp = fx.cellWarp(10, 9)
+        maxWarpMag = Math.max(maxWarpMag, Math.hypot(warp.x, warp.y))
+        maxCrest = Math.max(maxCrest, warp.crest)
+      }
+    }
+
+    expect([...freezeStages].sort()).toEqual([1, 2, 3])
+    expect(maxWarpMag).toBeGreaterThan(0.01)
+    expect(maxCrest).toBeGreaterThan(0.05)
+    fx.dispose()
+  })
+
+  it('scheduleOverloadSfx schedules 3 ascending turbine revs, silent strike pockets, data burst, and 3 shockwaves', async () => {
+    const { scheduleOverloadSfx } = await import('./audio')
+    const oscs: Array<{
+      type: string
+      sets: Array<[number, number]>
+      ramps: Array<[number, number]>
+      startAt: number
+    }> = []
+    const gainEnvs: Array<Array<{ kind: string; val: number; time: number }>> = []
+
+    const makeParam = (sets?: Array<[number, number]>, ramps?: Array<[number, number]>, log?: Array<{ kind: string; val: number; time: number }>) => ({
+      value: 0,
+      setValueAtTime(val: number, time: number) {
+        sets?.push([val, time])
+        log?.push({ kind: 'set', val, time })
+      },
+      linearRampToValueAtTime(val: number, time: number) {
+        ramps?.push([val, time])
+        log?.push({ kind: 'linear', val, time })
+      },
+      exponentialRampToValueAtTime(val: number, time: number) {
+        ramps?.push([val, time])
+        log?.push({ kind: 'exp', val, time })
+      },
+    })
+    const node = { connect() { return node } }
+    const ctx = {
+      currentTime: 2.0,
+      sampleRate: 44100,
+      createBuffer: (_c: number, length: number) => ({ getChannelData: () => new Float32Array(length) }),
+      createGain() {
+        const log: Array<{ kind: string; val: number; time: number }> = []
+        gainEnvs.push(log)
+        return { gain: makeParam(undefined, undefined, log), connect() { return node } }
+      },
+      createBiquadFilter: () => ({ type: 'bandpass', frequency: makeParam(), Q: { value: 1 }, connect() { return node } }),
+      createBufferSource: () => ({ buffer: null, connect() { return node }, start() {}, stop() {} }),
+      createOscillator() {
+        const rec = { type: 'sine', sets: [] as Array<[number, number]>, ramps: [] as Array<[number, number]>, startAt: 0 }
+        oscs.push(rec)
+        return {
+          get type() { return rec.type },
+          set type(v: string) { rec.type = v },
+          frequency: makeParam(rec.sets, rec.ramps),
+          connect() { return node },
+          start(when = 0) { rec.startAt = when },
+          stop() {},
+        }
+      },
+    }
+
+    const sched = scheduleOverloadSfx(ctx as unknown as AudioContext, node as unknown as AudioNode, 2.0)
+    expect(sched.strikes).toEqual([2.15, 2.38, 2.61])
+    expect(sched.unleashAt).toBeCloseTo(2.70, 5)
+    expect(sched.shockwaves).toEqual([2.70, 2.825, 2.95])
+
+    const rotors = oscs.filter(o => o.type === 'sawtooth')
+    expect(rotors).toHaveLength(3)
+    expect(rotors.map(r => [r.sets[0][0], r.ramps[0][0]])).toEqual([
+      [140, 330],
+      [235, 560],
+      [380, 960],
+    ])
+    const dataSquares = oscs.filter(o => o.type === 'square')
+    expect(dataSquares).toHaveLength(8)
+    for (const env of gainEnvs) {
+      expect(env[0]).toMatchObject({ kind: 'set', val: 0 })
+    }
   })
 })

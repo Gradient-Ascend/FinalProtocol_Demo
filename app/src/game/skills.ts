@@ -5,7 +5,7 @@ import type { AttackPreset, AttackShape, AttackStep } from './battle-types'
 // skill is at least as strong the later it sits.
 export type SkillId =
   | 'base' | 'on' | 'spike' | 'manhattan' | 'off'
-  | 'array' | 'high' | 'flood' | 'zero' | 'ultra' | 'probe'
+  | 'array' | 'high' | 'flood' | 'manifold' | 'ultra' | 'probe'
 
 export type Skill = {
   id: SkillId
@@ -40,7 +40,7 @@ export const SKILLS: Skill[] = [
   { id: 'array', name: 'ARRAY', area: 'all', amounts: [1, 2, 2, 3], fx: 'array', rider: 'PULL every Geek hit 1 cell closer. Blocked = BUMP.', writes: 'POSITION' },
   { id: 'high', name: 'HIGH', area: 'all', amounts: [0, 1, 3, 5], fx: 'high', rider: '+1 for every Geek hit beyond the first.', reads: 'POSITION' },
   { id: 'flood', name: 'FLOOD', area: 'all', amounts: [1, 1, 1, 2], pierce: [1, 1, 2, 2], fx: 'flood', rider: 'FILL: blanks the next Flag on the route of each Geek hit.', writes: 'ROUTE', reads: 'ROUTE' },
-  { id: 'zero', name: 'ZERO', area: 'nearest', amounts: [1, 2, 3, 4], pierce: [2, 2, 2, 2], fx: 'zero', rider: 'First hit on a target this turn strips 2 Security. Security to 0 = BREACH: +1 from later hits.', writes: 'SECURITY', reads: 'SECURITY' },
+  { id: 'manifold', name: 'MANIFOLD', area: 'nearest', amounts: [1, 2, 3, 4], pierce: [2, 2, 2, 2], fx: 'manifold', rider: 'First hit on a target this turn strips 2 Security. Security to 0 = BREACH: +1 from later hits.', writes: 'SECURITY', reads: 'SECURITY' },
   { id: 'ultra', name: 'ULTRA', area: 'nearest', amounts: [1, 1, 3, 5], pierce: [0, 0, 1, 3], fx: 'ultra', rider: '+1 for each of LIVE, BREACH and SHIFT on the target.', reads: 'ALL TAGS' },
   { id: 'probe', name: 'PROBE', area: 'nearest', amounts: [1, 1, 2, 2], pierce: [IGNORES_SECURITY, IGNORES_SECURITY, IGNORES_SECURITY, IGNORES_SECURITY], fx: 'probe', rider: 'Applies LIVE through any Security. Readable from the next release or Overload.', writes: 'LIVE' },
 ]
@@ -51,7 +51,7 @@ export const FRAMES: Frame[] = [
 ]
 
 export const DEFAULT_LOADOUT: Loadout = [
-  { frame: 'vector', skills: ['base', 'manhattan', 'array', 'zero'] },
+  { frame: 'vector', skills: ['base', 'manhattan', 'array', 'manifold'] },
   { frame: 'cot', skills: ['off', 'on', 'high', 'ultra'] },
 ]
 
@@ -109,11 +109,14 @@ export function sanitizeLoadout(raw: unknown): Loadout {
   for (const deck of raw as Partial<Deck>[]) {
     if (!deck || !FRAMES.some(frame => frame.id === deck.frame)) return cloneLoadout(DEFAULT_LOADOUT)
     if (!Array.isArray(deck.skills) || deck.skills.length !== 4) return cloneLoadout(DEFAULT_LOADOUT)
-    for (const id of deck.skills) {
+    const migrated: SkillId[] = []
+    for (const rawId of deck.skills) {
+      const id = (rawId as string) === 'zero' ? 'manifold' : rawId
       if (!SKILLS.some(skill => skill.id === id) || seen.has(id)) return cloneLoadout(DEFAULT_LOADOUT)
       seen.add(id)
+      migrated.push(id as SkillId)
     }
-    decks.push({ frame: deck.frame as FrameId, skills: [...deck.skills] as Deck['skills'] })
+    decks.push({ frame: deck.frame as FrameId, skills: migrated as Deck['skills'] })
   }
   return decks as Loadout
 }

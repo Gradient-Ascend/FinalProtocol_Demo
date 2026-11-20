@@ -123,6 +123,8 @@ export class BattleRenderer {
   private gaze: { x: number; y: number } | null = null
   private unseen = new Float32Array(225)
   private lastDraw = 0
+  private boardTime = 0
+  private lastFrameTime = 0
   zoom = 1
   onZoomChange?: (zoom: number) => void
 
@@ -580,6 +582,12 @@ export class BattleRenderer {
     ctx.fillStyle = COLORS.bg
     ctx.fillRect(0, 0, rect.width, rect.height)
     this.fx.step(time)
+    const rawDt = this.lastFrameTime > 0 ? Math.min(0.05, Math.max(0, (time - this.lastFrameTime) / 1000)) : 0
+    this.lastFrameTime = time
+    const freeze = state.reducedMotion ? { intensity: 0, origin: { x: 7.5, y: 7.5 }, stage: 0 } : this.fx.timeFreezeState()
+    if (freeze.intensity <= 0.01 || state.reducedMotion) this.boardTime += rawDt * 1000
+    const worldTime = this.boardTime
+
     const shake = state.reducedMotion ? { x: 0, y: 0 } : this.fx.shakeOffset()
     ctx.save()
     ctx.translate(shake.x, shake.y)
@@ -599,22 +607,29 @@ export class BattleRenderer {
     }
 
     const look = SIGN_LOOKS[state.encounter.god]
-    const mask = look ? this.signOf(state, time) : null
+    const mask = look ? this.signOf(state, worldTime) : null
     for (let y = 0; y < 15; y++) {
       for (let x = 0; x < 15; x++) {
-        const push = this.fx.cellOffset(x, y)
-        const px = this.origin.x + (x + push.x) * this.cell
-        const py = this.origin.y + (y + push.y) * this.cell
+        const warp = this.fx.cellWarp(x, y)
+        const size = this.cell * warp.scale
+        const inset = (this.cell - size) * 0.5
+        const px = this.origin.x + (x + warp.x) * this.cell + inset
+        const py = this.origin.y + (y + warp.y) * this.cell + inset
         const signed = look && mask ? mask[y * 15 + x] : 0
         ctx.fillStyle = state.walls[y][x] && signed !== 2 ? COLORS.wall : COLORS.cell
-        ctx.fillRect(px, py, this.cell, this.cell)
+        ctx.fillRect(px, py, size, size)
         ctx.strokeStyle = COLORS.grid
         ctx.lineWidth = 0.75
-        ctx.strokeRect(px + 0.5, py + 0.5, this.cell - 1, this.cell - 1)
+        ctx.strokeRect(px + 0.5, py + 0.5, size - 1, size - 1)
+        if (warp.crest > 0.04 && !state.reducedMotion) {
+          ctx.strokeStyle = `rgba(167, 139, 250, ${(0.36 * warp.crest).toFixed(3)})`
+          ctx.lineWidth = 1.15
+          ctx.strokeRect(px + 1.5, py + 1.5, Math.max(1, size - 3), Math.max(1, size - 3))
+        }
         if (look && signed) {
-          drawSignCell(ctx, px, py, this.cell, look, signed === 2, this.signLight(x, y, time, state.reducedMotion), 1 - this.unseen[y * 15 + x])
+          drawSignCell(ctx, px, py, size, look, signed === 2, this.signLight(x, y, worldTime, state.reducedMotion), 1 - this.unseen[y * 15 + x])
         } else if (state.walls[y][x]) {
-          this.line({ x: px + 7, y: py + this.cell - 7 }, { x: px + this.cell - 7, y: py + 7 }, COLORS.faint, 1)
+          this.line({ x: px + 7, y: py + size - 7 }, { x: px + size - 7, y: py + 7 }, COLORS.faint, 1)
         }
       }
     }
@@ -820,24 +835,74 @@ export class BattleRenderer {
     for (const unit of units) {
       const key = `${unit.pos.x},${unit.pos.y}`
       if (this.unitSeen.has(unit.id) && this.unitSeen.get(unit.id) !== key) {
-        this.movingUntil.set(unit.id, time + 280)
+        this.movingUntil.set(unit.id, worldTime + 280)
       }
       this.unitSeen.set(unit.id, key)
       const isFocusedEnemy = unit.id !== 'P' && focusedEnemy?.id === unit.id
       if (isFocusedEnemy) {
         this.drawEnemy(unit.pos, unit.id, true)
-      } else if ((this.movingUntil.get(unit.id) ?? 0) > time) {
+      } else if ((this.movingUntil.get(unit.id) ?? 0) > worldTime) {
         if (unit.id === 'P') this.drawPlayer(unit.pos)
         else this.drawEnemy(unit.pos, unit.id)
       } else {
-        this.drawBreathingDot(unit.pos, unit.id === 'P' ? COLORS.blue : COLORS.red, time)
+        this.drawBreathingDot(unit.pos, unit.id === 'P' ? COLORS.blue : COLORS.red, worldTime)
       }
     }
     if (route.length && state.phase === 'planning') {
-      this.drawBreathingDot(this.store.plannedPosition(), COLORS.blue, time, true)
+      this.drawBreathingDot(this.store.plannedPosition(), COLORS.blue, worldTime, true)
     }
     if (threatPill) {
       this.drawThreatPill(threatPill.origin, threatPill.text, threatPill.below)
+    }
+    if (!state.reducedMotion && freeze.intensity > 0.01) {
+      const fx = this.origin.x + freeze.origin.x * this.cell
+      const fy = this.origin.y + freeze.origin.y * this.cell
+      const lockR = (1.9 + freeze.stage * 0.65) * this.cell
+      const grad = ctx.createRadialGradient(fx, fy, lockR * 0.55, fx, fy, Math.max(rect.width, rect.height) * 0.72)
+      grad.addColorStop(0, 'rgba(6, 8, 18, 0)')
+      grad.addColorStop(0.28, `rgba(6, 8, 18, ${(0.34 * freeze.intensity).toFixed(3)})`)
+      grad.addColorStop(1, `rgba(4, 5, 14, ${(0.50 * freeze.intensity).toFixed(3)})`)
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, rect.width, rect.height)
+
+      ctx.save()
+      ctx.strokeStyle = `rgba(94, 230, 255, ${(0.26 * freeze.intensity).toFixed(3)})`
+      ctx.lineWidth = 1
+      ctx.setLineDash([4, 6])
+      ctx.beginPath()
+      ctx.moveTo(this.origin.x, fy)
+      ctx.lineTo(fx - lockR * 0.85, fy)
+      ctx.moveTo(fx + lockR * 0.85, fy)
+      ctx.lineTo(this.origin.x + this.boardPx, fy)
+      ctx.moveTo(fx, this.origin.y)
+      ctx.lineTo(fx, fy - lockR * 0.85)
+      ctx.moveTo(fx, fy + lockR * 0.85)
+      ctx.lineTo(fx, this.origin.y + this.boardPx)
+      ctx.stroke()
+      ctx.setLineDash([])
+
+      ctx.strokeStyle = `rgba(94, 230, 255, ${(0.82 * freeze.intensity).toFixed(3)})`
+      ctx.lineWidth = 1.2
+      for (let t = 0; t < 12; t++) {
+        const ang = (t / 12) * Math.PI * 2
+        const rIn = lockR - (t % 3 === 0 ? 10 : 5)
+        const rOut = lockR + (t % 3 === 0 ? 12 : 6)
+        ctx.beginPath()
+        ctx.moveTo(fx + Math.cos(ang) * rIn, fy + Math.sin(ang) * rIn)
+        ctx.lineTo(fx + Math.cos(ang) * rOut, fy + Math.sin(ang) * rOut)
+        ctx.stroke()
+      }
+
+      ctx.strokeStyle = `rgba(167, 139, 250, ${(0.88 * freeze.intensity).toFixed(3)})`
+      ctx.lineWidth = 1.8
+      const segArc = (Math.PI * 2) / Math.max(1, freeze.stage + 1)
+      for (let s = 0; s < freeze.stage; s++) {
+        const a0 = -Math.PI * 0.5 + s * segArc
+        ctx.beginPath()
+        ctx.arc(fx, fy, lockR, a0, a0 + segArc * 0.72)
+        ctx.stroke()
+      }
+      ctx.restore()
     }
     ctx.restore()
     this.fx.draw(ctx, { origin: this.origin, cell: this.cell, dpr: this.canvas.width / Math.max(1, rect.width) }, shake)

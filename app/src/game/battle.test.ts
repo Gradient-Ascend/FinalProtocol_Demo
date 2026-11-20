@@ -480,7 +480,7 @@ describe('decks and skills', () => {
     const [vector, cot] = buildPresets(DEFAULT_LOADOUT)
     expect(vector.name).toBe('VECTOR')
     expect(vector.steps.map(step => [step.name, step.amount, step.pierce ?? 0])).toEqual([
-      ['BASE', 1, 0], ['MANHATTAN', 0, 0], ['ARRAY', 2, 0], ['ZERO', 4, 2],
+      ['BASE', 1, 0], ['MANHATTAN', 0, 0], ['ARRAY', 2, 0], ['MANIFOLD', 4, 2],
     ])
     expect(vector.steps.every(step => step.shape === 'square' && step.range === 2)).toBe(true)
     expect(cot.name).toBe('CoT')
@@ -504,17 +504,18 @@ describe('decks and skills', () => {
 
   it('trades slots when a placed skill is assigned elsewhere', () => {
     const next = assignSkill(DEFAULT_LOADOUT, 0, 0, 'ultra')
-    expect(next[0].skills).toEqual(['ultra', 'manhattan', 'array', 'zero'])
+    expect(next[0].skills).toEqual(['ultra', 'manhattan', 'array', 'manifold'])
     expect(next[1].skills).toEqual(['off', 'on', 'high', 'base'])
     expect(DEFAULT_LOADOUT[0].skills[0]).toBe('base')
     const fresh = assignSkill(DEFAULT_LOADOUT, 1, 2, 'spike')
     expect(fresh[1].skills).toEqual(['off', 'on', 'spike', 'ultra'])
   })
 
-  it('rejects stored loadouts that are malformed or reuse a skill', () => {
+  it('rejects stored loadouts that are malformed or reuse a skill and migrates legacy zero', () => {
     expect(sanitizeLoadout(null)).toEqual(DEFAULT_LOADOUT)
-    expect(sanitizeLoadout([{ frame: 'vector', skills: ['base', 'base', 'array', 'zero'] }, DEFAULT_LOADOUT[1]])).toEqual(DEFAULT_LOADOUT)
-    expect(sanitizeLoadout([{ frame: 'nope', skills: ['base', 'on', 'array', 'zero'] }, DEFAULT_LOADOUT[1]])).toEqual(DEFAULT_LOADOUT)
+    expect(sanitizeLoadout([{ frame: 'vector', skills: ['base', 'base', 'array', 'manifold'] }, DEFAULT_LOADOUT[1]])).toEqual(DEFAULT_LOADOUT)
+    expect(sanitizeLoadout([{ frame: 'nope', skills: ['base', 'on', 'array', 'manifold'] }, DEFAULT_LOADOUT[1]])).toEqual(DEFAULT_LOADOUT)
+    expect(sanitizeLoadout([{ frame: 'vector', skills: ['base', 'manhattan', 'array', 'zero'] }, DEFAULT_LOADOUT[1]])).toEqual(DEFAULT_LOADOUT)
   })
 
   it('applies a custom loadout to the battle and keeps it across restart and menu', async () => {
@@ -591,8 +592,8 @@ describe('skill interactions', () => {
     expect(spike.damage).toBe(skillById('spike').amounts[1] + 2)
   })
 
-  it('ZERO strips Security into a Breach that later hits exploit', () => {
-    const { state, geek } = arena(['zero', 'manhattan', 'spike', 'on'])
+  it('MANIFOLD strips Security into a Breach that later hits exploit', () => {
+    const { state, geek } = arena(['manifold', 'manhattan', 'spike', 'on'])
     geek.block = 2
     const sim = simulateRelease(state, 0, 2)
     expect(sim.hits[0].events).toContain('BREACH')
@@ -635,7 +636,7 @@ describe('skill interactions', () => {
 
   it('resolves a turn exactly as forecast, moves included', async () => {
     const store = new BattleStore()
-    store.setLoadout([{ frame: 'cot', skills: ['base', 'on', 'off', 'manhattan'] }, { frame: 'vector', skills: ['array', 'spike', 'zero', 'ultra'] }])
+    store.setLoadout([{ frame: 'cot', skills: ['base', 'on', 'off', 'manhattan'] }, { frame: 'vector', skills: ['array', 'spike', 'manifold', 'ultra'] }])
     const state = store.getSnapshot()
     state.reducedMotion = true
     store.start()

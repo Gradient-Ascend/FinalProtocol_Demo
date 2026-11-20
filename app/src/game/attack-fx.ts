@@ -33,7 +33,7 @@ type Particle = {
   x: number; y: number; vx: number; vy: number
   life: number; max: number; size: number; color: string
   drag: number; grav: number; jit: number
-  type: 'spark' | 'dot' | 'square'
+  type: 'spark' | 'dot' | 'square' | 'triangle'
   home: Coord | null
 }
 type Burst = {
@@ -55,6 +55,10 @@ export type BoardFxContext = {
   walls?: boolean[][]
   peers?: Coord[]
 }
+
+export type CellWarp = { x: number; y: number; scale: number; crest: number }
+export type TimeFreezeState = { intensity: number; origin: Coord; stage: number }
+type DistortWave = Timed & { x: number; y: number; r0: number; r1: number; amp: number; band: number }
 
 type Ctx = {
   fx: AttackEffect
@@ -152,7 +156,7 @@ function compactTimed<T extends Timed>(list: T[], dt: number): void {
 // arrives and the next attack starts only once this one has finished.
 export function effectTiming(fx: AttackEffect): { strike: number; settle: number } {
   if (fx.source === 'enemy') return { strike: 420, settle: 440 }
-  if (fx.overload) return { strike: 0, settle: 300 }
+  if (fx.overload) return { strike: 120, settle: 380 }
   const steps = Math.abs(fx.target.x - fx.origin.x) + Math.abs(fx.target.y - fx.origin.y)
   switch (fx.fx) {
     case 'on': return { strike: 280, settle: 460 }
@@ -165,10 +169,11 @@ export function effectTiming(fx: AttackEffect): { strike: number; settle: number
     }
     case 'flood': return { strike: Math.max(120, steps * 42), settle: 450 }
     case 'high': return { strike: 210, settle: 520 }
-    case 'zero': return { strike: 0, settle: 430 }
+    case 'manifold':
+    case 'zero': return { strike: Math.max(180, steps * 46), settle: 440 }
     case 'ultra': return { strike: 340, settle: 560 }
     case 'probe': return { strike: 520, settle: 380 }
-    default: return { strike: 360, settle: 440 }
+    default: return { strike: 320, settle: 420 }
   }
 }
 
@@ -185,6 +190,11 @@ export class AttackFx {
   private timers: { at: number; fn: () => void }[] = []
   private readonly dueScratch: Array<() => void> = []
   private readonly grid = Array.from({ length: SIZE * SIZE }, () => ({ ox: 0, oy: 0, vx: 0, vy: 0 }))
+  private distortWaves: DistortWave[] = []
+  private timeFreeze = 0
+  private timeFreezeMax = 0.08
+  private timeFreezeOrigin: Coord = { x: 7.5, y: 7.5 }
+  private timeFreezeStage = 0
   private shakeAmp = 0
   private screenFlash = 0
   private hitStop = 0
@@ -242,10 +252,10 @@ export class AttackFx {
     let start = Math.max(this.now, this.nextStart)
     if (effect.overload && !reduced && start - this.lastOverload > 1500) {
       this.timers.push({ at: start, fn: () => this.cascade(mid(effect.origin), reduced) })
-      start += 340
+      start += 700
     }
     if (effect.overload) this.lastOverload = start
-    this.nextStart = start + (reduced ? 60 : effect.overload ? 110 : timing.strike + timing.settle - 20)
+    this.nextStart = start + (reduced ? 60 : effect.overload ? 40 : timing.strike + timing.settle - 20)
     this.timers.push({ at: start, fn: () => this.start(effect, reduced, timing.strike, bossGod, board) })
   }
 
@@ -265,6 +275,9 @@ export class AttackFx {
     this.lastAreaStepKey = ''
     this.lastAreaAt = -1e9
     this.hitStop = 0
+    this.timeFreeze = 0
+    this.timeFreezeStage = 0
+    this.distortWaves.length = 0
     this.lastStepDt = 0
     this.grid.forEach(point => { point.ox = point.oy = point.vx = point.vy = 0 })
     this.shakeAmp = this.screenFlash = 0
@@ -360,6 +373,31 @@ export class AttackFx {
         shape: opts.shape ?? ParticleShape.Spark,
       })
     }
+  }
+
+  private glTriangleSpray(
+    gl: VfxWebglEngine,
+    x: number,
+    y: number,
+    n: number,
+    lut: LutRow,
+    dir = 0,
+    spread = Math.PI * 2,
+    speed: [number, number] = [2.8, 8.6],
+  ): void {
+    this.glBurst(gl, x, y, 0.34, n, lut, {
+      dir,
+      spread,
+      speed,
+      vz: [1.5, 4.6],
+      life: [0.24, 0.48],
+      size: 3.3,
+      drag: 2.8,
+      gravZ: -11.5,
+      curl: 0.45,
+      bounce: 0.44,
+      shape: ParticleShape.Triangle,
+    })
   }
 
   private implode(at: Coord, n: number, colors: string[], radius: number, dur: number): void {
@@ -523,7 +561,8 @@ export class AttackFx {
       array: this.arrayScan,
       flood: this.floodFill,
       high: this.temperature,
-      zero: this.zeroShot,
+      manifold: this.manifoldWave,
+      zero: this.manifoldWave,
       ultra: this.ultra,
       probe: this.probe,
     }
@@ -545,155 +584,209 @@ export class AttackFx {
       this.note(t, fx)
       return
     }
-    this.after(at, () => { this.number(t, fx, col); this.note(t, fx) })
+    const targetlessOverload = Boolean(
+      fx.overload && fx.origin.x === fx.target.x && fx.origin.y === fx.target.y && !fx.overloadSteps?.length && (fx.amount ?? 0) === 0,
+    )
+    if (!targetlessOverload) {
+      this.after(at, () => { this.number(t, fx, col); this.note(t, fx) })
+    }
     if (fx.source === 'enemy') { this.swarm(c); return }
-    if (fx.overload) { this.overloadStrike(c); return }
+    if (fx.overload) {
+      if (!targetlessOverload) this.overloadStrike(c)
+      return
+    }
     this.dispatchPlayerSkill(fx.fx ?? '', c)
   }
 
-  // OVERLOAD opening cascade (340 ms): SELF's 4 brackets elevate into 3D obsidian-violet
-  // monoliths, orbit 90° (Deck A <-> B switch), and burst as a radial prism curtain.
+  // OVERLOAD Act I + Bg: Wuxia JiQi (集气) inward vortex (3 accelerating turbine revs + 3 battlefield chrono-pauses)
+  // followed by 3 concentric background shockwaves producing traveling spatial distortion across the board.
   private cascade(p: Coord, reduced: boolean): void {
     const gl = this.useGl(reduced)
+    const stageStarts = [0, 230, 460]
+    const strikeAts = [150, 380, 610]
+    const pauseDurs = [0.070, 0.075, 0.090]
+    const shockAts = [700, 825, 950]
+
     if (gl) {
-      for (let c = 0; c < 4; c++) {
-        const ang = (c * Math.PI) / 2 + Math.PI * 0.25
-        const nextAng = ((c + 1) % 4) * (Math.PI / 2) + Math.PI * 0.25
-        const px0 = p.x + Math.cos(ang) * 0.62
-        const py0 = p.y + Math.sin(ang) * 0.62
-        const px1 = p.x + Math.cos(nextAng) * 0.62
-        const py1 = p.y + Math.sin(nextAng) * 0.62
-        gl.spawnSolid({
-          kind: SolidKind.Monolith,
-          x0: px0, y0: py0, z0: 0.04,
-          x1: px1, y1: py1, z1: 1.45,
-          sx: 0.24, sy: 0.24, sz: 2.25,
-          yaw: ang, spin: 1.57, dur: 0.34, lut: LutRow.Violet,
-        })
-        const nx = p.x + Math.cos(nextAng) * 0.62
-        const ny = p.y + Math.sin(nextAng) * 0.62
-        gl.spawnRibbon({
-          ax: px0, ay: py0, az: 1.15,
-          cx: (px0 + nx) * 0.5, cy: (py0 + ny) * 0.5, cz: 1.4,
-          bx: nx, by: ny, bz: 1.15,
-          width: 0.14, dur: 0.34, lut: LutRow.Violet, style: RibbonStyle.VectorRay, spin: -1,
-        })
-      }
-      for (let k = 0; k < 4; k++) {
-        this.after(k * 65, () => {
+      stageStarts.forEach((stageStart, stage) => {
+        const strikeAt = strikeAts[stage]
+        const pauseDur = pauseDurs[stage]
+        const lut = stage === 2 ? LutRow.Cyan : LutRow.Violet
+        const outerR = 3.2 - stage * 0.3
+
+        this.after(stageStart, () => {
           gl.spawnCloud({
-            x: p.x + rnd(-0.35, 0.35), y: p.y + rnd(-0.35, 0.35), z: 0.5 + k * 0.32,
-            vz: 1.4, radius: 0.65, endRadius: 1.25, dur: 0.36, lut: LutRow.Violet, mode: CloudMode.Mist,
+            x: p.x, y: p.y, z: 0.14 + stage * 0.05,
+            radius: outerR + 0.2, endRadius: 0.95, height: stage + 1,
+            dur: 0.23, lut, mode: CloudMode.JiQiVortex,
           })
-          this.glImplode(gl, p, 1.5, 18, LutRow.Violet, 2.8, 0.24, ParticleShape.Shard)
-        })
-      }
-      this.after(340, () => {
-        this.triggerFlash(0.18)
-        this.hitStop = 0.036
-        gl.spawnDecal({ x: p.x, y: p.y, radius: 6.5, dur: 0.72, lut: LutRow.Violet, kind: DecalKind.Spill })
-        for (let k = 0; k < 16; k++) {
-          const ang = (k / 16) * Math.PI * 2
-          const dist = 3.2 + (k % 2) * 1.4
-          gl.spawnSolid({
-            kind: k % 2 === 0 ? SolidKind.Wedge : SolidKind.Octahedron,
-            x0: p.x, y0: p.y, z0: 1.1,
-            x1: p.x + Math.cos(ang) * dist, y1: p.y + Math.sin(ang) * dist, z1: 0.14,
-            sx: 0.42, sy: 0.42, sz: 0.42, scaleEnd: 0.3,
-            yaw: ang, spin: 4.5, dur: 0.5, lut: LutRow.Violet,
+          const streamCount = 3 + stage
+          for (let s = 0; s < streamCount; s++) {
+            const ang = (s / streamCount) * Math.PI * 2 + stage * 0.72
+            const ctrlAng = ang + 1.05
+            gl.spawnRibbon({
+              ax: p.x + Math.cos(ang) * outerR,
+              ay: p.y + Math.sin(ang) * outerR,
+              az: 0.18 + stage * 0.08,
+              cx: p.x + Math.cos(ctrlAng) * outerR * 0.56,
+              cy: p.y + Math.sin(ctrlAng) * outerR * 0.56,
+              cz: 0.55 + stage * 0.12,
+              bx: p.x, by: p.y, bz: 0.48,
+              width: 0.24 + stage * 0.04, dur: 0.21, lut: LutRow.Violet, style: RibbonStyle.PlasmaFlame,
+            })
+          }
+          gl.spawnWave({
+            x: p.x, y: p.y, z: 0.44, r0: 2.5 - stage * 0.25, r1: 0.38,
+            pitchX: stage === 1 ? -0.45 : 0.42, rollY: (stage - 1) * 0.34,
+            thickness: 0.11, dur: 0.20, lut, mode: WaveMode.Gimbal,
           })
-        }
-        this.glBurst(gl, p.x, p.y, 0.9, 36, LutRow.Violet, {
-          speed: [4.5, 14.0], vz: [2.5, 8.2], life: [0.38, 0.88], size: 3.1, curl: 2.2, bounce: 0.48, shape: ParticleShape.Cuboid,
+          this.glImplode(gl, p, 0.85, 10 + stage * 2, LutRow.Violet, outerR - 0.2, 0.20, ParticleShape.Spark)
+          this.ripple(p, -(3.2 + stage * 1.1), 5.8)
+          if (stage === 2) {
+            gl.spawnDome({ x: p.x, y: p.y, z: 0.56, r0: 0.22, r1: 0.58, dur: 0.28, lut: LutRow.Violet, voidOrb: true })
+          }
         })
-        this.glBurst(gl, p.x, p.y, 0.9, 52, LutRow.Violet, {
-          speed: [5.0, 15.0], vz: [2.8, 8.6], life: [0.35, 0.85], size: 2.6, curl: 4.2, bounce: 0.46, shape: ParticleShape.Spark,
+
+        this.after(strikeAt, () => {
+          this.hitStop = Math.max(this.hitStop, pauseDur)
+          this.timeFreeze = Math.max(this.timeFreeze, pauseDur)
+          this.timeFreezeMax = pauseDur
+          this.timeFreezeOrigin = p
+          this.timeFreezeStage = stage + 1
+          gl.spawnWave({
+            x: p.x, y: p.y, z: 0.42, r0: 0.4, r1: 2.4 + stage * 0.9,
+            pitchX: 0.25, rollY: 0, thickness: 0.07, dur: 0.16, lut: LutRow.Probe, mode: WaveMode.Slice,
+          })
+          this.shake(1.8 + stage * 0.9)
         })
-        this.ripple(p, 11, 10)
-        this.shake(7.5)
+      })
+
+      shockAts.forEach((shockAt, w) => {
+        this.after(shockAt, () => {
+          this.distortWaves.push({
+            x: p.x, y: p.y, r0: 0.35, r1: 13.8, t: 0, dur: 0.56,
+            amp: 0.34 - w * 0.03, band: 1.05,
+          })
+          if (w === 0) {
+            this.triggerFlash(0.10)
+            gl.spawnDecal({ x: p.x, y: p.y, radius: 4.8, dur: 0.62, lut: LutRow.Violet, kind: DecalKind.Spill })
+            this.glTriangleSpray(gl, p.x, p.y, 16, LutRow.Violet, 0, Math.PI * 2, [4.0, 11.5])
+          }
+          gl.spawnWave({
+            x: p.x, y: p.y, z: 0.03, r0: 0.35, r1: 13.8,
+            pitchX: 0, rollY: 0, thickness: 0.13, dur: 0.56,
+            lut: w === 1 ? LutRow.Cyan : LutRow.Violet,
+            mode: w === 2 ? WaveMode.Manifold : WaveMode.Shock,
+          })
+          this.ripple(p, 6.5 - w * 1.4, 11)
+          this.shake(5.5 - w * 1.1)
+        })
       })
       return
     }
 
-    for (let k = 0; k < 5; k++) this.after(k * 55, () => this.implode(p, 14, VIOLET, 2.6, 0.22))
-    this.after(340, () => {
-      this.triggerFlash(0.18)
-      this.poly([
-        { x: p.x - 1.2, y: p.y - 1.2 }, { x: p.x + 1.2, y: p.y - 1.2 },
-        { x: p.x + 1.2, y: p.y + 1.2 }, { x: p.x - 1.2, y: p.y + 1.2 }, { x: p.x - 1.2, y: p.y - 1.2 },
-      ], 0.45, VIOLET[0], 3)
-      this.ring(p, 0.2, 9, 0.7, VIOLET[0], 4)
-      this.ripple(p, 11, 10)
-      this.shake(7.5)
-      this.burst(p.x, p.y, { n: 44, speed: [3, 13], life: [0.4, 0.85], colors: VIOLET, type: 'square' })
+    stageStarts.forEach((stageStart, stage) => {
+      this.after(stageStart, () => {
+        this.implode(p, 10 + stage * 4, VIOLET, 2.8 - stage * 0.25, 0.20)
+        this.ripple(p, -(3.0 + stage), 5.5)
+      })
+      this.after(strikeAts[stage], () => {
+        const pauseDur = pauseDurs[stage]
+        this.hitStop = Math.max(this.hitStop, pauseDur)
+        this.timeFreeze = Math.max(this.timeFreeze, pauseDur)
+        this.timeFreezeMax = pauseDur
+        this.timeFreezeOrigin = p
+        this.timeFreezeStage = stage + 1
+        this.shake(1.8 + stage * 0.9)
+      })
+    })
+    shockAts.forEach((shockAt, w) => {
+      this.after(shockAt, () => {
+        this.distortWaves.push({
+          x: p.x, y: p.y, r0: 0.35, r1: 13.8, t: 0, dur: 0.56,
+          amp: 0.30 - w * 0.03, band: 1.05,
+        })
+        if (w === 0) this.triggerFlash(0.10)
+        this.ring(p, 0.35, 13.8, 0.56, w === 1 ? VIOLET[2] : VIOLET[0], 3.4 - w * 0.6)
+        this.ripple(p, 6.5 - w * 1.4, 11)
+        this.shake(5.5 - w * 1.1)
+        if (w === 0) this.burst(p.x, p.y, { n: 24, speed: [3, 11], life: [0.3, 0.65], colors: VIOLET, type: 'triangle' })
+      })
     })
   }
 
-  // OVERLOAD strike: replays each switched-deck skill in its own morphology tinted Violet.
+  // OVERLOAD Act II (Main + Hit): heavy flashing multi-lane DataStream conduits & Cuboid packets slamming affected enemies.
   private overloadStrike = (c: Ctx): void => {
-    const { fx, p, t, col } = c
-    const steps = fx.overloadSteps
-    if (steps?.length) {
-      steps.forEach((sub, idx) => {
-        this.after(idx * 75, () => {
-          const subFx: AttackEffect = {
-            ...fx,
-            fx: sub.fx,
-            stepIndex: sub.stepIndex,
-            slotAmount: sub.slotAmount,
-            pierce: sub.pierce,
-            amount: sub.amount,
-            cap: sub.cap,
-            dealt: sub.dealt,
-            absorbed: sub.absorbed,
-            events: sub.events,
-            blank: sub.blank,
-            movedTo: sub.movedTo,
-            securityBefore: sub.securityBefore,
-            readTags: sub.readTags,
-            overload: true,
-          }
-          const subTiming = effectTiming({ ...subFx, overload: false })
-          const subAt = Math.min(260, subTiming.strike)
-          this.dispatchPlayerSkill(sub.fx ?? 'base', {
-            ...c,
-            fx: subFx,
-            lut: LutRow.Violet,
-            col: VIOLET,
-            at: subAt,
-            suppressReadout: true,
+    const { p, t, col } = c
+    const gl = this.useGl(false)
+    const angle = Math.atan2(t.y - p.y, t.x - p.x)
+    const nx = -Math.sin(angle)
+    const ny = Math.cos(angle)
+    const midPt = { x: (p.x + t.x) * 0.5, y: (p.y + t.y) * 0.5 }
+
+    if (gl) {
+      // Single wide 5-lane flashing Violet/Cyan DataStream conduit (zero additive overlap clipping)
+      gl.spawnRibbon({
+        ax: p.x, ay: p.y, az: 0.38,
+        cx: midPt.x + nx * 0.14, cy: midPt.y + ny * 0.14, cz: 0.64,
+        bx: t.x, by: t.y, bz: 0.38,
+        width: 0.76, dur: 0.44, lut: LutRow.Violet, style: RibbonStyle.DataStream,
+      })
+
+      // Hurtling wireframe data-packet monoliths & cuboids along the stream
+      for (let k = 0; k < 5; k++) {
+        this.after(k * 28, () => {
+          const lat = ((k % 3) - 1) * 0.22
+          const ox = nx * lat
+          const oy = ny * lat
+          const lut = k % 2 === 0 ? LutRow.Violet : LutRow.Cyan
+          gl.spawnSolid({
+            kind: SolidKind.Monolith,
+            x0: p.x + ox, y0: p.y + oy, z0: 0.45,
+            x1: t.x + ox * 0.4, y1: t.y + oy * 0.4, z1: 0.38,
+            sx: 0.20, sy: 0.12, sz: 0.12, yaw: angle, spin: 8,
+            dur: 0.16 + (k % 3) * 0.03, wireOnly: 0.62, lut,
+          })
+          gl.spawnParticle({
+            x: p.x + ox * 0.6, y: p.y + oy * 0.6, z: 0.42,
+            vx: Math.cos(angle) * 16, vy: Math.sin(angle) * 16, vz: 0.6,
+            life: 0.18, size: 2.6, drag: 0.4, gravZ: 0, curl: 0, bounce: 0,
+            homeX: t.x, homeY: t.y, lut, shape: ParticleShape.Cuboid,
           })
         })
+      }
+
+      this.after(c.at, () => {
+        gl.spawnDecal({ x: t.x, y: t.y, radius: 0.82, dur: 0.38, lut: LutRow.Violet, kind: DecalKind.Fracture })
+        gl.spawnSolid({
+          kind: SolidKind.ScanPlane,
+          x0: t.x, y0: t.y, z0: 1.08, x1: t.x, y1: t.y, z1: 0.04,
+          sx: 1.12, sy: 1.12, sz: 1, dur: 0.24, lut: LutRow.Violet,
+        })
+        gl.spawnWave({
+          x: t.x, y: t.y, z: 0.34, r0: 0.2, r1: 1.25,
+          pitchX: 0.42, rollY: -0.22, thickness: 0.11, dur: 0.30, lut: LutRow.Violet, mode: WaveMode.Manifold,
+        })
+        this.glBurst(gl, t.x, t.y, 0.36, 12, LutRow.Cyan, {
+          dir: c.dir, spread: 1.9, speed: [3.2, 8.8], shape: ParticleShape.Cuboid, size: 2.8,
+        })
+        this.glTriangleSpray(gl, t.x, t.y, 14, LutRow.Violet, c.dir, 2.0)
+        this.hitStop = Math.max(this.hitStop, 0.03)
+        this.ripple(t, 4.2)
+        this.shake(4.0)
+        this.tag(t, 'OVERLOAD', col[0])
       })
-      this.tag(t, 'OVERLOAD', col[0])
       return
     }
 
-    const gl = this.useGl(false)
-    if (gl) {
-      gl.spawnRibbon({
-        ax: p.x, ay: p.y, az: 0.48, cx: (p.x + t.x) * 0.5, cy: (p.y + t.y) * 0.5, cz: 0.65,
-        bx: t.x, by: t.y, bz: 0.42, width: 0.42, dur: 0.34, lut: LutRow.Violet, style: RibbonStyle.TwinHitscan,
-      })
-      gl.spawnSolid({
-        kind: SolidKind.Wedge,
-        x0: p.x, y0: p.y, z0: 0.52, x1: t.x, y1: t.y, z1: 0.42,
-        sx: 0.85, sy: 0.85, sz: 0.65, yaw: c.dir, quantSteps: 4, dur: 0.32, lut: LutRow.Violet,
-      })
-      for (let k = 0; k < 4; k++) {
-        gl.spawnSolid({
-          kind: SolidKind.CornerBracket,
-          x0: t.x, y0: t.y, z0: 0.6, sx: 0.9, sy: 0.9, sz: 0.45, scaleEnd: 0.6,
-          yaw: k * Math.PI * 0.5, dur: 0.34, lut: LutRow.Violet,
-        })
-      }
-      this.hitStop = Math.max(this.hitStop, 0.03)
-    } else {
-      this.beam(p, t, 0.24, pick(col), 4)
-    }
-    this.ripple(t, 4.5)
-    this.shake(4.2)
-    this.tag(t, 'OVERLOAD', col[0])
+    this.beam(p, t, 0.32, col[0], 5)
+    this.beam(p, t, 0.24, col[2], 2)
+    this.after(c.at, () => {
+      this.burst(t.x, t.y, { n: 18, dir: c.dir, spread: 1.8, speed: [2.5, 8], life: [0.22, 0.42], colors: col, type: 'square' })
+      this.ripple(t, 4.2)
+      this.shake(4.0)
+      this.tag(t, 'OVERLOAD', col[0])
+    })
   }
 
   // DESIRE (enemy attacks): arcing crimson/god-tinted motes curving through Z onto the Operator.
@@ -740,7 +833,8 @@ export class AttackFx {
     this.after(at, () => { this.enemyImpact(t, p, col, lut, 0.6); this.shake(3) })
   }
 
-  // 1. BASE (VECTOR): Basis-vector ray + 4 quantized hold-step 3D wedge rams + PUSH/BUMP solids.
+  // 1. BASE (VECTOR):
+  //   Bg: faint basis-axis guide | Main: ONE surging light orb + comet wake | Hit: directional spray of small triangles.
   private forwardPass = (c: Ctx): void => {
     const { fx, p, t, col, lut, dir, at, suppressReadout } = c
     const gl = this.useGl(false)
@@ -749,129 +843,71 @@ export class AttackFx {
     const bumped = fx.events?.includes('BUMP') ?? false
     const pushed = fx.events?.includes('PUSH') ?? false
     const dest = fx.movedTo ? mid(fx.movedTo) : t
-    const dx = Math.sign(fx.target.x - fx.origin.x)
-    const dy = Math.sign(fx.target.y - fx.origin.y)
-    const away = dx || dy ? { x: dx, y: dy } : { x: Math.cos(dir), y: Math.sin(dir) }
+    const travelSec = Math.max(0.18, at / 1000)
 
     if (gl) {
+      // Optional faint background axis guide
       gl.spawnRibbon({
-        ax: p.x, ay: p.y, az: 0.32,
-        cx: (p.x + t.x) * 0.5, cy: (p.y + t.y) * 0.5, cz: 0.32,
-        bx: t.x, by: t.y, bz: 0.32,
-        width: 0.14 + slot * 0.02, dur: Math.max(0.28, at / 1000 + 0.08),
+        ax: p.x, ay: p.y, az: 0.14,
+        cx: (p.x + t.x) * 0.5, cy: (p.y + t.y) * 0.5, cz: 0.14,
+        bx: t.x, by: t.y, bz: 0.14,
+        width: 0.08, dur: travelSec + 0.06,
         lut, style: RibbonStyle.VectorRay, spin: Math.max(2, Math.round(dist)),
       })
+      // Main effect: ONE surging light orb traveling smoothly to the Enemy
+      const orbScale = 0.42 + slot * 0.06
       gl.spawnSolid({
-        kind: SolidKind.Wedge,
-        x0: p.x, y0: p.y, z0: 0.48,
+        kind: SolidKind.Orb,
+        x0: p.x, y0: p.y, z0: 0.44,
         x1: t.x, y1: t.y, z1: 0.42,
-        sx: 0.78 + slot * 0.09, sy: 0.72 + slot * 0.09, sz: 0.54 + slot * 0.08,
-        yaw: dir, quantSteps: 4, wireOnly: 0, dur: Math.max(0.22, (at + 60) / 1000), lut,
+        sx: orbScale, sy: orbScale, sz: orbScale,
+        scaleEnd: 1.25,
+        dur: travelSec, lut,
       })
-      for (let k = 1; k <= 3; k++) {
-        this.after((at * k) / 4, () => {
-          const gp = lerp(p, t, k / 4)
-          gl.spawnSolid({
-            kind: SolidKind.Wedge,
-            x0: gp.x, y0: gp.y, z0: 0.46,
-            sx: 0.8 + slot * 0.08, sy: 0.74 + slot * 0.08, sz: 0.52,
-            yaw: dir, wireOnly: 1, dur: 0.24, lut,
-          })
-        })
-      }
-      if (slot >= 2) {
-        this.after(at * 0.22, () => {
-          gl.spawnSolid({
-            kind: SolidKind.Wedge,
-            x0: p.x, y0: p.y, z0: 0.72,
-            x1: t.x, y1: t.y, z1: 0.58,
-            sx: 1.02, sy: 0.96, sz: 0.66,
-            yaw: dir, quantSteps: 4, wireOnly: 1, dur: 0.28, lut,
-          })
-        })
-      }
+      gl.spawnRibbon({
+        ax: p.x, ay: p.y, az: 0.42,
+        cx: (p.x + t.x) * 0.5, cy: (p.y + t.y) * 0.5, cz: 0.54,
+        bx: t.x, by: t.y, bz: 0.42,
+        width: 0.24 + slot * 0.03, dur: travelSec + 0.05,
+        lut, style: RibbonStyle.Trail,
+      })
       this.after(at, () => {
-        const nx = -Math.sin(dir) * 0.26
-        const ny = Math.cos(dir) * 0.26
-        for (const s of [-1, 1]) {
-          gl.spawnRibbon({
-            ax: p.x + nx * s, ay: p.y + ny * s, az: 0.05,
-            cx: (p.x + t.x) * 0.5 + nx * s, cy: (p.y + t.y) * 0.5 + ny * s, cz: 0.05,
-            bx: dest.x + nx * s, by: dest.y + ny * s, bz: 0.05,
-            width: 0.08, dur: 0.34, lut, style: RibbonStyle.VectorRay, spin: -1,
-          })
+        gl.spawnWave({
+          x: t.x, y: t.y, z: 0.35, r0: 0.14, r1: 0.96 + slot * 0.08,
+          pitchX: 0.42, rollY: -0.16, thickness: 0.11, dur: 0.28, lut, mode: WaveMode.Shock,
+        })
+        if (pushed) {
+          gl.spawnDecal({ x: dest.x, y: dest.y, radius: 0.56, dur: 0.32, lut, kind: DecalKind.Tile })
         }
-        gl.spawnDecal({ x: t.x, y: t.y, radius: 0.62, dur: 0.34, lut, kind: DecalKind.Tile })
         if (bumped) {
-          const aLen = Math.hypot(away.x, away.y) || 1
-          const ax = t.x + (away.x / aLen) * 0.48
-          const ay = t.y + (away.y / aLen) * 0.48
-          gl.spawnSolid({
-            kind: SolidKind.Monolith,
-            x0: ax, y0: ay, z0: 0.02,
-            sx: 0.14, sy: 0.96, sz: 1.48,
-            yaw: Math.atan2(away.y, away.x), dur: 0.36, lut,
+          gl.spawnWave({
+            x: t.x, y: t.y, z: 0.4, r0: 0.18, r1: 0.78,
+            pitchX: 0.95, rollY: dir, thickness: 0.1, dur: 0.26, lut, mode: WaveMode.Slice,
           })
-          for (let k = 0; k < 4; k++) {
-            const ang = dir + Math.PI + (k - 1.5) * 0.55
-            gl.spawnSolid({
-              kind: SolidKind.Octahedron,
-              x0: ax, y0: ay, z0: 0.55,
-              x1: ax + Math.cos(ang) * 0.8, y1: ay + Math.sin(ang) * 0.8, z1: 0.08,
-              sx: 0.24, sy: 0.24, sz: 0.24, spin: 7.0, dur: 0.34, lut,
-            })
-          }
-          this.glBurst(gl, ax, ay, 0.5, 22, lut, {
-            dir: dir + Math.PI, spread: 1.9, speed: [2.4, 7.6], vz: [1.6, 4.8],
-            life: [0.22, 0.46], size: 2.8, gravZ: -12, bounce: 0.45, shape: ParticleShape.Cuboid,
-          })
-          this.shake(3.4)
-        } else if (pushed) {
-          gl.spawnSolid({
-            kind: SolidKind.Wedge,
-            x0: dest.x, y0: dest.y, z0: 0.32,
-            sx: 0.72, sy: 0.68, sz: 0.44, yaw: dir, dur: 0.3, lut,
-          })
-          for (const side of [-0.45, 0.45]) {
-            gl.spawnSolid({
-              kind: SolidKind.CornerBracket,
-              x0: dest.x, y0: dest.y, z0: 0.45,
-              sx: 0.82, sy: 0.82, sz: 0.35, yaw: dir + side, dur: 0.3, lut,
-            })
-          }
-          this.glBurst(gl, dest.x, dest.y, 0.35, 14, lut, {
-            dir, spread: 0.8, speed: [2.2, 6.4], vz: [1.2, 3.6], life: [0.2, 0.4], size: 2.5, shape: ParticleShape.Cuboid,
-          })
+          this.glTriangleSpray(gl, t.x, t.y, 22 + slot * 3, lut, dir + Math.PI, 2.0, [2.8, 8.2])
+          this.shake(3.0)
         } else {
-          this.glBurst(gl, t.x, t.y, 0.35, 14, lut, {
-            dir, spread: 1.4, speed: [2.2, 6.2], vz: [1.4, 3.8], life: [0.2, 0.4], size: 2.5, shape: ParticleShape.Cuboid,
-          })
+          this.glTriangleSpray(gl, t.x, t.y, 18 + slot * 3, lut, dir, 1.55, [3.0, 8.8])
         }
-        this.ripple(t, bumped ? 4.5 : 3.2)
+        this.ripple(t, bumped ? 4.0 : 2.8)
         this.tag(t, 'FORWARD PASS', col[0], suppressReadout)
       })
       return
     }
 
-    const nx = -Math.sin(dir) * 0.25
-    const ny = Math.cos(dir) * 0.25
-    for (let k = 1; k <= 4; k++) {
-      this.after((at * k) / 4, () => {
-        const pt = lerp(p, t, k / 4)
-        const tip = { x: pt.x + Math.cos(dir) * 0.28, y: pt.y + Math.sin(dir) * 0.28 }
-        const w1 = { x: pt.x - Math.cos(dir) * 0.18 + nx, y: pt.y - Math.sin(dir) * 0.18 + ny }
-        const w2 = { x: pt.x - Math.cos(dir) * 0.18 - nx, y: pt.y - Math.sin(dir) * 0.18 - ny }
-        this.poly([w1, tip, w2], 0.14, col[k === 4 ? 1 : 0], 2.2)
-      })
-    }
+    this.shot(p, t, travelSec, (x, y) => {
+      this.add({ x, y, life: 0.06, size: 5 + slot, color: col[1], type: 'dot' })
+    }, () => {})
     this.after(at, () => {
-      this.burst(t.x, t.y, { n: bumped ? 18 : 10, dir, spread: 1.5, speed: [2, 6], life: [0.18, 0.4], colors: col, size: 3.5, type: 'square' })
-      this.ripple(t, 3.2)
+      this.ring(t, 0.15, 0.85, 0.28, col[0], 2)
+      this.burst(t.x, t.y, { n: 16 + slot * 3, dir: bumped ? dir + Math.PI : dir, spread: 1.6, speed: [2.5, 7], life: [0.22, 0.44], colors: col, size: 4, type: 'triangle' })
+      this.ripple(t, 3.0)
       this.tag(t, 'FORWARD PASS', col[0], suppressReadout)
     })
   }
 
-  // 2. MANHATTAN (VECTOR): 90-degree orthogonal caliper rays + stepped 3D skyscraper monoliths.
+  // 2. MANHATTAN (VECTOR):
+  //   Bg: L-Bend square grid tracing | Main: crisp 90° orthogonal trace pulse | Hit: spray of small triangles.
   private manhattan = ({ fx, p, t, col, lut, at, suppressReadout }: Ctx): void => {
     const gl = this.useGl(false)
     const path: Coord[] = []
@@ -885,58 +921,43 @@ export class AttackFx {
     const slot = Math.max(0, Math.min(3, fx.stepIndex))
 
     if (gl) {
+      // Background: L-Bend square grid tracing on Z = 0
+      path.forEach((cell, i) => {
+        this.after(i * gap, () => {
+          const pt = mid(cell)
+          gl.spawnDecal({ x: pt.x, y: pt.y, radius: 0.54, dur: 0.42, lut, kind: DecalKind.Tile })
+        })
+      })
+      // Main: razor-sharp 90° L-Bend trace
+      const rayDur = Math.max(0.26, at / 1000 + 0.14)
       if (corner) {
         gl.spawnRibbon({
-          ax: p.x, ay: p.y, az: 0.08, cx: (p.x + corner.x) * 0.5, cy: (p.y + corner.y) * 0.5, cz: 0.08,
-          bx: corner.x, by: corner.y, bz: 0.08, width: 0.16, dur: Math.max(0.28, at / 1000 + 0.16),
+          ax: p.x, ay: p.y, az: 0.12, cx: (p.x + corner.x) * 0.5, cy: (p.y + corner.y) * 0.5, cz: 0.12,
+          bx: corner.x, by: corner.y, bz: 0.12, width: 0.15, dur: rayDur,
           lut, style: RibbonStyle.VectorRay, spin: -1,
         })
         gl.spawnRibbon({
-          ax: corner.x, ay: corner.y, az: 0.08, cx: (corner.x + t.x) * 0.5, cy: (corner.y + t.y) * 0.5, cz: 0.08,
-          bx: t.x, by: t.y, bz: 0.08, width: 0.16, dur: Math.max(0.28, at / 1000 + 0.16),
+          ax: corner.x, ay: corner.y, az: 0.12, cx: (corner.x + t.x) * 0.5, cy: (corner.y + t.y) * 0.5, cz: 0.12,
+          bx: t.x, by: t.y, bz: 0.12, width: 0.15, dur: rayDur,
           lut, style: RibbonStyle.VectorRay, spin: -1,
         })
       } else {
         gl.spawnRibbon({
-          ax: p.x, ay: p.y, az: 0.08, cx: (p.x + t.x) * 0.5, cy: (p.y + t.y) * 0.5, cz: 0.08,
-          bx: t.x, by: t.y, bz: 0.08, width: 0.16, dur: Math.max(0.28, at / 1000 + 0.16),
+          ax: p.x, ay: p.y, az: 0.12, cx: (p.x + t.x) * 0.5, cy: (p.y + t.y) * 0.5, cz: 0.12,
+          bx: t.x, by: t.y, bz: 0.12, width: 0.15, dur: rayDur,
           lut, style: RibbonStyle.VectorRay, spin: -1,
         })
       }
-      path.forEach((cell, i) => {
-        this.after(i * gap, () => {
-          const pt = mid(cell)
-          const h = Math.min(4.8, 0.62 + (i + 1) * 0.52 + slot * 0.12)
-          gl.spawnDecal({ x: pt.x, y: pt.y, radius: 0.58, dur: 0.44, lut, kind: DecalKind.Tile })
-          gl.spawnSolid({
-            kind: SolidKind.Monolith,
-            x0: pt.x, y0: pt.y, z0: 0.02,
-            sx: 0.44, sy: 0.44, sz: h,
-            dur: Math.max(0.26, (at - i * gap + 220) / 1000), lut,
-          })
-        })
-      })
       const from = path.length > 1 ? mid(path[path.length - 2]) : p
+      const hitDir = Math.atan2(t.y - from.y, t.x - from.x)
       this.after(at, () => {
-        const hingeYaw = Math.atan2(t.y - from.y, t.x - from.x)
-        const peakH = Math.min(4.6, 0.8 + path.length * 0.48 + slot * 0.14)
-        gl.spawnSolid({
-          kind: SolidKind.Monolith,
-          x0: from.x, y0: from.y, z0: 0.02,
-          sx: 0.48, sy: 0.48, sz: peakH,
-          pitch0: 0, pitch1: 1.42, yaw: hingeYaw, dur: 0.34, lut,
+        gl.spawnDecal({ x: t.x, y: t.y, radius: 0.72, dur: 0.34, lut, kind: DecalKind.Tile })
+        gl.spawnWave({
+          x: t.x, y: t.y, z: 0.28, r0: 0.16, r1: 0.94 + Math.min(0.4, path.length * 0.06),
+          pitchX: 0.4, rollY: 0.15, thickness: 0.11, dur: 0.3, lut, mode: WaveMode.Shock,
         })
-        for (let k = 0; k < 4; k++) {
-          gl.spawnSolid({
-            kind: SolidKind.CornerBracket,
-            x0: t.x, y0: t.y, z0: 0.38, sx: 0.92, sy: 0.92, sz: 0.3, scaleEnd: 0.58,
-            yaw: k * Math.PI * 0.5, dur: 0.3, lut,
-          })
-        }
-        this.glBurst(gl, t.x, t.y, 0.35, 20 + path.length * 3, lut, {
-          speed: [2.0, 6.8], vz: [1.4, 4.4], life: [0.22, 0.48], size: 2.7, curl: 0.4, bounce: 0.42, shape: ParticleShape.Cuboid,
-        })
-        this.ripple(t, 3 + path.length * 0.45)
+        this.glTriangleSpray(gl, t.x, t.y, 18 + Math.min(12, path.length * 2) + slot * 2, lut, hitDir, Math.PI * 2, [2.6, 8.4])
+        this.ripple(t, 2.8 + path.length * 0.4)
         this.tag(t, `L1 = ${path.length}`, col[0], suppressReadout)
       })
       return
@@ -950,13 +971,14 @@ export class AttackFx {
       })
     })
     this.after(at, () => {
-      this.burst(t.x, t.y, { n: 12, speed: [2, 6], life: [0.2, 0.4], colors: col, size: 3.5, type: 'square' })
-      this.ripple(t, 3 + path.length * 0.4)
+      this.burst(t.x, t.y, { n: 18, speed: [2.4, 7], life: [0.2, 0.42], colors: col, size: 4, type: 'triangle' })
+      this.ripple(t, 2.8 + path.length * 0.4)
       this.tag(t, `L1 = ${path.length}`, col[0], suppressReadout)
     })
   }
 
-  // 3. ARRAY (VECTOR): Row-major raster scan + [ ] 3D corner cages + straight tractor dashes.
+  // 3. ARRAY (VECTOR):
+  //   Bg: Row-major square grid scan | Main: clean straight vector tractor gather | Hit: spray of small triangles.
   private arrayScan = ({ fx, p, t, col, lut, at, suppressReadout }: Ctx): void => {
     const gl = this.useGl(false)
     const cells = rangeCells(fx)
@@ -966,11 +988,12 @@ export class AttackFx {
     const slot = Math.max(0, Math.min(3, fx.stepIndex))
 
     if (gl) {
+      // Background: Square Scan across the active footprint
       if (this.firstInAreaStep(fx)) {
         const rows = new Map<number, { minX: number; maxX: number; firstIdx: number }>()
         cells.forEach((cell, i) => {
           this.after(i * 9, () => {
-            gl.spawnDecal({ x: cell.x + 0.5, y: cell.y + 0.5, radius: 0.52, dur: 0.24, lut, kind: DecalKind.Tile })
+            gl.spawnDecal({ x: cell.x + 0.5, y: cell.y + 0.5, radius: 0.52, dur: 0.28, lut, kind: DecalKind.Tile })
           })
           const cur = rows.get(cell.y)
           if (!cur) rows.set(cell.y, { minX: cell.x, maxX: cell.x, firstIdx: i })
@@ -985,58 +1008,33 @@ export class AttackFx {
               ax: span.minX + 0.15, ay: rowY + 0.5, az: 0.08,
               cx: (span.minX + span.maxX + 1) * 0.5, cy: rowY + 0.5, cz: 0.08,
               bx: span.maxX + 0.85, by: rowY + 0.5, bz: 0.08,
-              width: 0.14, dur: 0.22, lut, style: RibbonStyle.VectorRay, spin: -1,
+              width: 0.11, dur: 0.24, lut, style: RibbonStyle.VectorRay, spin: -1,
             })
           })
         }
         this.ripple(p, 2, 4)
       }
 
-      const cageDur = Math.max(0.28, at / 1000 + 0.22)
-      for (let k = 0; k < 4; k++) {
-        gl.spawnSolid({
-          kind: SolidKind.CornerBracket,
-          x0: t.x, y0: t.y, z0: 0.68,
-          x1: pulled ? dest.x : t.x, y1: pulled ? dest.y : t.y, z1: 0.52,
-          sx: 0.88 + slot * 0.05, sy: 0.88 + slot * 0.05, sz: 0.48 + slot * 0.08, scaleEnd: 0.62,
-          yaw: k * Math.PI * 0.5, dur: cageDur, lut,
-        })
-      }
-
+      // Main: straight dashed gather vector ray pulling toward SELF
       const dAng = Math.atan2(t.y - p.y, t.x - p.x)
-      const nx = -Math.sin(dAng) * 0.16
-      const ny = Math.cos(dAng) * 0.16
-      const railOffsets = slot >= 2 ? [-1, 1] : [0]
-      for (const s of railOffsets) {
-        gl.spawnRibbon({
-          ax: p.x + nx * s, ay: p.y + ny * s, az: 0.45,
-          cx: (p.x + t.x) * 0.5 + nx * s, cy: (p.y + t.y) * 0.5 + ny * s, cz: 0.45,
-          bx: t.x + nx * s, by: t.y + ny * s, bz: 0.45,
-          width: 0.22, dur: cageDur, lut, style: RibbonStyle.TractorDash,
-        })
-      }
+      const railDur = Math.max(0.24, at / 1000 + 0.16)
+      gl.spawnRibbon({
+        ax: p.x, ay: p.y, az: 0.38,
+        cx: (p.x + t.x) * 0.5, cy: (p.y + t.y) * 0.5, cz: 0.38,
+        bx: t.x, by: t.y, bz: 0.38,
+        width: 0.16, dur: railDur, lut, style: RibbonStyle.TractorDash,
+      })
 
       this.after(at, () => {
+        const hitPos = pulled ? dest : t
         if (pulled) {
-          for (let k = 0; k < 4; k++) {
-            gl.spawnSolid({
-              kind: SolidKind.CornerBracket,
-              x0: t.x, y0: t.y, z0: 0.06,
-              sx: 0.86, sy: 0.86, sz: 0.18, yaw: k * Math.PI * 0.5, wireOnly: 1, dur: 0.34, lut,
-            })
-          }
-        } else if (bumped) {
-          const tx = dest.x + (p.x - dest.x) * 0.15
-          const ty = dest.y + (p.y - dest.y) * 0.15
-          gl.spawnSolid({
-            kind: SolidKind.Monolith,
-            x0: tx, y0: ty, z0: 0.02,
-            sx: 0.14, sy: 0.92, sz: 1.25, yaw: dAng, dur: 0.3, lut,
-          })
+          gl.spawnDecal({ x: t.x, y: t.y, radius: 0.54, dur: 0.32, lut, kind: DecalKind.Tile })
         }
-        this.glBurst(gl, pulled ? dest.x : t.x, pulled ? dest.y : t.y, 0.35, 16, lut, {
-          dir: dAng + Math.PI, spread: 1.4, speed: [2.0, 6.2], vz: [1.0, 3.4], life: [0.22, 0.46], size: 2.5, shape: ParticleShape.Cuboid,
+        gl.spawnWave({
+          x: hitPos.x, y: hitPos.y, z: 0.3, r0: 0.65, r1: 0.16,
+          pitchX: 0.38, rollY: 0, thickness: 0.1, dur: 0.26, lut, mode: WaveMode.Slice,
         })
+        this.glTriangleSpray(gl, hitPos.x, hitPos.y, 18 + slot * 3, lut, dAng + Math.PI, bumped ? 2.2 : 1.75, [3.2, 9.4])
         this.ripple(t, 2.5)
         this.tag(t, `[${fx.target.y.toString(16).toUpperCase()}][${fx.target.x.toString(16).toUpperCase()}]`, col[0], suppressReadout)
       })
@@ -1044,94 +1042,82 @@ export class AttackFx {
     }
 
     if (this.firstInAreaStep(fx)) {
-      cells.forEach((cell, i) => this.after(i * 9, () => this.lit(cell.x, cell.y, col[0], 0.16, 0.2)))
+      cells.forEach((cell, i) => this.after(i * 9, () => this.lit(cell.x, cell.y, col[0], 0.16, 0.22)))
       this.ripple(p, 2, 4)
     }
     this.beam(p, t, Math.max(0.24, at / 1000 + 0.12), col[0], 2)
     this.after(at, () => {
-      this.burst(t.x, t.y, { n: 8, speed: [1.5, 5], life: [0.18, 0.36], colors: col, size: 3.5, type: 'square' })
+      this.burst(t.x, t.y, { n: 16, speed: [2, 6.5], life: [0.2, 0.4], colors: col, size: 4, type: 'triangle' })
       this.tag(t, `[${fx.target.y.toString(16).toUpperCase()}][${fx.target.x.toString(16).toUpperCase()}]`, col[0], suppressReadout)
     })
   }
 
-  // 4. ZERO (VECTOR): 0 ms twin-rail hitscan + extruded 3D Ø null-glyph + sheared hex armor plates.
-  private zeroShot = (c: Ctx): void => {
-    const { fx, p, t, col, lut, dir, suppressReadout } = c
+  // 4. MANIFOLD (VECTOR, renamed from ZERO):
+  //   Bg: phase-lattice floor spill | Main: spreading high-dimensional manifold waves | Hit: spray of small triangles.
+  private manifoldWave = (c: Ctx): void => {
+    const { fx, p, t, col, lut, dir, at, suppressReadout } = c
     const gl = this.useGl(false)
     const slot = Math.max(0, Math.min(3, fx.stepIndex))
-    const overshootLen = 2.5 + slot * 0.4
-    const overshoot = { x: t.x + Math.cos(dir) * overshootLen, y: t.y + Math.sin(dir) * overshootLen }
+    const dist = Math.max(1.2, Math.hypot(t.x - p.x, t.y - p.y))
     const armored = (fx.securityBefore ?? 0) > 0 || (fx.absorbed ?? 0) > 0
     const breached = fx.events?.includes('BREACH') ?? false
+    const waveDur = Math.max(0.24, at / 1000 + 0.12)
 
     if (gl) {
-      gl.spawnRibbon({
-        ax: p.x, ay: p.y, az: 0.56,
-        cx: (p.x + overshoot.x) * 0.5, cy: (p.y + overshoot.y) * 0.5, cz: 0.56,
-        bx: overshoot.x, by: overshoot.y, bz: 0.56,
-        width: 0.36 + slot * 0.04, dur: 0.34, lut, style: RibbonStyle.TwinHitscan,
+      // Subtle phase-lattice floor spill beneath SELF
+      gl.spawnDecal({ x: p.x, y: p.y, radius: Math.min(3.5, dist + 0.8), dur: waveDur + 0.16, lut, kind: DecalKind.Spill })
+      // Main: high-dimensional folded wavefronts spreading outward around SELF to strike Enemies
+      const rings: Array<[number, number, number, number]> = [
+        [0.24, -0.18, 0.42, 0.26],
+        [-0.32, 0.28, 0.62, 0.20],
+        ...(slot >= 2 ? [[0.14, 0.44, 0.82, 0.16] as [number, number, number, number]] : []),
+      ]
+      rings.forEach(([px, ry, z, thick], idx) => {
+        this.after(idx * 45, () => {
+          gl.spawnWave({
+            x: p.x, y: p.y, z, r0: 0.28, r1: dist + 1.05 + idx * 0.22,
+            pitchX: px, rollY: ry, thickness: thick, dur: waveDur, lut, mode: WaveMode.Manifold,
+          })
+        })
       })
-      const cut = 0.78 + slot * 0.08
-      gl.spawnRibbon({
-        ax: t.x - cut, ay: t.y - cut, az: 0.85,
-        cx: t.x, cy: t.y, cz: 0.85,
-        bx: t.x + cut, by: t.y + cut, bz: 0.85,
-        width: 0.14, dur: 0.32, lut: LutRow.Probe, style: RibbonStyle.VectorRay, spin: -1,
-      })
-      gl.spawnSolid({
-        kind: SolidKind.NullGlyph,
-        x0: t.x, y0: t.y, z0: 0.88,
-        sx: 1.05 + slot * 0.09, sy: 1.05 + slot * 0.09, sz: 0.92,
-        dur: 0.38, lut,
-      })
+      this.ripple(p, 2.4, Math.min(6, dist + 1.5))
 
-      if (armored) {
-        for (const s of [-1, 1]) {
-          const ang = dir + s * (Math.PI * 0.35)
-          gl.spawnSolid({
-            kind: SolidKind.HexPlate,
-            x0: t.x + Math.cos(ang) * 0.25, y0: t.y + Math.sin(ang) * 0.25, z0: 0.48,
-            x1: t.x + Math.cos(ang) * 1.15, y1: t.y + Math.sin(ang) * 1.15, z1: 0.08,
-            sx: 0.52, sy: 0.52, sz: 0.52, scaleEnd: 0.65, yaw: ang, spin: s * 5.2,
-            pitch0: 0.35 * s, pitch1: 0.08, dur: 0.42, lut: LutRow.Probe,
-          })
-        }
-      }
-      if (breached) {
-        for (let k = 0; k < 6; k++) {
-          const ang = (k / 6) * Math.PI * 2 + 0.2
-          gl.spawnSolid({
-            kind: SolidKind.HexPlate,
-            x0: t.x + Math.cos(ang) * 0.32, y0: t.y + Math.sin(ang) * 0.32, z0: 0.55,
-            x1: t.x + Math.cos(ang) * 1.65, y1: t.y + Math.sin(ang) * 1.65, z1: 0.06,
-            sx: 0.44, sy: 0.44, sz: 0.44, scaleEnd: 0.4, yaw: ang, spin: 6.0,
-            pitch0: 0.85, pitch1: 0.1, dur: 0.46, lut,
-          })
-        }
-        this.glBurst(gl, t.x, t.y, 0.5, 24, lut, {
-          speed: [3.2, 10.5], vz: [1.8, 5.2], life: [0.24, 0.54], size: 2.8, bounce: 0.44, shape: ParticleShape.Cuboid,
+      this.after(at, () => {
+        gl.spawnWave({
+          x: t.x, y: t.y, z: 0.45, r0: 0.18, r1: 1.25 + slot * 0.12,
+          pitchX: 0.36, rollY: -0.22, thickness: 0.16, dur: 0.32, lut, mode: WaveMode.Manifold,
         })
-      } else {
-        this.glBurst(gl, t.x, t.y, 0.48, 16, lut, {
-          dir, spread: 0.5, speed: [5, 14], vz: [1.0, 3.6], life: [0.2, 0.46], size: 2.4, bounce: 0.42, shape: ParticleShape.Cuboid,
-        })
-      }
-      this.ripple(t, breached ? 4.4 : 3.2)
-      this.tag(t, '0-SHOT', col[0], suppressReadout)
+        if (armored || breached) {
+          const count = breached ? 6 : 2
+          for (let k = 0; k < count; k++) {
+            const ang = breached ? (k / 6) * Math.PI * 2 + 0.2 : dir + (k === 0 ? -1 : 1) * (Math.PI * 0.35)
+            gl.spawnSolid({
+              kind: SolidKind.HexPlate,
+              x0: t.x + Math.cos(ang) * 0.28, y0: t.y + Math.sin(ang) * 0.28, z0: 0.46,
+              x1: t.x + Math.cos(ang) * 1.25, y1: t.y + Math.sin(ang) * 1.25, z1: 0.08,
+              sx: 0.44, sy: 0.44, sz: 0.35, scaleEnd: 0.5, yaw: ang, spin: 5.0,
+              pitch0: 0.45, pitch1: 0.08, wireOnly: 0.72, dur: 0.38, lut: breached ? lut : LutRow.Probe,
+            })
+          }
+        }
+        this.glTriangleSpray(gl, t.x, t.y, 20 + slot * 3, lut, dir, Math.PI * 2, [3.0, 9.6])
+        this.ripple(t, breached ? 4.4 : 3.2)
+        this.tag(t, 'MANIFOLD', col[0], suppressReadout)
+      })
       return
     }
 
-    const nx = -Math.sin(dir) * 0.09
-    const ny = Math.cos(dir) * 0.09
-    this.beam({ x: p.x + nx, y: p.y + ny }, { x: overshoot.x + nx, y: overshoot.y + ny }, 0.24, col[1], 1.5)
-    this.beam({ x: p.x - nx, y: p.y - ny }, { x: overshoot.x - nx, y: overshoot.y - ny }, 0.24, col[0], 1.5)
-    this.poly([{ x: t.x - 0.38, y: t.y - 0.38 }, { x: t.x + 0.38, y: t.y + 0.38 }], 0.3, col[1], 2)
-    this.burst(t.x, t.y, { n: 18, dir, spread: 0.6, speed: [5, 13], life: [0.2, 0.45], colors: col, size: 3.5, type: 'square' })
-    this.ripple(t, 3)
-    this.tag(t, '0-SHOT', col[0], suppressReadout)
+    this.ring(p, 0.25, dist + 0.8, waveDur, col[0], 2.2)
+    this.ring(p, 0.2, dist + 0.5, waveDur * 0.9, col[1], 1.4)
+    this.after(at, () => {
+      this.burst(t.x, t.y, { n: 20, speed: [2.5, 8], life: [0.22, 0.46], colors: col, size: 4, type: 'triangle' })
+      this.ripple(t, 3.2)
+      this.tag(t, 'MANIFOLD', col[0], suppressReadout)
+    })
   }
 
-  // 5. OFF (CoT): Undulating gossamer silk filaments + quenched cold charcoal smoke clouds.
+  // 5. OFF (CoT):
+  //   Bg: wide low-opacity cool mist | Main: semi-transparent flowing plasma tendrils | Hit: plasma crescent & sharp wisps.
   private dropout = ({ fx, p, t, col, lut, dir, at, suppressReadout }: Ctx): void => {
     const gl = this.useGl(false)
     const slot = Math.max(0, Math.min(3, fx.stepIndex))
@@ -1144,66 +1130,69 @@ export class AttackFx {
     const dropTriggered = fx.events?.includes('DROP') ?? false
 
     if (gl) {
-      for (const f of [0.35, 0.72]) {
+      // Background: wide, low-opacity mist framing the corridor
+      for (const f of [0.32, 0.7]) {
         const mp = lerp(p, t, f)
         gl.spawnCloud({
-          x: mp.x, y: mp.y, z: 0.65, vz: 0.45, radius: 0.75, endRadius: 1.35,
-          dur: Math.max(0.28, at / 1000 + 0.14), lut, mode: CloudMode.Mist,
+          x: mp.x, y: mp.y, z: 0.45, vz: 0.28, radius: 1.45, endRadius: 2.15,
+          dur: Math.max(0.36, at / 1000 + 0.22), lut, mode: CloudMode.Mist,
         })
       }
+      // Main: semi-transparent flowing plasma tendrils
       for (let i = 0; i < units; i++) {
         const side = (i - (units - 1) / 2) * 0.24
         const a = { x: p.x + nx * side, y: p.y + ny * side }
-        const b = { x: t.x + nx * side * 0.42, y: t.y + ny * side * 0.42 }
+        const b = { x: t.x + nx * side * 0.36, y: t.y + ny * side * 0.36 }
         const cutAt = rnd(0.34, 0.72)
         if (dropped.has(i)) {
           const dp = lerp(a, b, cutAt)
           gl.spawnRibbon({
-            ax: a.x, ay: a.y, az: 0.42,
-            cx: (a.x + dp.x) * 0.5 + nx * side * 0.5, cy: (a.y + dp.y) * 0.5 + ny * side * 0.5, cz: 1.55,
-            bx: dp.x, by: dp.y, bz: 1.15,
-            width: 0.24, dur: Math.max(0.14, (at / 1000) * cutAt),
-            lut, style: RibbonStyle.SilkMist,
+            ax: a.x, ay: a.y, az: 0.35,
+            cx: (a.x + dp.x) * 0.5 + nx * side * 0.55, cy: (a.y + dp.y) * 0.5 + ny * side * 0.55, cz: 1.5,
+            bx: dp.x, by: dp.y, bz: 1.0,
+            width: 0.26, dur: Math.max(0.16, (at / 1000) * cutAt + 0.04),
+            lut, style: RibbonStyle.PlasmaFlame,
           })
           this.after(at * cutAt, () => {
-            for (let s = 0; s < 3; s++) {
-              gl.spawnCloud({
-                x: dp.x + rnd(-0.18, 0.18), y: dp.y + rnd(-0.18, 0.18), z: 1.1 + s * 0.18,
-                vx: Math.cos(dir) * 0.55 + rnd(-0.3, 0.3), vy: Math.sin(dir) * 0.55 + rnd(-0.3, 0.3), vz: rnd(1.1, 2.2),
-                radius: 0.44, endRadius: 1.05, dur: 0.68, lut, mode: CloudMode.Mist, dark: true,
-              })
-            }
+            gl.spawnCloud({
+              x: dp.x, y: dp.y, z: 1.0,
+              vx: Math.cos(dir) * 0.4, vy: Math.sin(dir) * 0.4, vz: 0.9,
+              radius: 0.5, endRadius: 0.95, dur: 0.52, lut, mode: CloudMode.Mist, dark: true,
+            })
           })
         } else {
           gl.spawnRibbon({
-            ax: a.x, ay: a.y, az: 0.42,
-            cx: (a.x + b.x) * 0.5 + nx * side * 0.6, cy: (a.y + b.y) * 0.5 + ny * side * 0.6, cz: 1.85,
-            bx: b.x, by: b.y, bz: 0.5,
-            width: 0.28, dur: Math.max(0.18, at / 1000 + 0.06),
-            lut, style: RibbonStyle.SilkMist,
+            ax: a.x, ay: a.y, az: 0.35,
+            cx: (a.x + b.x) * 0.5 + nx * side * 0.65, cy: (a.y + b.y) * 0.5 + ny * side * 0.65, cz: 1.85,
+            bx: b.x, by: b.y, bz: 0.45,
+            width: 0.34, dur: Math.max(0.22, at / 1000 + 0.1),
+            lut, style: RibbonStyle.PlasmaFlame,
           })
         }
       }
       this.after(at, () => {
         if (kept > 0) {
-          gl.spawnCloud({
-            x: t.x, y: t.y, z: 0.65, vz: 0.5, radius: 0.85, endRadius: 0.42, dur: 0.38, lut, mode: CloudMode.Mist,
+          gl.spawnWave({
+            x: t.x, y: t.y, z: 0.42, r0: 0.18, r1: 0.98 + kept * 0.08,
+            pitchX: 0.48, rollY: -0.22, thickness: 0.12, dur: 0.34, lut, mode: WaveMode.Slice,
           })
-          this.glBurst(gl, t.x, t.y, 0.5, 10 + kept * 3, lut, {
-            speed: [0.4, 2.2], vz: [0.8, 2.6], life: [0.35, 0.72], size: 2.8, drag: 1.8, gravZ: 1.2, curl: 4.5, bounce: 0, shape: ParticleShape.Mote,
-          })
-          this.ripple(t, 1.2 + kept * 0.5)
-        }
-        if (dropTriggered) {
-          for (let q = 0; q < 3; q++) {
-            gl.spawnCloud({
-              x: t.x + rnd(-0.22, 0.22), y: t.y + rnd(-0.22, 0.22), z: 1.55 - q * 0.28,
-              vz: -0.95, radius: 1.25, endRadius: 0.62, dur: 0.56, lut, mode: CloudMode.Mist, dark: true,
+          for (let f = 0; f < 2; f++) {
+            const fang = dir + (f === 0 ? -0.6 : 0.6)
+            gl.spawnRibbon({
+              ax: t.x, ay: t.y, az: 0.42,
+              cx: t.x + Math.cos(fang) * 0.55, cy: t.y + Math.sin(fang) * 0.55, cz: 0.95,
+              bx: t.x + Math.cos(fang) * 1.1, by: t.y + Math.sin(fang) * 1.1, bz: 0.6,
+              width: 0.3, dur: 0.34, lut, style: RibbonStyle.PlasmaFlame,
             })
           }
+          this.glBurst(gl, t.x, t.y, 0.48, 8 + kept * 2, lut, {
+            dir, spread: 2.0, speed: [2.2, 6.4], vz: [1.0, 3.2], life: [0.24, 0.46], size: 2.3, drag: 2.2, gravZ: -4.0, curl: 3.5, bounce: 0, shape: ParticleShape.Spark,
+          })
+          this.ripple(t, 1.4 + kept * 0.4)
+        }
+        if (dropTriggered) {
           gl.spawnCloud({
-            x: t.x, y: t.y, z: 0.45, vz: 1.85, radius: 0.55, endRadius: 1.25,
-            dur: 0.64, lut: LutRow.Probe, mode: CloudMode.Mist,
+            x: t.x, y: t.y, z: 0.85, vz: -0.5, radius: 1.4, endRadius: 0.85, dur: 0.55, lut, mode: CloudMode.Mist, dark: true,
           })
         }
         this.tag(t, `DROPOUT ${kept}/${units} KEPT`, kept ? col[0] : '#8d8b85', suppressReadout)
@@ -1221,67 +1210,88 @@ export class AttackFx {
         if (dropped.has(i) && f > cutAt) {
           if (gone) return
           gone = true
-          this.burst(x, y, { n: 5, speed: [0.4, 1.8], life: [0.35, 0.65], colors: ['#777777', '#555555'], drag: 2.2, grav: -2.4, type: 'dot' })
+          this.burst(x, y, { n: 4, speed: [0.5, 1.8], life: [0.25, 0.5], colors: ['#777777', '#555555'], drag: 2.4 })
           return
         }
-        this.add({ x, y, life: 0.06, size: 2.4, color: col[0], type: 'dot' })
-      }, () => {
-        if (!dropped.has(i)) this.burst(b.x, b.y, { n: 5, speed: [0.5, 2.5], life: [0.25, 0.5], colors: col, size: 2, type: 'dot' })
-      })
+        this.add({ x, y, life: 0.06, size: 2.2, color: col[0], type: 'spark' })
+      }, () => {})
     }
     this.after(at, () => {
-      if (kept) this.ring(t, 0.15, 0.8 + kept * 0.14, 0.4, col[0], 2)
+      if (kept) {
+        this.ring(t, 0.15, 0.8 + kept * 0.12, 0.36, col[0], 2)
+        this.burst(t.x, t.y, { n: 10, speed: [2, 6], life: [0.22, 0.44], colors: col, type: 'spark' })
+      }
       this.tag(t, `DROPOUT ${kept}/${units} KEPT`, kept ? col[0] : '#8d8b85', suppressReadout)
     })
   }
 
-  // 6. ON (CoT): Unbroken liquid-light dendrite stream -> volumetric nebula blossom + breathing corona halo.
+  // 6. ON (CoT):
+  //   Bg: soft ionized mist corridor | Main: relay gimbals + flowing plasma-flame stream | Hit: Fresnel shell + plasma flare tongues.
   private neuronOn = (c: Ctx): void => {
-    const { fx, p, t, col, lut, at, suppressReadout } = c
+    const { fx, p, t, col, lut, dir, at, suppressReadout } = c
     const gl = this.useGl(false)
     const slot = Math.max(0, Math.min(3, fx.stepIndex))
     const mx = (p.x + t.x) * 0.5
     const my = (p.y + t.y) * 0.5
     const dealt = fx.dealt ?? fx.amount ?? 0
+    const nx = -Math.sin(dir)
+    const ny = Math.cos(dir)
 
     if (gl) {
-      gl.spawnRibbon({
-        ax: p.x, ay: p.y, az: 0.48, cx: mx, cy: my, cz: 1.55,
-        bx: t.x, by: t.y, bz: 0.55, width: 0.28 + slot * 0.04, dur: 0.46, lut, style: RibbonStyle.SilkMist,
-      })
-      gl.spawnRibbon({
-        ax: p.x, ay: p.y, az: 0.48, cx: mx, cy: my, cz: 1.55,
-        bx: t.x, by: t.y, bz: 0.55, width: 0.72 + slot * 0.08, dur: 0.5, lut, style: RibbonStyle.SilkMist,
-      })
-      for (const f of [0.25, 0.5, 0.75]) {
+      // Background: wide soft ionized mist bed
+      for (const f of [0.28, 0.68]) {
         const pt = lerp(p, t, f)
-        this.after(f * (at - 30), () => {
-          gl.spawnCloud({
-            x: pt.x, y: pt.y, z: 0.55 + Math.sin(f * Math.PI) * 0.65,
-            vz: 0.45, radius: 0.45, endRadius: 0.95, dur: 0.4, lut, mode: CloudMode.Mist,
+        gl.spawnCloud({
+          x: pt.x, y: pt.y, z: 0.38, vz: 0.25, radius: 1.4, endRadius: 2.0,
+          dur: 0.56, lut, mode: CloudMode.Mist,
+        })
+      }
+      // Main: relay pulses + sinuous semi-transparent flowing plasma stream (from 740b8b3 lineage)
+      for (let i = 1; i <= 4; i++) {
+        this.after((i * (at - 30)) / 4, () => {
+          const pt = lerp(p, t, i / 4)
+          gl.spawnWave({
+            x: pt.x, y: pt.y, z: 0.35 + i * 0.18, r0: 0.08, r1: 0.42,
+            pitchX: 0.45, rollY: i * 0.35, thickness: 0.07, dur: 0.28, lut, mode: WaveMode.Gimbal,
           })
         })
       }
+      gl.spawnRibbon({
+        ax: p.x, ay: p.y, az: 0.45,
+        cx: mx + nx * 0.28, cy: my + ny * 0.28, cz: 1.45,
+        bx: t.x, by: t.y, bz: 0.52,
+        width: 0.42 + slot * 0.05, dur: 0.46, lut, style: RibbonStyle.PlasmaFlame,
+      })
+      gl.spawnRibbon({
+        ax: p.x, ay: p.y, az: 0.45,
+        cx: mx - nx * 0.24, cy: my - ny * 0.24, cz: 1.25,
+        bx: t.x, by: t.y, bz: 0.52,
+        width: 0.22 + slot * 0.03, dur: 0.48, lut: LutRow.Probe, style: RibbonStyle.PlasmaFlame,
+      })
       this.after(at, () => {
         if (dealt > 0) {
-          for (let k = 0; k < 4; k++) {
-            gl.spawnCloud({
-              x: t.x + rnd(-0.22, 0.22), y: t.y + rnd(-0.22, 0.22), z: 0.45 + k * 0.34,
-              vz: 0.65 + k * 0.18, radius: 0.48, endRadius: 1.15 + slot * 0.1, dur: 0.62, lut, mode: CloudMode.Mist,
+          gl.spawnDome({ x: t.x, y: t.y, z: 0.48, r0: 0.2, r1: 0.78 + slot * 0.06, dur: 0.42, lut })
+          gl.spawnWave({
+            x: t.x, y: t.y, z: 0.72, r0: 1.25, r1: 0.38,
+            pitchX: 0.54, rollY: -0.28, thickness: 0.12, dur: 0.42, lut, mode: WaveMode.Gimbal,
+          })
+          for (let k = 0; k < 3; k++) {
+            const ang = (k / 3) * Math.PI * 2 + dir
+            gl.spawnRibbon({
+              ax: t.x, ay: t.y, az: 0.48,
+              cx: t.x + Math.cos(ang) * 0.62, cy: t.y + Math.sin(ang) * 0.62, cz: 1.15,
+              bx: t.x + Math.cos(ang) * 1.15, by: t.y + Math.sin(ang) * 1.15, bz: 0.55,
+              width: 0.32, dur: 0.36, lut, style: RibbonStyle.PlasmaFlame,
             })
           }
-          gl.spawnCloud({
-            x: t.x, y: t.y, z: 0.38, radius: 0.35, endRadius: 1.3 + slot * 0.14,
-            dur: 0.68, lut, mode: CloudMode.Corona,
-          })
-          this.glBurst(gl, t.x, t.y, 0.55, 26 + slot * 6, lut, {
-            speed: [0.3, 1.8], vz: [1.0, 2.8], life: [0.55, 1.05], size: 2.8, drag: 1.6, gravZ: 1.8, curl: 5.5, bounce: 0, shape: ParticleShape.Mote,
+          this.glBurst(gl, t.x, t.y, 0.5, 12 + slot * 3, lut, {
+            dir: dir + Math.PI, spread: 2.2, speed: [2.2, 6.8], vz: [1.4, 4.2], life: [0.24, 0.48], size: 2.4, drag: 2.2, curl: 3.4, bounce: 0.35, shape: ParticleShape.Spark,
           })
         } else {
           for (const s of [-1, 1]) {
             gl.spawnCloud({
-              x: t.x, y: t.y, z: 0.6, vx: s * 1.4, vy: -s * 0.6, vz: 0.4,
-              radius: 0.48, endRadius: 0.85, dur: 0.38, lut, mode: CloudMode.Mist,
+              x: t.x, y: t.y, z: 0.55, vx: s * 1.2, vy: -s * 0.5, vz: 0.35,
+              radius: 0.6, endRadius: 1.05, dur: 0.38, lut, mode: CloudMode.Mist,
             })
           }
         }
@@ -1291,24 +1301,26 @@ export class AttackFx {
       return
     }
 
-    this.beam(p, t, 0.4, col[0], 2.5)
+    this.beam(p, t, 0.36, col[0], 2.5)
     this.after(at, () => {
       if (dealt > 0) {
-        this.ring(t, 0.25, 1.2, 0.55, col[0], 2)
-        this.burst(t.x, t.y, { n: 14, speed: [0.4, 2.4], life: [0.4, 0.9], colors: col, size: 2, drag: 2, grav: -2.2, type: 'dot' })
+        this.ring(t, 0.22, 1.1, 0.45, col[0], 2)
+        this.burst(t.x, t.y, { n: 14, speed: [1.8, 5.5], life: [0.25, 0.55], colors: col, size: 2, type: 'spark' })
       }
       this.ripple(t, 2.5)
       this.tag(t, dealt > 0 ? 'ACTIVE' : 'DAMPENED', col[0], suppressReadout)
     })
   }
 
-  // 7. HIGH (CoT): Wide volumetric thermal fog bank + sinuous SPREAD heat-bridges + convection plumes.
+  // 7. HIGH (CoT):
+  //   Bg: wide thermal background mist | Main: flowing solar-plasma arcs + SPREAD bridges | Hit: spiraling semi-transparent plasma vortex column.
   private temperature = ({ fx, p, t, col, lut, at, board, suppressReadout }: Ctx): void => {
     const gl = this.useGl(false)
     const slot = Math.max(0, Math.min(3, fx.stepIndex))
     const cells = rangeCells(fx)
 
     if (gl) {
+      // Background: wide low-opacity thermal mist across the footprint
       if (this.firstInAreaStep(fx)) {
         const stride = cells.length > 36 ? 3 : 2
         for (let i = 0; i < cells.length; i += stride) {
@@ -1316,50 +1328,51 @@ export class AttackFx {
           const delay = Math.min(140, (Math.abs(cell.x - fx.origin.x) + Math.abs(cell.y - fx.origin.y)) * 18)
           this.after(delay, () => {
             gl.spawnCloud({
-              x: cell.x + 0.5, y: cell.y + 0.5, z: 0.45 + rnd(0, 0.45),
-              vz: rnd(0.2, 0.65), radius: 0.88, endRadius: 1.48, dur: 0.56, lut, mode: CloudMode.Mist,
+              x: cell.x + 0.5, y: cell.y + 0.5, z: 0.35 + rnd(0, 0.25),
+              vz: 0.25, radius: 1.25, endRadius: 1.85, dur: 0.62, lut, mode: CloudMode.Mist,
             })
           })
         }
       }
 
+      // Main: flowing solar-plasma flame arc + SPREAD heat-bridges between targets
+      gl.spawnRibbon({
+        ax: p.x, ay: p.y, az: 0.45,
+        cx: (p.x + t.x) * 0.5, cy: (p.y + t.y) * 0.5, cz: 1.65,
+        bx: t.x, by: t.y, bz: 0.45, width: 0.38, dur: 0.42, lut, style: RibbonStyle.PlasmaFlame,
+      })
       const peers = board?.peers ?? []
-      let bridged = false
       for (const peer of peers) {
         if (peer.x === fx.target.x && peer.y === fx.target.y) continue
         const pm = mid(peer)
         gl.spawnRibbon({
-          ax: t.x, ay: t.y, az: 0.65,
+          ax: t.x, ay: t.y, az: 0.55,
           cx: (t.x + pm.x) * 0.5, cy: (t.y + pm.y) * 0.5, cz: 1.85,
-          bx: pm.x, by: pm.y, bz: 0.65, width: 0.36, dur: 0.48, lut, style: RibbonStyle.SilkMist,
-        })
-        bridged = true
-      }
-      if (!bridged) {
-        gl.spawnRibbon({
-          ax: p.x, ay: p.y, az: 0.55,
-          cx: (p.x + t.x) * 0.5, cy: (p.y + t.y) * 0.5, cz: 1.5,
-          bx: t.x, by: t.y, bz: 0.55, width: 0.32, dur: 0.4, lut, style: RibbonStyle.SilkMist,
+          bx: pm.x, by: pm.y, bz: 0.55, width: 0.34, dur: 0.46, lut, style: RibbonStyle.PlasmaFlame,
         })
       }
 
+      // Hit: contracting gimbal -> spiraling semi-transparent plasma-flame vortex column
+      gl.spawnWave({ x: t.x, y: t.y, z: 0.5, r0: 1.4, r1: 0.28, pitchX: 0.48, rollY: 0.2, thickness: 0.12, dur: Math.max(0.16, at / 1000), lut, mode: WaveMode.Gimbal })
       this.after(at, () => {
-        const plumeH = 2.2 + slot * 1.1
+        const plumeH = 2.4 + slot * 0.9
         gl.spawnCloud({
-          x: t.x, y: t.y, z: 0.15, radius: 0.68, endRadius: 1.05 + slot * 0.14,
-          height: plumeH, dur: 0.58, lut, mode: CloudMode.Plume,
+          x: t.x, y: t.y, z: 0.15, radius: 0.58, endRadius: 0.92 + slot * 0.1,
+          height: plumeH, dur: 0.54, lut, mode: CloudMode.Plume,
         })
-        gl.spawnCloud({
-          x: t.x, y: t.y, z: 0.25, radius: 0.4, endRadius: 1.85, dur: 0.56, lut, mode: CloudMode.Corona,
-        })
-        for (let k = 0; k < 3; k++) {
-          gl.spawnCloud({
-            x: t.x + rnd(-0.25, 0.25), y: t.y + rnd(-0.25, 0.25), z: 0.8 + k * 0.6,
-            vz: 1.8 + k * 0.4, radius: 0.62, endRadius: 1.35, dur: 0.62, lut, mode: CloudMode.Mist,
+        const helices = slot >= 2 ? 3 : 2
+        for (let k = 0; k < helices; k++) {
+          const ang = (k / helices) * Math.PI * 2
+          gl.spawnRibbon({
+            ax: t.x + Math.cos(ang) * 0.38, ay: t.y + Math.sin(ang) * 0.38, az: 0.18,
+            cx: t.x + Math.cos(ang + 2.0) * 0.65, cy: t.y + Math.sin(ang + 2.0) * 0.65, cz: plumeH * 0.55,
+            bx: t.x + Math.cos(ang + 4.0) * 0.22, by: t.y + Math.sin(ang + 4.0) * 0.22, bz: plumeH,
+            width: 0.36, dur: 0.5, lut, style: RibbonStyle.PlasmaFlame,
           })
         }
-        this.glBurst(gl, t.x, t.y, 0.35, 36 + slot * 12, lut, {
-          speed: [0.8, 3.6], vz: [3.8, 8.8], life: [0.55, 1.15], size: 2.9, drag: 1.8, gravZ: 3.2, curl: 14, bounce: 0, shape: ParticleShape.Mote,
+        gl.spawnWave({ x: t.x, y: t.y, z: 0.32, r0: 0.2, r1: 1.65, pitchX: 0.46, rollY: -0.22, thickness: 0.18, dur: 0.44, lut, mode: WaveMode.Shock })
+        this.glBurst(gl, t.x, t.y, 0.35, 12 + slot * 4, lut, {
+          speed: [1.0, 3.8], vz: [4.2, 9.5], life: [0.35, 0.68], size: 2.6, drag: 1.8, gravZ: 3.4, curl: 11, bounce: 0, shape: ParticleShape.Spark,
         })
         this.ripple(t, 5)
         this.tag(t, 'T = 2.0', col[0], suppressReadout)
@@ -1375,10 +1388,10 @@ export class AttackFx {
     }
     this.after(at, () => {
       this.ring(t, 0.2, 1.5, 0.48, col[0], 3)
-      for (let k = 0; k < 32; k++) {
+      for (let k = 0; k < 20; k++) {
         this.add({
           x: t.x + rnd(-0.2, 0.2), y: t.y + rnd(-0.2, 0.2),
-          vx: rnd(-1.5, 1.5), vy: rnd(-5.5, -1.5), life: rnd(0.45, 0.95), size: 2.2, color: col[k % 2], drag: 2, jit: 18, type: 'dot',
+          vx: rnd(-1.5, 1.5), vy: rnd(-5.5, -1.5), life: rnd(0.35, 0.75), size: 2.2, color: col[k % 2], drag: 2, jit: 14, type: 'spark',
         })
       }
       this.ripple(t, 5)
@@ -1386,7 +1399,8 @@ export class AttackFx {
     })
   }
 
-  // 8. ULTRA (CoT): Storm-cloud singularity + 0-3 tag-siphon mist streams -> aurora-plasma river + rolling cloud wakes.
+  // 8. ULTRA (CoT):
+  //   Bg: wide atmospheric nebula mist | Main: ink-void orb + 3 accretion rings -> semi-transparent aurora-plasma flame river | Hit: dual shock crowns + radial plasma flare tongues.
   private ultra = ({ fx, p, t, col, lut, dir, at, suppressReadout }: Ctx): void => {
     const gl = this.useGl(false)
     const slot = Math.max(0, Math.min(3, fx.stepIndex))
@@ -1397,78 +1411,74 @@ export class AttackFx {
     const ny = Math.cos(dir)
 
     if (gl) {
-      gl.spawnDome({ x: p.x, y: p.y, z: 1.6, r0: 0.2, r1: 0.88, dur: 0.36, lut, voidOrb: true })
-      for (let k = 0; k < 3; k++) {
-        const ang = (k / 3) * Math.PI * 2
-        gl.spawnCloud({
-          x: p.x + Math.cos(ang) * 0.55, y: p.y + Math.sin(ang) * 0.55, z: 1.55,
-          vx: -Math.cos(ang) * 0.65, vy: -Math.sin(ang) * 0.65,
-          radius: 0.85, endRadius: 0.45, dur: 0.36, lut, mode: CloudMode.Mist, dark: true,
-        })
-      }
-      for (let k = 0; k < 2; k++) {
-        gl.spawnCloud({
-          x: p.x, y: p.y, z: 1.6, radius: 1.15, endRadius: 0.65, dur: 0.36, lut, mode: CloudMode.Mist,
-        })
-      }
+      // Background: wide atmospheric nebula mist around SELF
+      gl.spawnCloud({
+        x: p.x, y: p.y, z: 1.35, radius: 1.5, endRadius: 2.1, dur: 0.52, lut, mode: CloudMode.Mist,
+      })
+      // Charge: dark ink-void orb + 3 tilted accretion rings (740b8b3 signature) + 0-3 plasma tag siphons
+      gl.spawnDome({ x: p.x, y: p.y, z: 1.55, r0: 0.16, r1: 0.78, dur: 0.36, lut, voidOrb: true })
+      gl.spawnWave({ x: p.x, y: p.y, z: 1.55, r0: 1.85, r1: 0.65, pitchX: 0.55, rollY: -0.3, thickness: 0.12, dur: 0.34, lut, mode: WaveMode.Gimbal })
+      gl.spawnWave({ x: p.x, y: p.y, z: 1.55, r0: 1.55, r1: 0.52, pitchX: -0.65, rollY: 0.42, thickness: 0.1, dur: 0.34, lut: LutRow.Probe, mode: WaveMode.Slice })
+      gl.spawnWave({ x: p.x, y: p.y, z: 1.55, r0: 1.3, r1: 0.42, pitchX: 0.2, rollY: -0.58, thickness: 0.09, dur: 0.34, lut, mode: WaveMode.Shock })
       for (let s = 0; s < tagCount; s++) {
         const fan = (s - (tagCount - 1) / 2) * 1.15
         gl.spawnRibbon({
-          ax: t.x, ay: t.y, az: 0.55,
-          cx: (t.x + p.x) * 0.5 + nx * fan, cy: (t.y + p.y) * 0.5 + ny * fan, cz: 2.35 + s * 0.28,
-          bx: p.x, by: p.y, bz: 1.6,
-          width: 0.32, dur: Math.max(0.24, at / 1000), lut: s === 0 ? lut : LutRow.Probe, style: RibbonStyle.SilkMist,
+          ax: t.x, ay: t.y, az: 0.5,
+          cx: (t.x + p.x) * 0.5 + nx * fan, cy: (t.y + p.y) * 0.5 + ny * fan, cz: 2.25 + s * 0.25,
+          bx: p.x, by: p.y, bz: 1.55,
+          width: 0.28, dur: Math.max(0.24, at / 1000), lut: s === 0 ? lut : LutRow.Probe, style: RibbonStyle.PlasmaFlame,
         })
       }
-      for (let k = 0; k < 4; k++) {
-        this.after(k * 70, () => this.glImplode(gl, p, 1.6, 16, lut, 2.6, 0.22, ParticleShape.Mote))
+      for (let k = 0; k < 3; k++) {
+        this.after(k * 75, () => this.glImplode(gl, p, 1.55, 10, lut, 2.4, 0.22, ParticleShape.Spark))
       }
 
       this.after(at, () => {
-        this.hitStop = Math.max(this.hitStop, 0.038)
-        this.triggerFlash(0.18)
+        this.hitStop = Math.max(this.hitStop, 0.035)
+        this.triggerFlash(0.14)
+        // Main: full-board semi-transparent flowing aurora-plasma flame river + crisp inner spine
         gl.spawnRibbon({
-          ax: p.x, ay: p.y, az: 1.05,
-          cx: (p.x + end.x) * 0.5, cy: (p.y + end.y) * 0.5, cz: 1.18,
-          bx: end.x, by: end.y, bz: 0.65,
-          width: 1.15 + slot * 0.1, dur: 0.52, lut, style: RibbonStyle.SilkMist,
+          ax: p.x, ay: p.y, az: 1.0,
+          cx: (p.x + end.x) * 0.5, cy: (p.y + end.y) * 0.5, cz: 1.15,
+          bx: end.x, by: end.y, bz: 0.62,
+          width: 1.05 + slot * 0.08, dur: 0.54, lut, style: RibbonStyle.PlasmaFlame,
         })
         gl.spawnRibbon({
-          ax: p.x, ay: p.y, az: 1.05,
-          cx: (p.x + end.x) * 0.5, cy: (p.y + end.y) * 0.5, cz: 1.18,
-          bx: end.x, by: end.y, bz: 0.65,
-          width: 0.4, dur: 0.55, lut: LutRow.Probe, style: RibbonStyle.SilkMist,
+          ax: p.x, ay: p.y, az: 1.0,
+          cx: (p.x + end.x) * 0.5, cy: (p.y + end.y) * 0.5, cz: 1.15,
+          bx: end.x, by: end.y, bz: 0.62,
+          width: 0.26, dur: 0.56, lut: LutRow.Probe, style: RibbonStyle.PlasmaFlame,
         })
-        for (let f = 0.08; f < 0.85; f += 0.14) {
+        // Soft background mist drift along river flanks
+        for (let f = 0.14; f < 0.78; f += 0.22) {
           const pt = lerp(p, end, f)
           if (pt.x < 0 || pt.y < 0 || pt.x > SIZE || pt.y > SIZE) break
           for (const side of [-1, 1]) {
             gl.spawnCloud({
-              x: pt.x + nx * side * 0.68, y: pt.y + ny * side * 0.68, z: 0.72,
-              vx: nx * side * 1.15, vy: ny * side * 1.15, vz: 0.75,
-              radius: 0.58, endRadius: 1.25, dur: 0.56, lut, mode: CloudMode.Mist,
+              x: pt.x + nx * side * 0.78, y: pt.y + ny * side * 0.78, z: 0.55,
+              vx: nx * side * 0.9, vy: ny * side * 0.9, vz: 0.45,
+              radius: 0.95, endRadius: 1.65, dur: 0.56, lut, mode: CloudMode.Mist,
             })
           }
-          this.glBurst(gl, pt.x, pt.y, 0.7, 4, lut, {
-            dir: dir + (Math.random() < 0.5 ? 1 : -1) * (Math.PI * 0.5), spread: 0.7,
-            speed: [0.8, 2.8], vz: [0.9, 3.2], life: [0.55, 1.15], size: 2.6, drag: 1.5, curl: 6.5, bounce: 0, shape: ParticleShape.Mote,
+        }
+        // Hit: dual shock crowns + 4 radial plasma flare tongues + sharp directional spark streaks
+        gl.spawnWave({ x: t.x, y: t.y, z: 0.45, r0: 0.25, r1: 2.1, pitchX: 0.48, rollY: -0.25, thickness: 0.24, dur: 0.48, lut, mode: WaveMode.Shock })
+        gl.spawnWave({ x: t.x, y: t.y, z: 0.65, r0: 0.22, r1: 1.65, pitchX: -0.4, rollY: 0.32, thickness: 0.15, dur: 0.44, lut: LutRow.Probe, mode: WaveMode.Slice })
+        for (let k = 0; k < 4; k++) {
+          const ang = dir + (k - 1.5) * 0.52
+          gl.spawnRibbon({
+            ax: t.x, ay: t.y, az: 0.52,
+            cx: t.x + Math.cos(ang) * 0.95, cy: t.y + Math.sin(ang) * 0.95, cz: 1.25,
+            bx: t.x + Math.cos(ang) * 1.9, by: t.y + Math.sin(ang) * 1.9, bz: 0.5,
+            width: 0.42, dur: 0.42, lut, style: RibbonStyle.PlasmaFlame,
           })
         }
-        gl.spawnCloud({
-          x: t.x, y: t.y, z: 0.45, radius: 0.35, endRadius: 2.65, dur: 0.64, lut: LutRow.Probe, mode: CloudMode.Corona,
-        })
-        gl.spawnCloud({
-          x: t.x, y: t.y, z: 0.48, radius: 0.28, endRadius: 2.35, dur: 0.62, lut, mode: CloudMode.Corona,
-        })
-        gl.spawnCloud({
-          x: t.x, y: t.y, z: 0.85, vz: 0.9, radius: 0.85, endRadius: 1.95, dur: 0.6, lut, mode: CloudMode.Mist,
-        })
-        this.glBurst(gl, t.x, t.y, 0.65, 52, lut, {
-          speed: [1.5, 6.8], vz: [1.8, 6.4], life: [0.5, 1.1], size: 2.9, drag: 1.6, curl: 9.0, bounce: 0, shape: ParticleShape.Mote,
+        this.glBurst(gl, t.x, t.y, 0.55, 22, lut, {
+          dir, spread: 1.7, speed: [5.0, 15.5], vz: [2.2, 7.0], life: [0.3, 0.65], size: 2.6, curl: 3.5, bounce: 0.44, shape: ParticleShape.Spark,
         })
         this.ripple(t, 7.5)
         this.ripple(p, 3)
-        this.shake(7.2)
+        this.shake(6.8)
         this.tag(t, 'ULTRA', col[0], suppressReadout)
       })
       return
@@ -1480,7 +1490,7 @@ export class AttackFx {
       this.beam(p, end, 0.5, col[2], 4)
       this.flash(p, 0.6)
       this.flash(t, 0.9)
-      this.burst(t.x, t.y, { n: 36, speed: [2, 10], life: [0.3, 0.8], colors: col, size: 2.2, type: 'dot' })
+      this.burst(t.x, t.y, { n: 24, speed: [3, 12], life: [0.25, 0.65], colors: col, size: 2.2, type: 'spark' })
       this.ring(t, 0.25, 2.2, 0.5, col[0], 4)
       this.ripple(t, 7.5)
       this.ripple(p, 3)
@@ -1489,7 +1499,8 @@ export class AttackFx {
     })
   }
 
-  // 9. SPIKE (Specialist): Oscilloscope voltage sawtooth zigzag + erupting 3D pyramidal spikes + PINNED harpoon.
+  // 9. SPIKE (Specialist):
+  //   Bg: hairline floor fracture | Main: oscilloscope sawtooth trace | Hit: edge-lit translucent 3D pyramidal spikes + PINNED harpoon.
   private spike = (c: Ctx): void => {
     const { fx, p, t, col, lut, dir, at, suppressReadout } = c
     const gl = this.useGl(false)
@@ -1501,13 +1512,13 @@ export class AttackFx {
         ax: p.x, ay: p.y, az: 0.16,
         cx: (p.x + t.x) * 0.5, cy: (p.y + t.y) * 0.5, cz: 0.16,
         bx: t.x, by: t.y, bz: 0.16,
-        width: 0.22 + slot * 0.03, dur: 0.28, lut, style: RibbonStyle.SawtoothZigzag,
+        width: 0.18 + slot * 0.025, dur: 0.28, lut, style: RibbonStyle.SawtoothZigzag,
       })
       this.after(at, () => {
         if (slot === 0) {
           gl.spawnSolid({
             kind: SolidKind.Spike, x0: t.x, y0: t.y, z0: 0.02,
-            sx: 0.32, sy: 0.32, sz: 1.45, dur: 0.44, lut,
+            sx: 0.32, sy: 0.32, sz: 1.45, wireOnly: 0.45, dur: 0.44, lut,
           })
         } else if (slot === 1) {
           for (let k = 0; k < 3; k++) {
@@ -1515,33 +1526,33 @@ export class AttackFx {
             gl.spawnSolid({
               kind: SolidKind.Spike,
               x0: t.x + Math.cos(ang) * 0.2, y0: t.y + Math.sin(ang) * 0.2, z0: 0.02,
-              sx: 0.42, sy: 0.42, sz: 1.9 + (k === 0 ? 0.5 : 0), pitch0: 0.22, yaw: ang, dur: 0.46, lut,
+              sx: 0.4, sy: 0.4, sz: 1.85 + (k === 0 ? 0.5 : 0), pitch0: 0.22, yaw: ang, wireOnly: 0.45, dur: 0.46, lut,
             })
           }
         } else if (slot === 2) {
           gl.spawnSolid({
             kind: SolidKind.Spike, x0: t.x, y0: t.y, z0: 0.02,
-            sx: 0.62, sy: 0.62, sz: 3.3, dur: 0.5, lut,
+            sx: 0.58, sy: 0.58, sz: 3.1, wireOnly: 0.45, dur: 0.5, lut,
           })
           for (let k = 0; k < 4; k++) {
             const ang = (k / 4) * Math.PI * 2 + 0.3
             gl.spawnSolid({
               kind: SolidKind.Spike,
               x0: t.x + Math.cos(ang) * 0.24, y0: t.y + Math.sin(ang) * 0.24, z0: 0.02,
-              sx: 0.45, sy: 0.45, sz: 2.35, pitch0: 0.34, yaw: ang, dur: 0.48, lut,
+              sx: 0.42, sy: 0.42, sz: 2.2, pitch0: 0.34, yaw: ang, wireOnly: 0.45, dur: 0.48, lut,
             })
           }
         } else {
           gl.spawnSolid({
             kind: SolidKind.Spike, x0: t.x, y0: t.y, z0: 0.02,
-            sx: 0.78, sy: 0.78, sz: 4.8, dur: 0.54, lut,
+            sx: 0.72, sy: 0.72, sz: 4.4, wireOnly: 0.45, dur: 0.54, lut,
           })
           for (let k = 0; k < 7; k++) {
             const ang = (k / 7) * Math.PI * 2
             gl.spawnSolid({
               kind: SolidKind.Spike,
-              x0: t.x + Math.cos(ang) * 0.26, y0: t.y + Math.sin(ang) * 0.26, z0: 0.02,
-              sx: 0.5, sy: 0.5, sz: 2.4 + (k % 2) * 0.65, pitch0: 0.44, yaw: ang, dur: 0.5, lut,
+              x0: t.x + Math.cos(ang) * 0.24, y0: t.y + Math.sin(ang) * 0.24, z0: 0.02,
+              sx: 0.46, sy: 0.46, sz: 2.2 + (k % 2) * 0.55, pitch0: 0.44, yaw: ang, wireOnly: 0.45, dur: 0.5, lut,
             })
           }
         }
@@ -1550,16 +1561,15 @@ export class AttackFx {
           gl.spawnSolid({
             kind: SolidKind.Spike,
             x0: t.x - Math.cos(dir) * 0.25, y0: t.y - Math.sin(dir) * 0.25, z0: 0.2,
-            sx: 0.54, sy: 0.54, sz: 2.35, pitch0: 0.96, yaw: dir, dur: 0.54, lut: LutRow.Probe,
+            sx: 0.5, sy: 0.5, sz: 2.2, pitch0: 0.96, yaw: dir, wireOnly: 0.4, dur: 0.54, lut: LutRow.Probe,
           })
-          gl.spawnDecal({ x: t.x + Math.cos(dir) * 0.7, y: t.y + Math.sin(dir) * 0.7, radius: 1.5, rot: dir, dur: 0.52, lut, kind: DecalKind.Fracture })
+          gl.spawnDecal({ x: t.x + Math.cos(dir) * 0.7, y: t.y + Math.sin(dir) * 0.7, radius: 1.4, rot: dir, dur: 0.52, lut, kind: DecalKind.Fracture })
         }
-        gl.spawnDecal({ x: t.x, y: t.y, radius: 1.45, rot: dir, dur: 0.46, lut, kind: DecalKind.Fracture })
-        this.glBurst(gl, t.x, t.y, 0.35, 24, lut, {
-          speed: [2.2, 7.6], vz: [4.8, 12.8], life: [0.3, 0.68], size: 2.8, gravZ: -18, bounce: 0.48, shape: ParticleShape.Shard,
-        })
-        this.ripple(t, 5.5)
-        this.shake(4.8)
+        gl.spawnWave({ x: t.x, y: t.y, z: 0.25, r0: 0.16, r1: 1.15, pitchX: 0.42, rollY: 0, thickness: 0.12, dur: 0.34, lut, mode: WaveMode.Shock })
+        gl.spawnDecal({ x: t.x, y: t.y, radius: 1.35, rot: dir, dur: 0.46, lut, kind: DecalKind.Fracture })
+        this.glTriangleSpray(gl, t.x, t.y, 16, lut, dir, Math.PI * 2, [2.4, 7.8])
+        this.ripple(t, 5.2)
+        this.shake(4.5)
         this.tag(t, 'SPIKE', col[0], suppressReadout)
       })
       return
@@ -1579,50 +1589,69 @@ export class AttackFx {
     this.after(at, () => {
       this.poly([{ x: t.x - 0.28, y: t.y }, { x: t.x, y: t.y - 1.2 - slot * 0.35 }, { x: t.x + 0.28, y: t.y }], 0.4, col[1], 2.5)
       if (pinned) this.beam(t, { x: t.x + Math.cos(dir) * 0.9, y: t.y + Math.sin(dir) * 0.9 }, 0.38, '#f4f4f4', 3)
-      this.burst(t.x, t.y, { n: 20, dir: -Math.PI / 2, spread: 0.7, speed: [4, 14], life: [0.22, 0.52], colors: col, grav: 12 })
-      this.ripple(t, 5.5)
+      this.burst(t.x, t.y, { n: 18, dir: -Math.PI / 2, spread: 0.7, speed: [4, 13], life: [0.22, 0.48], colors: col, grav: 12, size: 4, type: 'triangle' })
+      this.ripple(t, 5.2)
       this.shake(4.5)
       this.tag(t, 'SPIKE', col[0], suppressReadout)
     })
   }
 
-  // 10. FLOOD (Specialist): BFS rising glossy liquid tide + Voronoi caustics + 3D droplet splashes + FILL drain whirlpool.
-  private floodFill = ({ fx, t, col, lut, at, board, suppressReadout }: Ctx): void => {
+  // 10. FLOOD (Specialist):
+  //   Bg: BFS square basin wash | Main: surging liquid-plasma tidal waves | Hit: crown droplet splash + drain whirlpool on cleared Flag.
+  private floodFill = ({ fx, p, t, col, lut, at, board, suppressReadout }: Ctx): void => {
     const gl = this.useGl(false)
     const reached = bfsRangeCells(fx, board?.walls)
     const slot = Math.max(0, Math.min(3, fx.stepIndex))
+    const maxDist = reached.reduce((m, r) => Math.max(m, r.dist), 1)
 
     if (gl) {
       if (this.firstInAreaStep(fx)) {
+        // Background: BFS square basins
         for (const { cell, dist } of reached) {
-          this.after(dist * 42, () => {
+          this.after(dist * 38, () => {
             gl.spawnCloud({
               x: cell.x + 0.5, y: cell.y + 0.5, z: 0.02,
-              radius: 0.49, endRadius: 0.49, dur: 0.62, lut, mode: CloudMode.LiquidCell, whirlpool: false,
+              radius: 0.49, endRadius: 0.49, dur: 0.58, lut, mode: CloudMode.LiquidCell, whirlpool: false,
             })
           })
         }
-        this.ripple(mid(fx.origin), 4.5, 6.5)
+        // Main: single crisp tidal wavefront crest sweeping across reachable space
+        gl.spawnWave({
+          x: p.x, y: p.y, z: 0.24, r0: 0.35, r1: Math.min(4.2, maxDist + 0.35),
+          pitchX: 0.28, rollY: 0.12, thickness: 0.10, dur: 0.36, lut, mode: WaveMode.Shock,
+        })
+        this.ripple(mid(fx.origin), 3.6, 5.6)
       }
+      // Main crest ribbon sweeping onto target
+      gl.spawnRibbon({
+        ax: p.x, ay: p.y, az: 0.24,
+        cx: (p.x + t.x) * 0.5, cy: (p.y + t.y) * 0.5, cz: 0.64,
+        bx: t.x, by: t.y, bz: 0.22,
+        width: 0.40, dur: Math.max(0.24, at / 1000 + 0.08), lut, style: RibbonStyle.PlasmaFlame,
+      })
       this.after(at, () => {
-        gl.spawnDecal({ x: t.x, y: t.y, radius: 0.68, dur: 0.52, lut, kind: DecalKind.Flood })
-        this.glBurst(gl, t.x, t.y, 0.2, 22 + slot * 6, lut, {
-          speed: [1.4, 5.2], vz: [3.8, 7.8], life: [0.35, 0.72], size: 2.8, drag: 1.5, gravZ: -16, bounce: 0.25, shape: ParticleShape.Droplet,
+        gl.spawnDecal({ x: t.x, y: t.y, radius: 0.62, dur: 0.46, lut, kind: DecalKind.Flood })
+        gl.spawnWave({
+          x: t.x, y: t.y, z: 0.22, r0: 0.16, r1: 0.92,
+          pitchX: 0.36, rollY: 0, thickness: 0.09, dur: 0.32, lut, mode: WaveMode.Shock,
+        })
+        this.glBurst(gl, t.x, t.y, 0.2, 16 + slot * 4, lut, {
+          speed: [1.6, 5.2], vz: [3.8, 7.6], life: [0.32, 0.66], size: 2.8, drag: 1.5, gravZ: -16, bounce: 0.25, shape: ParticleShape.Droplet,
         })
         if (fx.blank) {
           const bm = mid(fx.blank)
           gl.spawnRibbon({
             ax: t.x, ay: t.y, az: 0.16,
-            cx: (t.x + bm.x) * 0.5, cy: (t.y + bm.y) * 0.5, cz: 0.45,
+            cx: (t.x + bm.x) * 0.5, cy: (t.y + bm.y) * 0.5, cz: 0.42,
             bx: bm.x, by: bm.y, bz: 0.08,
-            width: 0.26, dur: 0.46, lut, style: RibbonStyle.SilkMist,
+            width: 0.24, dur: 0.44, lut, style: RibbonStyle.PlasmaFlame,
           })
           gl.spawnCloud({
             x: bm.x, y: bm.y, z: 0.03, radius: 0.56, endRadius: 0.38,
             dur: 0.68, lut, mode: CloudMode.LiquidCell, whirlpool: true,
           })
         }
-        this.ripple(t, 3.2)
+        this.ripple(t, 3.0)
         this.tag(t, 'FILLED', col[0], suppressReadout)
       })
       return
@@ -1634,14 +1663,15 @@ export class AttackFx {
       }
     }
     this.after(at, () => {
-      this.burst(t.x, t.y, { n: 16, speed: [1.5, 5], life: [0.25, 0.55], colors: col, type: 'dot' })
+      this.burst(t.x, t.y, { n: 16, speed: [1.5, 5], life: [0.25, 0.55], colors: col, type: 'spark' })
       if (fx.blank) this.ring(mid(fx.blank), 0.42, 0.08, 0.5, col[0], 2)
-      this.ripple(t, 3.2)
+      this.ripple(t, 3.0)
       this.tag(t, 'FILLED', col[0], suppressReadout)
     })
   }
 
-  // 11. PROBE (Specialist): Zero-shake coherent laser needle passing through an intact translucent 3D hex-shell + X-ray scan plane + 5 octahedron nodes.
+  // 11. PROBE (Specialist):
+  //   Bg: faint diagnostic square reticle | Main: hair-thin surgical laser needle | Hit: translucent Fresnel shield + tomography scan plane + 5 octahedron nodes.
   private probe = ({ fx, p, t, col, lut, dir, at, suppressReadout }: Ctx): void => {
     const gl = this.useGl(false)
     const slot = Math.max(0, Math.min(3, fx.stepIndex))
@@ -1649,35 +1679,31 @@ export class AttackFx {
       .map(([dx, dy, z]) => ({ x: t.x + dx, y: t.y + dy, z }))
 
     if (gl) {
+      gl.spawnDecal({ x: t.x, y: t.y, radius: 0.66, dur: 0.85, lut: LutRow.Probe, kind: DecalKind.Tile })
       gl.spawnRibbon({
-        ax: p.x, ay: p.y, az: 0.62,
-        cx: (p.x + t.x) * 0.5, cy: (p.y + t.y) * 0.5, cz: 0.62,
-        bx: t.x, by: t.y, bz: 0.62,
-        width: 0.11, dur: 0.72, lut: LutRow.Probe, style: RibbonStyle.VectorRay, spin: -1,
+        ax: p.x, ay: p.y, az: 0.6,
+        cx: (p.x + t.x) * 0.5, cy: (p.y + t.y) * 0.5, cz: 0.6,
+        bx: t.x, by: t.y, bz: 0.6,
+        width: 0.09, dur: 0.72, lut: LutRow.Probe, style: RibbonStyle.VectorRay, spin: -1,
       })
       gl.spawnRibbon({
-        ax: p.x, ay: p.y, az: 0.62,
-        cx: (p.x + t.x) * 0.5, cy: (p.y + t.y) * 0.5, cz: 0.62,
-        bx: t.x, by: t.y, bz: 0.62,
-        width: 0.07, dur: 0.68, lut, style: RibbonStyle.VectorRay, spin: -1,
+        ax: p.x, ay: p.y, az: 0.6,
+        cx: (p.x + t.x) * 0.5, cy: (p.y + t.y) * 0.5, cz: 0.6,
+        bx: t.x, by: t.y, bz: 0.6,
+        width: 0.05, dur: 0.68, lut, style: RibbonStyle.VectorRay, spin: -1,
       })
-      // Intact translucent 3D hexagonal Security containment prism shell
-      gl.spawnSolid({
-        kind: SolidKind.HexPlate,
-        x0: t.x, y0: t.y, z0: 0.62,
-        sx: 1.32, sy: 1.32, sz: 4.5,
-        wireOnly: 0.72, dur: 0.9, lut: LutRow.Probe,
-      })
+      // Intact translucent Fresnel Security sphere (zero harsh solid overdraw)
+      gl.spawnDome({ x: t.x, y: t.y, z: 0.6, r0: 0.74, r1: 0.8, dur: 0.88, lut: LutRow.Probe })
       gl.spawnWave({
-        x: t.x - Math.cos(dir) * 0.55, y: t.y - Math.sin(dir) * 0.55, z: 0.62,
-        r0: 0.04, r1: 0.28, pitchX: 0.85, rollY: dir, thickness: 0.05, dur: 0.26, lut: LutRow.Probe, mode: WaveMode.Slice,
+        x: t.x - Math.cos(dir) * 0.55, y: t.y - Math.sin(dir) * 0.55, z: 0.6,
+        r0: 0.04, r1: 0.26, pitchX: 0.85, rollY: dir, thickness: 0.05, dur: 0.26, lut: LutRow.Probe, mode: WaveMode.Slice,
       })
       this.after(140, () => {
         gl.spawnSolid({
           kind: SolidKind.ScanPlane,
-          x0: t.x, y0: t.y, z0: 1.35,
+          x0: t.x, y0: t.y, z0: 1.32,
           x1: t.x, y1: t.y, z1: 0.05,
-          sx: 1.38 + (slot >= 2 ? 0.18 : 0), sy: 1.38 + (slot >= 2 ? 0.18 : 0), sz: 1,
+          sx: 1.3 + (slot >= 2 ? 0.16 : 0), sy: 1.3 + (slot >= 2 ? 0.16 : 0), sz: 1,
           dur: 0.42, lut,
         })
       })
@@ -1686,7 +1712,7 @@ export class AttackFx {
           gl.spawnSolid({
             kind: SolidKind.Octahedron,
             x0: node.x, y0: node.y, z0: node.z,
-            sx: 0.18, sy: 0.18, sz: 0.18, spin: 3.5, dur: 0.44, lut,
+            sx: 0.17, sy: 0.17, sz: 0.17, spin: 3.5, dur: 0.44, lut,
           })
           if (i > 0) {
             const prev = nodes[i - 1]
@@ -1694,16 +1720,15 @@ export class AttackFx {
               ax: prev.x, ay: prev.y, az: prev.z,
               cx: (prev.x + node.x) * 0.5, cy: (prev.y + node.y) * 0.5, cz: (prev.z + node.z) * 0.5,
               bx: node.x, by: node.y, bz: node.z,
-              width: 0.07, dur: 0.4, lut: LutRow.Probe, style: RibbonStyle.VectorRay, spin: -1,
+              width: 0.06, dur: 0.4, lut: LutRow.Probe, style: RibbonStyle.VectorRay, spin: -1,
             })
           }
         })
       })
       this.after(at, () => {
-        nodes.forEach(node => {
-          this.glBurst(gl, node.x, node.y, node.z, 3, lut, {
-            speed: [0.1, 0.4], vz: [0.1, 0.5], life: [0.22, 0.4], size: 2.2, gravZ: 0, bounce: 0, shape: ParticleShape.Mote,
-          })
+        gl.spawnWave({
+          x: t.x, y: t.y, z: 0.45, r0: 0.14, r1: 0.86,
+          pitchX: 0.4, rollY: 0.2, thickness: 0.08, dur: 0.3, lut: LutRow.Probe, mode: WaveMode.Shock,
         })
         this.tag(t, 'SECURITY IGNORED', col[0], suppressReadout)
       })
@@ -1801,24 +1826,67 @@ export class AttackFx {
       compactTimed(this.flashes, dt)
       compactTimed(this.lines, dt)
       compactTimed(this.cells, dt)
+      compactTimed(this.distortWaves, dt)
+
+      for (const point of this.grid) {
+        point.vx += (-point.ox * 190 - point.vx * 9) * dt
+        point.vy += (-point.oy * 190 - point.vy * 9) * dt
+        point.ox += point.vx * dt
+        point.oy += point.vy * dt
+      }
     }
 
+    this.timeFreeze = Math.max(0, this.timeFreeze - dt)
     compactTimed(this.tags, dt)
     compactTimed(this.nums, dt)
 
-    for (const point of this.grid) {
-      point.vx += (-point.ox * 190 - point.vx * 9) * dt
-      point.vy += (-point.oy * 190 - point.vy * 9) * dt
-      point.ox += point.vx * dt
-      point.oy += point.vy * dt
-    }
     this.shakeAmp *= Math.pow(0.0008, dt)
     this.screenFlash = Math.max(0, this.screenFlash - dt * 1.6)
   }
 
-  cellOffset(x: number, y: number): Coord {
+  timeFreezeState(): TimeFreezeState {
+    if (this.timeFreeze <= 0.001) return { intensity: 0, origin: this.timeFreezeOrigin, stage: 0 }
+    return {
+      intensity: Math.min(1, this.timeFreeze / Math.max(0.01, this.timeFreezeMax)),
+      origin: this.timeFreezeOrigin,
+      stage: this.timeFreezeStage,
+    }
+  }
+
+  cellWarp(x: number, y: number): CellWarp {
     const point = this.grid[y * SIZE + x]
-    return point ? { x: point.ox, y: point.oy } : { x: 0, y: 0 }
+    let ox = point ? point.ox : 0
+    let oy = point ? point.oy : 0
+    let scaleDelta = 0
+    let crestSum = 0
+    if (this.distortWaves.length) {
+      const cx = x + 0.5
+      const cy = y + 0.5
+      for (const wave of this.distortWaves) {
+        const f = wave.t / wave.dur
+        const ease = 1 - Math.pow(1 - f, 2.2)
+        const r = wave.r0 + (wave.r1 - wave.r0) * ease
+        const dx = cx - wave.x
+        const dy = cy - wave.y
+        const dist = Math.hypot(dx, dy)
+        if (dist < 0.01) continue
+        const u = (dist - r) / wave.band
+        if (Math.abs(u) > 2.8) continue
+        const fade = Math.max(0, 1 - f)
+        const disp = -u * Math.exp(-u * u * 1.35) * 1.65 * wave.amp * fade
+        const ridge = Math.exp(-u * u * 2.2) * fade
+        ox += (dx / dist) * disp
+        oy += (dy / dist) * disp
+        scaleDelta += ridge * 0.12
+        crestSum += ridge
+      }
+    }
+    return { x: ox, y: oy, scale: 1 + Math.min(0.28, scaleDelta), crest: Math.min(1, crestSum) }
+  }
+
+  cellOffset(x: number, y: number): Coord {
+    const warp = this.cellWarp(x, y)
+    return { x: warp.x, y: warp.y }
   }
 
   shakeOffset(): Coord {
@@ -1956,6 +2024,23 @@ export class AttackFx {
           } else if (part.type === 'square') {
             const size = part.size * px
             fx.fillRect(part.x - size / 2, part.y - size / 2, size, size)
+          } else if (part.type === 'triangle') {
+            const r = part.size * px * 0.95
+            const ang = Math.atan2(part.vy, part.vx)
+            fx.lineWidth = Math.max(1, px * 1.1)
+            fx.beginPath()
+            for (let v = 0; v < 3; v++) {
+              const a = ang + (v * Math.PI * 2) / 3
+              const vx = part.x + Math.cos(a) * r
+              const vy = part.y + Math.sin(a) * r
+              if (v === 0) fx.moveTo(vx, vy)
+              else fx.lineTo(vx, vy)
+            }
+            fx.closePath()
+            fx.globalAlpha = k * 0.42
+            fx.fill()
+            fx.globalAlpha = k
+            fx.stroke()
           } else {
             fx.beginPath()
             fx.arc(part.x, part.y, part.size * px * k, 0, Math.PI * 2)

@@ -5,7 +5,194 @@
 
 import { storage } from "./storage";
 
-export type SfxId = "move" | "hit" | "pickup" | "ui" | "explosion" | "win" | "lose";
+export type SfxId = "move" | "hit" | "pickup" | "ui" | "explosion" | "overload" | "win" | "lose";
+
+export type OverloadSfxSchedule = {
+  strikes: readonly [number, number, number];
+  unleashAt: number;
+  shockwaves: readonly [number, number, number];
+};
+
+const overloadNoiseCache = new WeakMap<BaseAudioContext, AudioBuffer>();
+
+function overloadNoiseBuffer(ctx: BaseAudioContext): AudioBuffer {
+  let buf = overloadNoiseCache.get(ctx);
+  if (!buf) {
+    const rate = Math.max(100, ctx.sampleRate || 44100);
+    const len = Math.max(16, Math.floor(rate * 0.8));
+    buf = ctx.createBuffer(1, len, rate);
+    const data = buf.getChannelData(0);
+    let s = 0x9e3779b9;
+    for (let i = 0; i < len; i++) {
+      s = (Math.imul(s ^ (s >>> 13), 1274126177) + 0x6d2b79f5) >>> 0;
+      data[i] = ((s >>> 0) / 4294967295) * 2 - 1;
+    }
+    overloadNoiseCache.set(ctx, buf);
+  }
+  return buf;
+}
+
+/**
+ * 3-stage accelerating turbine + silent time-pause strike pockets (0..0.70 s),
+ * followed by quantized data-stream bursts & 3 shockwave sub-booms (0.70..1.20 s).
+ */
+export function scheduleOverloadSfx(
+  ctx: BaseAudioContext,
+  dest: AudioNode,
+  t0 = ctx.currentTime,
+): OverloadSfxSchedule {
+  const stages: readonly [offset: number, fStart: number, fEnd: number][] = [
+    [0.0, 140, 330],
+    [0.23, 235, 560],
+    [0.46, 380, 960],
+  ];
+  const nBuf = overloadNoiseBuffer(ctx);
+
+  for (let stage = 0; stage < stages.length; stage++) {
+    const [offset, fStart, fEnd] = stages[stage];
+    const tStart = t0 + offset;
+    const tStrike = tStart + 0.15;
+    const peak = 0.22 + stage * 0.04;
+
+    const rotor = ctx.createOscillator();
+    const whine = ctx.createOscillator();
+    const bp = ctx.createBiquadFilter();
+    const env = ctx.createGain();
+    rotor.type = "sawtooth";
+    whine.type = "triangle";
+    rotor.frequency.setValueAtTime(fStart, tStart);
+    rotor.frequency.exponentialRampToValueAtTime(fEnd, tStrike);
+    whine.frequency.setValueAtTime(fStart * 2, tStart);
+    whine.frequency.exponentialRampToValueAtTime(fEnd * 2.02, tStrike);
+
+    bp.type = "bandpass";
+    bp.Q.value = 4.2 + stage * 0.8;
+    bp.frequency.setValueAtTime(fStart * 3, tStart);
+    bp.frequency.exponentialRampToValueAtTime(fEnd * 4.2, tStrike);
+
+    env.gain.setValueAtTime(0, tStart);
+    env.gain.linearRampToValueAtTime(peak, tStart + 0.012);
+    env.gain.setValueAtTime(peak, tStrike);
+    env.gain.linearRampToValueAtTime(0.0001, tStrike + 0.014);
+
+    rotor.connect(bp);
+    whine.connect(bp);
+    bp.connect(env).connect(dest);
+    rotor.start(tStart);
+    whine.start(tStart);
+    rotor.stop(tStrike + 0.025);
+    whine.stop(tStrike + 0.025);
+
+    // Filtered intake jet noise sweeping upward with turbine RPM
+    const jet = ctx.createBufferSource();
+    const jetBp = ctx.createBiquadFilter();
+    const jetGain = ctx.createGain();
+    jet.buffer = nBuf;
+    jetBp.type = "bandpass";
+    jetBp.Q.value = 3.0;
+    jetBp.frequency.setValueAtTime(550 + stage * 420, tStart);
+    jetBp.frequency.exponentialRampToValueAtTime(1700 + stage * 1050, tStrike);
+    const jetPeak = 0.11 + stage * 0.025;
+    jetGain.gain.setValueAtTime(0, tStart);
+    jetGain.gain.linearRampToValueAtTime(jetPeak, tStart + 0.014);
+    jetGain.gain.setValueAtTime(jetPeak, tStrike);
+    jetGain.gain.linearRampToValueAtTime(0.0001, tStrike + 0.014);
+    jet.connect(jetBp).connect(jetGain).connect(dest);
+    jet.start(tStart, (stage * 0.19) % 0.5);
+    jet.stop(tStrike + 0.025);
+
+    // Chrono-lock transient right as the battlefield time-pauses at tStrike
+    const ping = ctx.createOscillator();
+    const pingGain = ctx.createGain();
+    ping.type = "sine";
+    ping.frequency.setValueAtTime(880 * Math.pow(1.5, stage), tStrike);
+    pingGain.gain.setValueAtTime(0, tStrike);
+    pingGain.gain.linearRampToValueAtTime(0.15 + stage * 0.03, tStrike + 0.008);
+    pingGain.gain.exponentialRampToValueAtTime(0.001, tStrike + 0.065);
+    ping.connect(pingGain).connect(dest);
+    ping.start(tStrike);
+    ping.stop(tStrike + 0.075);
+
+    const sub = ctx.createOscillator();
+    const subGain = ctx.createGain();
+    sub.type = "sine";
+    sub.frequency.setValueAtTime(105, tStrike);
+    sub.frequency.exponentialRampToValueAtTime(38, tStrike + 0.06);
+    subGain.gain.setValueAtTime(0, tStrike);
+    subGain.gain.linearRampToValueAtTime(0.20, tStrike + 0.008);
+    subGain.gain.exponentialRampToValueAtTime(0.001, tStrike + 0.062);
+    sub.connect(subGain).connect(dest);
+    sub.start(tStrike);
+    sub.stop(tStrike + 0.07);
+  }
+
+  // Unleash: rapid flashing digital data-stream telemetry + 3 expanding shockwave booms
+  const tUnleash = t0 + 0.70;
+  const dataFreqs = [1320, 1760, 1580, 2120, 1480, 2340, 1880, 2480];
+  const dataLp = ctx.createBiquadFilter();
+  dataLp.type = "lowpass";
+  dataLp.frequency.setValueAtTime(3600, tUnleash);
+  dataLp.connect(dest);
+  for (let k = 0; k < dataFreqs.length; k++) {
+    const tP = tUnleash + k * 0.032;
+    const dOsc = ctx.createOscillator();
+    const dGain = ctx.createGain();
+    dOsc.type = "square";
+    dOsc.frequency.setValueAtTime(dataFreqs[k], tP);
+    dGain.gain.setValueAtTime(0, tP);
+    dGain.gain.linearRampToValueAtTime(0.12, tP + 0.008);
+    dGain.gain.exponentialRampToValueAtTime(0.001, tP + 0.032);
+    dOsc.connect(dGain).connect(dataLp);
+    dOsc.start(tP);
+    dOsc.stop(tP + 0.04);
+  }
+
+  const shockwaves = [t0 + 0.70, t0 + 0.825, t0 + 0.95] as const;
+  const boomGains = [0.24, 0.20, 0.17];
+  const thumpGains = [0.14, 0.11, 0.09];
+  for (let w = 0; w < shockwaves.length; w++) {
+    const tBoom = shockwaves[w];
+    const sOsc = ctx.createOscillator();
+    const tOsc = ctx.createOscillator();
+    const bGain = ctx.createGain();
+    sOsc.type = "sine";
+    tOsc.type = "triangle";
+    sOsc.frequency.setValueAtTime(118, tBoom);
+    sOsc.frequency.exponentialRampToValueAtTime(34, tBoom + 0.24);
+    tOsc.frequency.setValueAtTime(96, tBoom);
+    tOsc.frequency.exponentialRampToValueAtTime(29, tBoom + 0.24);
+    bGain.gain.setValueAtTime(0, tBoom);
+    bGain.gain.linearRampToValueAtTime(boomGains[w], tBoom + 0.01);
+    bGain.gain.exponentialRampToValueAtTime(0.001, tBoom + 0.25);
+    sOsc.connect(bGain);
+    tOsc.connect(bGain);
+    bGain.connect(dest);
+    sOsc.start(tBoom);
+    tOsc.start(tBoom);
+    sOsc.stop(tBoom + 0.26);
+    tOsc.stop(tBoom + 0.26);
+
+    const thump = ctx.createBufferSource();
+    const lp = ctx.createBiquadFilter();
+    const tGain = ctx.createGain();
+    thump.buffer = nBuf;
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(240, tBoom);
+    lp.frequency.exponentialRampToValueAtTime(95, tBoom + 0.20);
+    tGain.gain.setValueAtTime(0, tBoom);
+    tGain.gain.linearRampToValueAtTime(thumpGains[w], tBoom + 0.01);
+    tGain.gain.exponentialRampToValueAtTime(0.001, tBoom + 0.21);
+    thump.connect(lp).connect(tGain).connect(dest);
+    thump.start(tBoom, (w * 0.11) % 0.4);
+    thump.stop(tBoom + 0.22);
+  }
+
+  return {
+    strikes: [t0 + 0.15, t0 + 0.38, t0 + 0.61] as const,
+    unleashAt: tUnleash,
+    shockwaves,
+  };
+}
 
 // The mute setting has one key and one encoding, the battle store's: a JSON boolean under
 // "muted". This file used to write "1"/"0" to the same key, so each side misread the other.
@@ -90,7 +277,11 @@ export class AudioSystem {
     const ctx = this.ensureCtx();
     if (!this.master) return;
     const t = ctx.currentTime;
-    const spec: Record<SfxId, [type: OscillatorType, f0: number, f1: number, dur: number, gain: number]> = {
+    if (id === "overload") {
+      scheduleOverloadSfx(ctx, this.master, t);
+      return;
+    }
+    const spec: Record<Exclude<SfxId, "overload">, [type: OscillatorType, f0: number, f1: number, dur: number, gain: number]> = {
       move: ["triangle", 220, 180, 0.08, 0.15],
       hit: ["square", 160, 60, 0.12, 0.3],
       pickup: ["sine", 660, 990, 0.12, 0.25],

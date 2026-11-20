@@ -300,7 +300,7 @@ describe('UNDISCLOSED', () => {
     // In place from the first turn.
     expect(king.block).toBe(mystery)
     expect(store.getSnapshot().mechanic).toEqual({ kind: 'undisclosed', bossId: king.id, mystery })
-    // Stripped, as ZERO would leave it; nothing on its route to rebuild it.
+    // Stripped, as MANIFOLD would leave it; nothing on its route to rebuild it.
     king.block = 0
     king.route = []
     expect(predictedEnemyResources(store.getSnapshot(), king.id).securityGain).toBe(mystery)

@@ -19,7 +19,7 @@ import type { Loadout } from './skills'
 import type { Carry } from './tuning'
 
 type Listener = () => void
-type Sfx = (id: 'move' | 'hit' | 'pickup' | 'ui' | 'explosion' | 'win' | 'lose') => void
+type Sfx = (id: 'move' | 'hit' | 'pickup' | 'ui' | 'explosion' | 'overload' | 'win' | 'lose') => void
 
 // What the story layer hears from a battle. `turn` is the turn the event
 // belongs to: the events of a turn boundary carry the turn that just ended.
@@ -390,7 +390,7 @@ export class BattleStore {
     const releases = 4
     this.log(`OVERLOAD switched to ${activePreset(this.state).name}; all 4 Bash methods released from the planned endpoint.`, 'good')
     this.state.message = `${activePreset(this.state).name} released all 4 methods from the planned endpoint.`
-    this.sfx('explosion')
+    this.sfx('overload')
     this.emit('overload')
     this.firePlayerAttackImmediate(releases, this.plannedPosition())
     enemyRoutes(this.state)
@@ -531,7 +531,16 @@ export class BattleStore {
       }
       this.applyPlayerHit(preset.name, hit)
     }
-    effects.forEach(effect => this.emitEffect(effect))
+    if (effects.size === 0) {
+      const first = preset.steps[0]
+      this.emitEffect({
+        source: 'player', presetId: preset.id, origin: { ...origin }, target: { ...origin },
+        stepIndex: 0, shape: first.shape, range: first.range, width: first.width,
+        fx: 'overload', overload: true, amount: 0, dealt: 0, overloadSteps: [],
+      })
+    } else {
+      effects.forEach(effect => this.emitEffect(effect))
+    }
   }
 
   // `run` is the turn's id. Whenever a pause ends, a rebuilt battle (restart,

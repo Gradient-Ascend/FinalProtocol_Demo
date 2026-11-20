@@ -19,7 +19,7 @@ async function pageLoad() {
 
 const LOADOUT = JSON.stringify([
   { frame: 'cot', skills: ['off', 'on', 'high', 'ultra'] },
-  { frame: 'vector', skills: ['zero', 'manhattan', 'array', 'base'] },
+  { frame: 'vector', skills: ['manifold', 'manhattan', 'array', 'base'] },
 ])
 
 afterEach(() => {

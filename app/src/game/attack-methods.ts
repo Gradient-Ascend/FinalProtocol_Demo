@@ -171,7 +171,7 @@ export function simulateRelease(state: BattleState, presetIndex = state.player.a
       if (target.breached) damage += INTERACTIONS.breachBonus
       const blockBefore = target.block
       let pierce = step.pierce ?? 0
-      if (step.skill === 'zero' && !target.struck && target.block > 0) {
+      if ((step.skill === 'manifold' || step.skill === 'zero') && !target.struck && target.block > 0) {
         target.block -= Math.min(INTERACTIONS.zeroStrip, target.block)
         pierce = 0
       }

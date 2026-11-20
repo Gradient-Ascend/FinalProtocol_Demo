@@ -61,6 +61,7 @@ export const enum ParticleShape {
   Ash = 3,
   Droplet = 4,
   Cuboid = 5,
+  Triangle = 6,
 }
 
 export const enum RibbonStyle {
@@ -73,6 +74,8 @@ export const enum RibbonStyle {
   TractorDash = 6,
   SawtoothZigzag = 7,
   SilkMist = 8,
+  PlasmaFlame = 9,
+  DataStream = 10,
 }
 
 export const enum SolidKind {
@@ -84,6 +87,7 @@ export const enum SolidKind {
   Spike = 5,
   Octahedron = 6,
   ScanPlane = 7,
+  Orb = 8,
 }
 
 export const enum CloudMode {
@@ -91,6 +95,7 @@ export const enum CloudMode {
   Plume = 1,
   Corona = 2,
   LiquidCell = 3,
+  JiQiVortex = 4,
 }
 
 export const enum DecalKind {
@@ -104,6 +109,7 @@ export const enum WaveMode {
   Shock = 0,
   Gimbal = 1,
   Slice = 2,
+  Manifold = 3,
 }
 
 export type VfxBackend = 'webgl2' | '2d'
@@ -248,7 +254,7 @@ const RIBBON_STRIDE = 4
 const WAVE_STRIDE = 4
 const DOME_STRIDE = 4
 const PART_STRIDE = 4
-const SOLID_KIND_COUNT = 8
+const SOLID_KIND_COUNT = 9
 const SOLID_PER_KIND_CAP = 48
 const CLOUD_ADD_CAP = 160
 const CLOUD_DARK_CAP = 64
@@ -349,69 +355,69 @@ function buildGradientLutTexture(): { texture: DataTexture; bytes: number } {
   const data = new Uint8Array(width * height * 4)
 
   const palettes: RgbStop[][] = [
-    // 0: VECTOR Amber
+    // 0: VECTOR Amber (deep saturated amber body; white-hot HDR strictly at 0.90+)
     [
-      [0.0, [42, 20, 5], 0.85],
-      [0.28, [255, 138, 48], 1.45],
-      [0.62, [255, 200, 87], 2.3],
-      [0.86, [255, 243, 196], 3.4],
-      [1.0, [255, 255, 255], 4.5],
+      [0.0, [42, 20, 5], 0.72],
+      [0.3, [255, 136, 36], 1.15],
+      [0.64, [255, 198, 78], 1.75],
+      [0.88, [255, 238, 178], 2.7],
+      [1.0, [255, 252, 238], 3.8],
     ],
     // 1: CoT Cyan
     [
-      [0.0, [9, 27, 44], 0.85],
-      [0.3, [58, 168, 255], 1.5],
-      [0.64, [94, 230, 255], 2.4],
-      [0.88, [226, 251, 255], 3.5],
-      [1.0, [255, 255, 255], 4.5],
+      [0.0, [9, 27, 44], 0.72],
+      [0.3, [48, 158, 255], 1.2],
+      [0.64, [88, 228, 255], 1.85],
+      [0.88, [216, 249, 255], 2.8],
+      [1.0, [246, 254, 255], 3.8],
     ],
     // 2: GEEKS Red
     [
-      [0.0, [41, 7, 18], 0.85],
-      [0.28, [225, 36, 98], 1.45],
-      [0.62, [255, 93, 115], 2.3],
-      [0.86, [255, 208, 214], 3.3],
-      [1.0, [255, 245, 247], 4.2],
+      [0.0, [41, 7, 18], 0.72],
+      [0.3, [225, 36, 98], 1.18],
+      [0.64, [255, 93, 115], 1.8],
+      [0.88, [255, 204, 212], 2.7],
+      [1.0, [255, 245, 247], 3.6],
     ],
     // 3: OVERLOAD Violet
     [
-      [0.0, [25, 12, 48], 0.95],
-      [0.32, [94, 230, 255], 1.65],
-      [0.65, [167, 139, 250], 2.65],
-      [0.88, [236, 224, 255], 3.8],
-      [1.0, [255, 255, 255], 4.5],
+      [0.0, [25, 12, 48], 0.8],
+      [0.32, [94, 230, 255], 1.25],
+      [0.66, [167, 139, 250], 1.95],
+      [0.88, [232, 218, 255], 2.9],
+      [1.0, [252, 248, 255], 3.8],
     ],
     // 4: GROVE Dark Young
     [
-      [0.0, [13, 24, 8], 0.85],
-      [0.32, [77, 107, 42], 1.45],
-      [0.65, [159, 203, 107], 2.3],
-      [0.88, [228, 255, 154], 3.4],
-      [1.0, [255, 255, 255], 4.3],
+      [0.0, [13, 24, 8], 0.72],
+      [0.32, [77, 107, 42], 1.15],
+      [0.65, [159, 203, 107], 1.8],
+      [0.88, [224, 252, 148], 2.75],
+      [1.0, [250, 255, 240], 3.6],
     ],
     // 5: COURT Queen in Red
     [
-      [0.0, [36, 4, 9], 0.85],
-      [0.32, [196, 22, 46], 1.65],
-      [0.66, [235, 68, 88], 2.3],
-      [0.88, [243, 237, 226], 3.3],
-      [1.0, [255, 255, 255], 4.2],
+      [0.0, [36, 4, 9], 0.72],
+      [0.32, [196, 22, 46], 1.25],
+      [0.66, [235, 68, 88], 1.85],
+      [0.88, [243, 237, 226], 2.7],
+      [1.0, [255, 250, 248], 3.6],
     ],
     // 6: CARCOSA Hastur
     [
-      [0.0, [36, 22, 5], 0.85],
-      [0.32, [200, 138, 40], 1.55],
-      [0.66, [255, 200, 87], 2.5],
-      [0.88, [255, 243, 196], 3.6],
-      [1.0, [255, 255, 255], 4.4],
+      [0.0, [36, 22, 5], 0.72],
+      [0.32, [200, 138, 40], 1.2],
+      [0.66, [255, 198, 82], 1.9],
+      [0.88, [255, 241, 188], 2.8],
+      [1.0, [255, 252, 240], 3.7],
     ],
     // 7: PROBE / Neutral White-Steel
     [
-      [0.0, [24, 28, 32], 0.75],
-      [0.32, [141, 139, 133], 1.2],
-      [0.65, [121, 191, 255], 1.95],
-      [0.88, [244, 244, 244], 3.0],
-      [1.0, [255, 255, 255], 3.9],
+      [0.0, [24, 28, 32], 0.68],
+      [0.32, [136, 134, 128], 1.05],
+      [0.65, [121, 191, 255], 1.55],
+      [0.88, [238, 242, 246], 2.4],
+      [1.0, [255, 255, 255], 3.3],
     ],
   ]
 
@@ -647,6 +653,19 @@ function makeSolidGeometry(kind: SolidKind): { geo: InstancedBufferGeometry; byt
     const pz: Vec3 = [0, 0, 0.5], nz: Vec3 = [0, 0, -0.5]
     pushTri(px, py, pz); pushTri(py, nx, pz); pushTri(nx, ny, pz); pushTri(ny, px, pz)
     pushTri(py, px, nz); pushTri(nx, py, nz); pushTri(ny, nx, nz); pushTri(px, ny, nz)
+  } else if (kind === SolidKind.Orb) {
+    const rawIco = new IcosahedronGeometry(0.5, 2)
+    const ico = rawIco.index ? rawIco.toNonIndexed() : rawIco
+    const pAttr = ico.getAttribute('position')
+    for (let i = 0; i < pAttr.count; i++) {
+      const x = pAttr.getX(i), y = pAttr.getY(i), z = pAttr.getZ(i)
+      const len = Math.hypot(x, y, z) || 1
+      pos.push(x, y, z)
+      norm.push(x / len, y / len, z / len)
+      edge.push(0, 0, 0, 3)
+    }
+    if (ico !== rawIco) ico.dispose()
+    rawIco.dispose()
   } else {
     pushQuad([-0.5, -0.5, 0], [0.5, -0.5, 0], [0.5, 0.5, 0], [-0.5, 0.5, 0], 2)
   }
@@ -865,6 +884,7 @@ export class VfxWebglEngine {
     deviceInput: VfxDeviceInput,
     setting: VfxQualitySetting,
     initialProfile: VfxProfile,
+    preserveBuffer = false,
   ) {
     this.canvas = canvas
     this.gl = gl
@@ -892,7 +912,7 @@ export class VfxWebglEngine {
       depth: false,
       stencil: false,
       powerPreference: 'high-performance',
-      preserveDrawingBuffer: false,
+      preserveDrawingBuffer: preserveBuffer,
     })
     this.renderer.autoClear = false
     this.renderer.toneMapping = NoToneMapping
@@ -945,7 +965,7 @@ export class VfxWebglEngine {
 
     // Pool B: 3D Bezier Ribbons, CAD Rays & Zigzags
     const rCap = highCap.maxRibbons
-    this.ribbonGeo = makeInstancedRibbonGeometry(40)
+    this.ribbonGeo = makeInstancedRibbonGeometry(56)
     this.ribbonStart = createDynamicInstAttr(rCap, RIBBON_STRIDE)
     this.ribbonCtrl = createDynamicInstAttr(rCap, RIBBON_STRIDE)
     this.ribbonEnd = createDynamicInstAttr(rCap, RIBBON_STRIDE)
@@ -962,9 +982,9 @@ export class VfxWebglEngine {
     this.disposables.push(this.ribbonGeo, ribbonMat)
     this.geometryBytes += rCap * 16 * 4
 
-    // Pool C1: Tilted 3D Shockwave Crowns & Astrolabe Gimbals
+    // Pool C1: Tilted 3D Shockwave Crowns, Astrolabe Gimbals & Manifold Waves
     const wCap = highCap.maxWaves
-    this.waveGeo = makeInstancedRingGeometry(32)
+    this.waveGeo = makeInstancedRingGeometry(64)
     this.wavePos = createDynamicInstAttr(wCap, WAVE_STRIDE)
     this.waveShape = createDynamicInstAttr(wCap, WAVE_STRIDE)
     this.waveTime = createDynamicInstAttr(wCap, WAVE_STRIDE)
@@ -1095,6 +1115,10 @@ export class VfxWebglEngine {
     canvas.className = 'vfx-canvas'
     canvas.setAttribute('aria-hidden', 'true')
 
+    const preserveBuffer =
+      typeof window !== 'undefined' &&
+      Boolean((window as unknown as { __VFX_PRESERVE_BUFFER__?: boolean }).__VFX_PRESERVE_BUFFER__)
+
     const gl = canvas.getContext('webgl2', {
       alpha: true,
       premultipliedAlpha: true,
@@ -1102,7 +1126,7 @@ export class VfxWebglEngine {
       depth: false,
       stencil: false,
       powerPreference: 'high-performance',
-      preserveDrawingBuffer: false,
+      preserveDrawingBuffer: preserveBuffer,
     })
     if (!gl) return null
 
@@ -1135,7 +1159,7 @@ export class VfxWebglEngine {
     const profile = resolveVfxProfile(deviceInput, setting)
 
     try {
-      const engine = new VfxWebglEngine(canvas, gl, deviceInput, setting, profile)
+      const engine = new VfxWebglEngine(canvas, gl, deviceInput, setting, profile, preserveBuffer)
       stage.appendChild(canvas)
       return engine
     } catch {
@@ -2008,37 +2032,38 @@ export class VfxWebglEngine {
         float gridCross = smoothstep(0.41, 0.49, gf.x) * smoothstep(0.41, 0.49, gf.y);
 
         if (kind < 0.5) {
-          // 0: Ambient floor light spill illuminating #343434 grid borders beneath 3D strikes
+          // 0: Sub-bloom ambient floor light spill illuminating #343434 grid borders
           float falloff = exp(-r * r * 3.2) * smoothstep(1.0, 0.55, r);
-          float light = falloff * (0.22 + gridLine * 0.72 + gridCross * 0.55);
+          float light = falloff * (0.12 + gridLine * 0.42 + gridCross * 0.34);
           alpha = light * (1.0 - f);
-          energy = mix(0.48, 0.96, clamp(falloff * (0.55 + gridLine * 0.45), 0.0, 1.0)) * (1.0 - 0.2 * f);
+          energy = mix(0.28, 0.50, clamp(falloff * (0.5 + gridLine * 0.5), 0.0, 1.0)) * (1.0 - 0.25 * f);
         } else if (kind < 1.5) {
-          // 1: Crisp terminal beveled tile highlight (manhattan / array) without blowing out cell interior
+          // 1: Crisp sub-bloom square grid trace (manhattan / array / probe)
           vec2 edge = abs(p);
           float box = max(edge.x, edge.y);
-          float border = smoothstep(0.76, 0.84, box) * smoothstep(0.96, 0.90, box);
-          float fill = smoothstep(0.92, 0.82, box) * 0.06;
-          alpha = (border * 0.72 + fill) * (1.0 - f);
-          energy = mix(0.4, 0.65, border) * (1.0 - 0.25 * f);
+          float border = smoothstep(0.76, 0.85, box) * smoothstep(0.96, 0.90, box);
+          float fill = smoothstep(0.92, 0.82, box) * 0.045;
+          alpha = (border * 0.58 + fill) * (1.0 - f);
+          energy = mix(0.28, 0.48, border) * (1.0 - 0.2 * f);
         } else if (kind < 2.5) {
-          // 2: Voronoi bioluminescent flood tile crest
-          float vor = texture2D(uBrush, vUv * 1.6 + vec2(0.0, f * 0.42)).r;
+          // 2: Sub-bloom Voronoi flood tile crest
+          float vor = texture2D(uBrush, vUv * 0.42 + vec2(0.13, f * 0.22)).r;
+          float flow = texture2D(uBrush, vUv * 0.65 - vec2(f * 0.18, 0.09)).g;
           vec2 edge = abs(p);
           float box = max(edge.x, edge.y);
-          float crest = smoothstep(0.34, 0.07, vor) * smoothstep(0.96, 0.78, box);
-          float rim = smoothstep(0.74, 0.84, box) * smoothstep(0.97, 0.89, box);
-          alpha = (crest * 0.65 + rim * 0.75 + gridLine * 0.3) * (1.0 - f);
-          energy = mix(0.58, 0.96, crest);
+          float crest = smoothstep(0.38, 0.08, vor * 0.75 + (1.0 - flow) * 0.25) * smoothstep(0.96, 0.74, box);
+          float rim = smoothstep(0.76, 0.86, box) * smoothstep(0.97, 0.90, box);
+          alpha = (crest * 0.26 + rim * 0.40 + gridLine * 0.18) * (1.0 - f);
+          energy = mix(0.26, 0.46, crest);
         } else {
-          // 3: Architectural geometric fracture star & double shock-rings on Z = 0
+          // 3: Architectural geometric fracture star & crisp rings on Z = 0
           float ang = atan(p.y, p.x);
           float rays = pow(abs(cos(ang * 4.0)), 6.0);
-          float ringA = smoothstep(0.11, 0.0, abs(r - (0.22 + 0.62 * f)));
-          float ringB = smoothstep(0.08, 0.0, abs(r - (0.1 + 0.42 * f)));
-          float center = exp(-r * r * 6.5);
-          alpha = (rays * (1.0 - r) * 0.65 + ringA * 0.8 + ringB * 0.55 + center * 0.48 + gridCross * (1.0 - r) * 0.45) * (1.0 - f);
-          energy = clamp(0.55 + center * 0.45 + ringA * 0.35, 0.1, 0.99);
+          float ringA = smoothstep(0.10, 0.0, abs(r - (0.22 + 0.62 * f)));
+          float ringB = smoothstep(0.07, 0.0, abs(r - (0.1 + 0.42 * f)));
+          float center = exp(-r * r * 7.5);
+          alpha = (rays * (1.0 - r) * 0.52 + ringA * 0.62 + ringB * 0.42 + center * 0.28 + gridCross * (1.0 - r) * 0.32) * (1.0 - f);
+          energy = clamp(0.40 + center * 0.26 + ringA * 0.24, 0.1, 0.82);
         }
 
         if (alpha <= 0.002) discard;
@@ -2113,6 +2138,15 @@ export class VfxWebglEngine {
           float ramp = smoothstep(0.08, 0.72, u) * smoothstep(1.0, 0.92, u);
           pos.z += max(0.0, wave) * ramp * 0.95;
           pos.xy += perp3 * wave * ramp * 0.46;
+        } else if (style > 8.5 && style < 9.5) {
+          float env = sin(u * 3.1415926);
+          float w1 = sin(u * 11.0 - t * 14.0 + seed);
+          float w2 = cos(u * 19.0 - t * 22.0 + seed * 1.7);
+          float sw = w1 * 0.64 + w2 * 0.36;
+          pos.z += (0.14 + sw * 0.34) * env;
+          pos.xy += perp3 * sw * env * 0.25;
+        } else if (style > 9.5) {
+          pos.z += 0.08 * sin(u * 3.1415926);
         } else if (style > 7.5) {
           float env = sin(u * 3.1415926);
           float sw = sin(u * 9.4247 + seed - f * 7.2) * 0.65 + cos(u * 15.7 + seed * 0.6 + f * 4.5) * 0.35;
@@ -2148,8 +2182,14 @@ export class VfxWebglEngine {
           taper = 1.0 - 0.22 * f;
         } else if (style < 7.5) {
           taper = (0.55 + 0.45 * smoothstep(0.0, 0.4, u)) * (1.0 - 0.3 * f);
-        } else {
+        } else if (style < 8.5) {
           taper = (0.35 + 0.65 * sin(min(1.0, u * 4.0) * 1.5708) * sin(min(1.0, (1.0 - u) * 4.0) * 1.5708)) * (1.0 - 0.35 * f);
+        } else if (style < 9.5) {
+          float headTap = sin(min(1.0, u * 5.0) * 1.5708);
+          float tailTap = pow(sin(min(1.0, (1.0 - u) * 3.5) * 1.5708), 0.75);
+          taper = (0.28 + 0.72 * headTap * tailTap) * (1.0 - 0.28 * f);
+        } else {
+          taper = (0.80 + 0.20 * sin(u * 3.1415926)) * (1.0 - 0.16 * f);
         }
 
         float ndcPerCell = (2.0 * uCell) / max(1.0, uResolution.y);
@@ -2219,16 +2259,58 @@ export class VfxWebglEngine {
           return;
         }
 
+        if (style >= 9.5) {
+          float lanePos = clamp(vUv.y, 0.0, 0.999) * 5.0;
+          float laneIdx = floor(lanePos);
+          float laneSub = abs(fract(lanePos) - 0.5) * 2.0;
+          float laneCore = smoothstep(0.82, 0.22, laneSub);
+          float laneSpeed = 6.0 + mod(laneIdx, 3.0) * 2.4;
+          float rawBit = texture2D(uBrush, vec2(vUv.x * 2.4 - f * laneSpeed + seed + laneIdx * 0.23, 0.18 + laneIdx * 0.17)).r;
+          float cell = fract(vUv.x * (12.0 + mod(laneIdx, 2.0) * 4.0) - f * 20.0 + laneIdx * 0.37);
+          float block = smoothstep(0.16, 0.26, cell) * smoothstep(0.88, 0.76, cell) * step(0.44, rawBit);
+          float lead = smoothstep(0.62, 0.84, cell) * block;
+          float strobe = 0.48 + 0.52 * step(0.34, fract(f * 19.0 + laneIdx * 0.21 + floor(vUv.x * 10.0) * 0.13));
+          float rail = exp(-pow((across - 0.90) / 0.085, 2.0));
+          float head = clamp(f * 3.6, 0.0, 1.0);
+          float vis = smoothstep(head + 0.04, head - 0.09, vUv.x) * smoothstep(1.0, 0.16, f);
+          float alpha = clamp((block * laneCore * (0.42 + 0.36 * strobe) + rail * 0.50) * vis, 0.0, 0.62);
+          if (alpha <= 0.002) discard;
+          float baseHue = mod(laneIdx, 2.0) < 0.5 ? 0.62 : 0.33;
+          float energy = clamp(baseHue + lead * 0.16 * strobe + rail * 0.08 - 0.10 * f, 0.20, 0.78);
+          vec4 col = sampleLut(row, energy);
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
+
+        if (style >= 8.5) {
+          float s1 = texture2D(uBrush, vec2(vUv.x * 2.1 - f * 2.6 + seed, vUv.y * 1.35 + sin(vUv.x * 6.0 - f * 8.0) * 0.14)).b;
+          float s2 = texture2D(uBrush, vec2(vUv.x * 3.4 - f * 3.8 + seed * 0.7, vUv.y * 2.1 - f * 0.9)).g;
+          float flameNoise = s1 * 0.64 + s2 * 0.36;
+          float profile = exp(-across * across * 2.15);
+          float field = profile * (0.42 + 0.85 * flameNoise) - f * 0.24 - 0.14 * across;
+          float body = smoothstep(0.16, 0.44, field);
+          float rim = smoothstep(0.14, 0.24, field) - smoothstep(0.24, 0.40, field);
+          float spine = exp(-across * across * 16.0) * smoothstep(0.22, 0.56, flameNoise);
+          float head = clamp(f * 2.25, 0.0, 1.0);
+          float reveal = smoothstep(head + 0.06, head - 0.18, vUv.x) * smoothstep(1.0, 0.16, f);
+          float alpha = clamp((body * 0.40 + rim * 0.76 + spine * 0.48) * reveal, 0.0, 0.66);
+          if (alpha <= 0.002) discard;
+          float energy = clamp(0.36 + rim * 0.48 + spine * 0.36 - 0.14 * f, 0.15, 0.94);
+          vec4 col = sampleLut(row, energy);
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
+
         if (style >= 7.5) {
           float mistNoise = texture2D(uBrush, vec2(vUv.x * 1.6 - f * 1.5 + seed, vUv.y * 1.4 + f * 0.4)).g;
           float fbm = texture2D(uBrush, vec2(vUv.x * 3.1 + seed, vUv.y * 2.2 - f * 0.8)).b;
           float soft = exp(-across * across * 2.4) * (0.45 + 0.72 * mistNoise * 0.65 + 0.35 * fbm);
           float head = clamp(f * 1.65, 0.0, 1.0);
           float reveal = smoothstep(head + 0.08, head - 0.22, vUv.x) * smoothstep(1.0, 0.14, f);
-          float alpha = clamp(soft * reveal, 0.0, 1.0);
+          float alpha = clamp(soft * reveal * 0.46, 0.0, 0.52);
           if (alpha <= 0.002) discard;
           float glow = exp(-across * across * 7.5);
-          vec4 col = sampleLut(row, clamp(0.4 + glow * 0.48 * (1.0 - 0.3 * f), 0.12, 0.99));
+          vec4 col = sampleLut(row, clamp(0.34 + glow * 0.42 * (1.0 - 0.3 * f), 0.12, 0.88));
           gl_FragColor = vec4(col.rgb * alpha, 0.0);
           return;
         }
@@ -2292,9 +2374,15 @@ export class VfxWebglEngine {
         float spin = (mode > 0.5 && mode < 1.5) ? f * 4.2 : f * 0.95;
         float theta = u * 6.2831853 + spin;
 
-        float r = mix(aWaveShape.x, aWaveShape.y, ease) + edge * aWaveTime.z * (1.0 - 0.4 * f);
-        r = max(0.02, r);
-        vec3 local = vec3(cos(theta) * r, sin(theta) * r, edge * aWaveTime.z * 0.85);
+        float rBase = mix(aWaveShape.x, aWaveShape.y, ease) + edge * aWaveTime.z * (1.0 - 0.4 * f);
+        float modR = mode > 2.5
+          ? 1.0 + 0.15 * cos(theta * 4.0 + f * 7.2) + 0.08 * sin(theta * 7.0 - f * 5.2)
+          : 1.0;
+        float r = max(0.02, rBase * modR);
+        float zWave = mode > 2.5
+          ? 0.28 * sin(theta * 5.0 + f * 7.8) * (1.0 - 0.45 * f)
+          : 0.0;
+        vec3 local = vec3(cos(theta) * r, sin(theta) * r, edge * aWaveTime.z * 0.85 + zWave);
 
         float pitchX = aWaveShape.z;
         float rollY = aWaveShape.w;
@@ -2306,7 +2394,7 @@ export class VfxWebglEngine {
         vec3 world = aWavePos.xyz + r2;
         gl_Position = uProj * vec4(world, 1.0);
         vUv = vec2(u, edge + 0.5);
-        vMeta = vec4(f, aWavePos.w, mode, 0.0);
+        vMeta = vec4(f, aWavePos.w, mode, aWavePos.z);
       }
       `,
       /* glsl */ `
@@ -2321,7 +2409,11 @@ export class VfxWebglEngine {
         float radial = 1.0 - abs(vUv.y * 2.0 - 1.0);
         float mask = pow(radial, 1.35);
 
-        if (mode > 0.5 && mode < 1.5) {
+        if (mode > 2.5) {
+          float band = abs(sin(radial * 6.2832));
+          float fold = 0.74 + 0.26 * cos(vUv.x * 25.1327 + f * 6.283);
+          mask = (pow(radial, 1.25) * 0.34 + smoothstep(0.42, 0.90, band) * 0.74) * fold;
+        } else if (mode > 0.5 && mode < 1.5) {
           float fineTicks = step(0.32, fract(vUv.x * 24.0));
           float cardinals = smoothstep(0.12, 0.02, abs(fract(vUv.x * 4.0) - 0.5));
           mask *= max(fineTicks * 0.55, cardinals);
@@ -2332,9 +2424,12 @@ export class VfxWebglEngine {
           mask *= smoothstep(0.04, 0.52, brush + radial * 0.48 - f * 0.42);
         }
 
-        float alpha = mask * (1.0 - f) * 1.05;
+        float bgWave = step(vMeta.w, 0.08);
+        float alpha = mask * (1.0 - f) * (mode > 2.5 ? 0.78 : 0.88) * mix(1.0, 0.44, bgWave);
         if (alpha <= 0.002) discard;
-        float energy = clamp(0.48 + radial * 0.5 - 0.3 * f, 0.1, 0.99);
+        float energy = bgWave > 0.5
+          ? clamp(0.34 + radial * 0.30 - 0.16 * f, 0.16, 0.66)
+          : clamp(0.48 + radial * 0.5 - 0.3 * f, 0.1, 0.99);
         vec4 col = sampleLut(row, energy);
         gl_FragColor = vec4(col.rgb * alpha, 0.0);
       }
@@ -2454,6 +2549,12 @@ export class VfxWebglEngine {
             float speedCells = length(vel);
             stretch = shape < 0.5 ? clamp(1.8 + speedCells * 0.7, 1.8, 9.0) : clamp(1.1 + speedCells * 0.18, 1.1, 2.2);
           }
+        } else if (shape > 5.5) {
+          vec4 tipClip = uProj * vec4(world + vel * 0.05, 1.0);
+          vec2 delta = (tipClip.xy / max(0.08, tipClip.w) - centerClip.xy / wSafe) * vec2(aspect, 1.0);
+          float baseAng = length(delta) > 1e-4 ? atan(delta.y, delta.x) : seed * 6.2831853;
+          float ang = baseAng + (seed - 0.5) * 1.3 + (1.0 - lifeFrac) * (seed > 0.5 ? 3.2 : -3.2);
+          dir = vec2(cos(ang), sin(ang));
         } else {
           float spinSpeed = shape > 4.5 ? 6.2 : shape > 1.5 ? 7.5 : 1.8;
           float ang = seed * 6.2831853 + (1.0 - lifeFrac) * spinSpeed;
@@ -2482,6 +2583,26 @@ export class VfxWebglEngine {
         float shape = vMeta.y;
         float seed = vMeta.z;
         float r2 = dot(vQuad, vQuad);
+
+        if (shape > 5.5) {
+          vec2 q = vec2(vQuad.y, vQuad.x);
+          float k = 1.7320508;
+          float rTri = 0.82;
+          q.x = abs(q.x) - rTri;
+          q.y = q.y + rTri / k;
+          if (q.x + k * q.y > 0.0) q = vec2(q.x - k * q.y, -k * q.x - q.y) * 0.5;
+          q.x -= clamp(q.x, -2.0 * rTri, 0.0);
+          float sd = -length(q) * sign(q.y);
+          if (sd > 0.04) discard;
+          float fill = smoothstep(0.04, -0.06, sd) * 0.36;
+          float border = smoothstep(0.18, 0.03, abs(sd + 0.05)) * 0.92;
+          float alpha = (fill + border) * clamp(vLife * 1.75, 0.0, 1.0);
+          if (alpha <= 0.003) discard;
+          float energy = clamp(0.54 + border * 0.36, 0.15, 0.90);
+          vec4 col = sampleLut(row, energy);
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
 
         if (shape > 4.5) {
           float box = max(abs(vQuad.x) * 1.15, abs(vQuad.y) * 0.78);
@@ -2624,6 +2745,20 @@ export class VfxWebglEngine {
         float wireOnly = vMeta.z;
         float quant = vMeta.w;
 
+        if (vEdge.w > 2.5) {
+          float ndotv = abs(dot(normalize(vNormal), normalize(vec3(0.0, 0.42, 0.91))));
+          float core = pow(ndotv, 2.0);
+          float rim = pow(1.0 - ndotv, 1.85);
+          float pulse = 0.84 + 0.16 * sin(f * 26.0);
+          float fade = smoothstep(1.0, 0.12, f);
+          float alpha = clamp((core * 0.64 + rim * 0.94) * pulse * fade, 0.0, 0.95);
+          if (alpha <= 0.003) discard;
+          float energy = clamp(0.46 + core * 0.42 + rim * 0.24 - 0.12 * f, 0.15, 0.96);
+          vec4 col = sampleLut(row, energy);
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
+
         if (vEdge.w > 1.5) {
           vec2 g = abs(fract(vEdge.xy * 4.0) - 0.5);
           float grid = smoothstep(0.08, 0.01, min(g.x, g.y));
@@ -2715,7 +2850,7 @@ export class VfxWebglEngine {
         }
 
         vUv = aQuad + 0.5;
-        vMeta = vec4(f, lutRow, mode, 0.0);
+        vMeta = vec4(f, lutRow, mode, aCloudC.x);
         vSeed = seed;
         vFlags = flags;
       }
@@ -2735,6 +2870,27 @@ export class VfxWebglEngine {
         vec2 p = vUv * 2.0 - 1.0;
         float d = length(p);
 
+        if (mode >= 3.5) {
+          if (d > 1.0) discard;
+          float stage = max(1.0, vMeta.w);
+          float spin = f * (10.0 + stage * 5.5);
+          float ang = atan(p.y, p.x) - 3.6 * log(max(0.065, d)) - spin + vSeed;
+          float blades = pow(0.5 + 0.5 * cos(ang * 5.0), 2.1);
+          float subBlades = pow(0.5 + 0.5 * cos(ang * 3.0 + f * 6.0), 1.8);
+          float wisp = texture2D(uBrush, vec2(d * 1.6 + f * 0.9, ang * 0.18 + vSeed * 0.2)).b;
+          float eyeR = mix(0.68, 0.15, f);
+          float eyeRing = exp(-pow((d - eyeR) / (0.14 - stage * 0.015), 2.0));
+          float falloff = smoothstep(0.04, 0.24, d) * smoothstep(1.0, 0.18, d);
+          float env = sin(clamp(f, 0.02, 0.98) * 3.1415926);
+          float qiField = ((blades * 0.72 + subBlades * 0.34) * (0.48 + 0.72 * wisp) * falloff + eyeRing * 0.58) * env;
+          float alpha = clamp(qiField * (0.56 + stage * 0.08), 0.0, 0.68);
+          if (alpha <= 0.002) discard;
+          float energy = clamp(0.32 + eyeRing * 0.42 + blades * 0.26 + stage * 0.06, 0.15, 0.92);
+          vec4 col = sampleLut(row, energy);
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
+
         if (mode >= 2.5) {
           vec2 edge = abs(p);
           float box = max(edge.x, edge.y);
@@ -2744,20 +2900,21 @@ export class VfxWebglEngine {
             float arms = pow(0.5 + 0.5 * cos(ang * 4.0 + vSeed), 2.2);
             float drain = smoothstep(0.08, 0.28, d) * smoothstep(0.98, 0.28, box);
             float pit = smoothstep(0.32, 0.05, d);
-            float alpha = clamp((arms * 0.78 * drain + pit * 0.92) * smoothstep(1.0, 0.14, f), 0.0, 0.96);
+            float alpha = clamp((arms * 0.56 * drain + pit * 0.78) * smoothstep(1.0, 0.14, f), 0.0, 0.78);
             if (alpha <= 0.003) discard;
-            vec4 col = sampleLut(row, clamp(0.45 + arms * 0.45, 0.1, 0.99));
-            gl_FragColor = vec4(col.rgb * arms * (1.0 - pit * 0.85) * alpha, alpha);
+            vec4 col = sampleLut(row, clamp(0.34 + arms * 0.34, 0.1, 0.72));
+            gl_FragColor = vec4(col.rgb * arms * (1.0 - pit * 0.88) * alpha, alpha);
             return;
           }
-          float v1 = texture2D(uBrush, vUv * 1.6 + vec2(f * 0.32, vSeed * 0.1)).r;
-          float v2 = texture2D(uBrush, vUv * 2.2 - vec2(f * 0.24, 0.15)).r;
-          float caustic = smoothstep(0.28, 0.05, min(v1, v2)) * smoothstep(0.98, 0.72, box);
-          float rim = smoothstep(0.76, 0.88, box) * smoothstep(0.98, 0.91, box);
-          float waveRing = smoothstep(0.1, 0.0, abs(fract(d * 2.2 - f * 2.4) - 0.5)) * 0.35 * smoothstep(0.96, 0.4, box);
-          float alpha = clamp((caustic * 0.68 + rim * 0.82 + waveRing + 0.12 * smoothstep(0.95, 0.5, box)) * smoothstep(1.0, 0.16, f), 0.0, 1.0);
+          vec2 seedOff = vec2(fract(vSeed * 0.37), fract(vSeed * 0.73));
+          float v1 = texture2D(uBrush, vUv * 0.38 + seedOff + vec2(f * 0.16, -f * 0.11)).r;
+          float v2 = texture2D(uBrush, vUv * 0.54 - seedOff * 0.6 - vec2(f * 0.14, 0.08)).g;
+          float caustic = smoothstep(0.42, 0.10, v1 * 0.72 + (1.0 - v2) * 0.28) * smoothstep(0.98, 0.68, box);
+          float rim = smoothstep(0.78, 0.90, box) * smoothstep(0.98, 0.92, box);
+          float waveRing = smoothstep(0.14, 0.0, abs(fract(d * 1.35 - f * 1.8) - 0.5)) * 0.24 * smoothstep(0.96, 0.36, box);
+          float alpha = clamp((caustic * 0.24 + rim * 0.34 + waveRing * 0.26 + 0.05 * smoothstep(0.95, 0.45, box)) * smoothstep(1.0, 0.16, f), 0.0, 0.42);
           if (alpha <= 0.002) discard;
-          vec4 col = sampleLut(row, clamp(0.45 + caustic * 0.48 + rim * 0.35, 0.1, 0.99));
+          vec4 col = sampleLut(row, clamp(0.24 + caustic * 0.24 + rim * 0.16, 0.1, 0.52));
           gl_FragColor = vec4(col.rgb * alpha, 0.0);
           return;
         }
@@ -2768,9 +2925,9 @@ export class VfxWebglEngine {
           float n2 = texture2D(uBrush, vUv * 2.9 - vec2(f * 0.36, 0.2)).g;
           float fbm = n1 * 0.6 + n2 * 0.4;
           float ring = exp(-pow((d - 0.56 - (fbm - 0.5) * 0.18) / 0.19, 2.0));
-          float alpha = clamp(ring * (0.55 + 0.65 * fbm) * sin(clamp(f, 0.02, 0.98) * 3.1415926), 0.0, 1.0);
+          float alpha = clamp(ring * (0.42 + 0.52 * fbm) * sin(clamp(f, 0.02, 0.98) * 3.1415926), 0.0, 0.72);
           if (alpha <= 0.002) discard;
-          vec4 col = sampleLut(row, clamp(0.46 + 0.45 * ring * fbm, 0.1, 0.99));
+          vec4 col = sampleLut(row, clamp(0.42 + 0.42 * ring * fbm, 0.1, 0.88));
           gl_FragColor = vec4(col.rgb * alpha, 0.0);
           return;
         }
@@ -2779,11 +2936,13 @@ export class VfxWebglEngine {
           float across = abs(p.x);
           float n1 = texture2D(uBrush, vec2(vUv.x * 1.8 + sin(vUv.y * 5.0 + vSeed) * 0.22, vUv.y * 1.5 - f * 2.2 + vSeed)).g;
           float n2 = texture2D(uBrush, vec2(vUv.x * 3.1 - f * 0.6, vUv.y * 2.4 - f * 3.1)).b;
-          float billow = smoothstep(0.98, 0.15, across + (1.0 - n1) * 0.32);
+          float flameField = smoothstep(0.96, 0.16, across) * (0.42 + 0.78 * (n1 * 0.58 + n2 * 0.42)) - f * 0.18;
+          float body = smoothstep(0.24, 0.55, flameField);
+          float rim = smoothstep(0.20, 0.30, flameField) - smoothstep(0.30, 0.52, flameField);
           float vertFade = smoothstep(0.0, 0.16, vUv.y) * smoothstep(1.0, 0.22, vUv.y);
-          float alpha = clamp(billow * vertFade * (0.45 + 0.65 * n2) * smoothstep(1.0, 0.14, f), 0.0, 1.0);
+          float alpha = clamp((body * 0.38 + rim * 0.72) * vertFade * smoothstep(1.0, 0.14, f), 0.0, 0.65);
           if (alpha <= 0.002) discard;
-          vec4 col = sampleLut(row, clamp(0.44 + (1.0 - across) * 0.48 * n1, 0.1, 0.99));
+          vec4 col = sampleLut(row, clamp(0.36 + rim * 0.48 + (1.0 - across) * 0.22 * n1, 0.1, 0.92));
           gl_FragColor = vec4(col.rgb * alpha, 0.0);
           return;
         }
@@ -2794,15 +2953,15 @@ export class VfxWebglEngine {
         float fbmB = texture2D(uBrush, vUv * 2.5 - vec2(f * 0.28, f * 0.31 + vSeed * 0.2)).g;
         float cloud = smoothstep(0.05, 0.68, pow(radial, 1.3) * (0.42 + 0.78 * (fbmA * 0.6 + fbmB * 0.4)));
         float env = sin(clamp(f, 0.02, 0.98) * 3.1415926);
-        float alpha = clamp(cloud * env * (uIsDark > 0.5 ? 0.88 : 0.72), 0.0, uIsDark > 0.5 ? 0.92 : 1.0);
+        float alpha = clamp(cloud * env * (uIsDark > 0.5 ? 0.40 : 0.18), 0.0, uIsDark > 0.5 ? 0.46 : 0.22);
         if (alpha <= 0.003) discard;
         if (uIsDark > 0.5) {
-          vec4 rim = sampleLut(row, 0.28);
-          vec3 smoke = mix(vec3(0.03, 0.035, 0.05) * uSceneGain, rim.rgb * 0.28, (1.0 - radial) * 0.55);
+          vec4 rim = sampleLut(row, 0.24);
+          vec3 smoke = mix(vec3(0.03, 0.035, 0.05) * uSceneGain, rim.rgb * 0.24, (1.0 - radial) * 0.55);
           gl_FragColor = vec4(smoke * alpha, alpha);
           return;
         }
-        vec4 col = sampleLut(row, clamp(0.38 + cloud * 0.48, 0.1, 0.99));
+        vec4 col = sampleLut(row, clamp(0.24 + cloud * 0.24, 0.1, 0.50));
         gl_FragColor = vec4(col.rgb * alpha, 0.0);
       }
       `,
@@ -2844,20 +3003,20 @@ export class VfxWebglEngine {
 
       void main() {
         vec2 o = uTexelSize * 0.75;
-        vec3 acc = extractBright(vUv, 0.76, 0.32) * 0.4
-          + extractBright(vUv + vec2(-o.x, -o.y), 0.76, 0.32) * 0.15
-          + extractBright(vUv + vec2(o.x, -o.y), 0.76, 0.32) * 0.15
-          + extractBright(vUv + vec2(-o.x, o.y), 0.76, 0.32) * 0.15
-          + extractBright(vUv + vec2(o.x, o.y), 0.76, 0.32) * 0.15;
+        vec3 acc = extractBright(vUv, 1.08, 0.28) * 0.4
+          + extractBright(vUv + vec2(-o.x, -o.y), 1.08, 0.28) * 0.15
+          + extractBright(vUv + vec2(o.x, -o.y), 1.08, 0.28) * 0.15
+          + extractBright(vUv + vec2(-o.x, o.y), 1.08, 0.28) * 0.15
+          + extractBright(vUv + vec2(o.x, o.y), 1.08, 0.28) * 0.15;
 
         // Subtle axial cross-glint on ultra-bright HDR cores
         vec2 star = uTexelSize * 2.5;
         vec3 glint =
-          extractBright(vUv + vec2(-star.x, 0.0), 2.2, 0.45) +
-          extractBright(vUv + vec2(star.x, 0.0), 2.2, 0.45) +
-          extractBright(vUv + vec2(0.0, -star.y), 2.2, 0.45) +
-          extractBright(vUv + vec2(0.0, star.y), 2.2, 0.45);
-        gl_FragColor = vec4(acc + glint * 0.06, 1.0);
+          extractBright(vUv + vec2(-star.x, 0.0), 2.5, 0.4) +
+          extractBright(vUv + vec2(star.x, 0.0), 2.5, 0.4) +
+          extractBright(vUv + vec2(0.0, -star.y), 2.5, 0.4) +
+          extractBright(vUv + vec2(0.0, star.y), 2.5, 0.4);
+        gl_FragColor = vec4(acc + glint * 0.035, 1.0);
       }
       `,
       {
@@ -2962,10 +3121,10 @@ export class VfxWebglEngine {
       void main() {
         vec4 scene = texture2D(tScene, vUv);
         vec3 bloom = texture2D(tBloom, vUv).rgb;
-        vec3 hdr = scene.rgb * uHdrUnpack + bloom * 0.78;
+        vec3 hdr = scene.rgb * uHdrUnpack + bloom * 0.46;
         float peak = max(hdr.r, max(hdr.g, hdr.b));
         vec3 satMapped = clamp(hdr / (1.0 + peak * 0.65), 0.0, 1.0);
-        vec3 mapped = mix(acesFilmic(hdr), satMapped, 0.32);
+        vec3 mapped = mix(acesFilmic(hdr), satMapped, 0.45);
         float lumAlpha = max(mapped.r, max(mapped.g, mapped.b));
         float outAlpha = clamp(max(scene.a, lumAlpha), 0.0, 1.0);
         if (outAlpha <= 0.002) discard;
