@@ -75,7 +75,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
       if (scene === 'title') titlePrimary()
       else if (phase === 'planning') void battleStore.executeTurn()
       // CONTINUE: on from the result. R is the way to fight it again, where there is one.
-      else if (phase === 'victory' || phase === 'gameover') reportOutcome()
+      else if ((phase === 'victory' || phase === 'gameover') && !battleStore.isOutcomeDelayed()) reportOutcome()
       return
     }
     if (scene === 'title') return

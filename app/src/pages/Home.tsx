@@ -292,8 +292,9 @@ export default function Home() {
       }
     : plannedState
   const live = state.phase === 'resolving'
+  const outcomeDelayed = battleStore.isOutcomeDelayed()
   // The battle is over: nothing more will happen, so nothing is forecast.
-  const over = state.phase === 'victory' || state.phase === 'gameover'
+  const over = (state.phase === 'victory' || state.phase === 'gameover') && !outcomeDelayed
   const forecast = !live && !over
   const sequence = over ? [] : state.outgoingForecast ?? (state.playerAttackResolved
     ? []
@@ -329,7 +330,7 @@ export default function Home() {
     veiledIds.has(hit.enemyId) ? Math.max(0, hit.damage - hit.absorbed) : hit.dealt
   const overloadDamage = visibleSequence.reduce((total, hit) => total + landed(hit), 0)
   const overloadHasTargets = visibleSequence.length > 0
-  const aliveEnemies = state.enemies.filter(enemy => enemy.robustness > 0)
+  const aliveEnemies = battleStore.visualEnemies().map(entry => entry.enemy)
   // Geek bars break in the colour of whatever is hitting them: violet for an
   // Overload (the only damage dealt while planning), otherwise the active deck's.
   const strikeColor = !live ? '#a78bfa' : presets[state.player.activeBash].steps[0].shape === 'cross' ? '#5ee6ff' : '#ffc857'
@@ -422,7 +423,7 @@ export default function Home() {
   // A full-screen scene is over the battle: the board stays mounted under it,
   // out of reach of the pointer and the Tab key.
   const covered = scene !== 'battle' && scene !== 'title'
-  const ended = scene === 'battle' && (state.phase === 'victory' || state.phase === 'gameover')
+  const ended = scene === 'battle' && over
   // Inside a layer a defeat counts the moment it happens, so the battle is not
   // offered again: no RESTART BATTLE while it is fought, and only CONTINUE
   // once it is lost. (Both stores are subscribed to above.)

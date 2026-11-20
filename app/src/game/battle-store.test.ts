@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { simulateRelease } from './attack-methods'
 import { BattleStore } from './battle-store'
 import type { StoryEvent } from './battle-store'
@@ -846,5 +846,82 @@ describe('PATH TAKEN', () => {
     await won.store.executeTurn()
     expect(won.store.getSnapshot().phase).toBe('victory')
     expect(won.store.routeText()).toBe(route)
+  })
+})
+
+describe('visual defeat and Overload outcome pacing', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('delays PASS screen after winning Overload and keeps enemy icon visible until HP drops to zero', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10000)
+    vi.stubGlobal('window', { dispatchEvent: () => true })
+
+    const { store } = loaded(ENCOUNTERS['1.1'])
+    store.start()
+    const state = store.getSnapshot()
+    state.reducedMotion = false
+    const geek = quiet(store)
+    geek.robustness = 1
+    geek.block = 0
+    geek.pos = { x: state.player.pos.x, y: state.player.pos.y - 2 }
+    state.player.overload = state.tuning.overloadThreshold
+
+    store.useOverload()
+    expect(store.getSnapshot().phase).toBe('victory')
+    expect(store.isOutcomeDelayed()).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(500)
+    expect(store.visualEnemies()).toHaveLength(1)
+    expect(store.visualEnemies()[0]).toMatchObject({ enemy: { id: geek.id, robustness: 1 }, dyingProgress: null })
+    expect(store.isOutcomeDelayed()).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(340) // t = 840 ms (just after 820 ms stream strike)
+    expect(store.visualEnemies()).toHaveLength(1)
+    expect(store.visualEnemies()[0].enemy).toMatchObject({ id: geek.id, robustness: 0 })
+    expect(store.visualEnemies()[0].dyingProgress).not.toBeNull()
+    expect(store.isOutcomeDelayed()).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(280) // t = 1120 ms (after 260 ms zero-HP fade)
+    expect(store.visualEnemies()).toHaveLength(0)
+    expect(store.isOutcomeDelayed()).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(280) // t = 1400 ms (after 1360 ms OVERLOAD VFX end)
+    expect(store.isOutcomeDelayed()).toBe(false)
+  })
+
+  it('keeps a dying Geek visible at zero HP briefly when slain by a regular Bash release', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(20000)
+    vi.stubGlobal('window', { dispatchEvent: () => true })
+
+    const { store } = loaded(ENCOUNTERS['1.1'])
+    store.start()
+    const state = store.getSnapshot()
+    state.reducedMotion = false
+    const geek = quiet(store)
+    geek.robustness = 1
+    geek.block = 0
+    geek.pos = { x: state.player.pos.x + 1, y: state.player.pos.y - 1 }
+    state.flags[state.player.pos.y - 1][state.player.pos.x] = 'bash'
+    store.addStep(0, -1)
+
+    const turn = store.executeTurn()
+    // Wait until move step + BASE strike (320 ms) completes; before settle finishes
+    await vi.advanceTimersByTimeAsync(600)
+    const dying = store.visualEnemies()
+    expect(dying).toHaveLength(1)
+    expect(dying[0].enemy).toMatchObject({ id: geek.id, robustness: 0 })
+    expect(dying[0].dyingProgress).not.toBeNull()
+
+    await vi.advanceTimersByTimeAsync(300)
+    expect(store.visualEnemies()).toHaveLength(0)
+
+    await vi.advanceTimersByTimeAsync(1500)
+    await turn
+    expect(store.getSnapshot().phase).toBe('victory')
   })
 })

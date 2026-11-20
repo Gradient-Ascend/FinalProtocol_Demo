@@ -8,7 +8,7 @@ import {
 } from './battle-rules'
 import type {
   AttackEffect, AttackPreview, BattleAction, BattleState, BossStageDefinition, Coord, EnemyAttackPreview,
-  EnemyState, FlagKind, OverloadSubStep,
+  EnemyMarks, EnemyState, FlagKind, OverloadSubStep,
 } from './battle-types'
 import { WARDEN_ENCOUNTER, layerName } from './encounters'
 import type { Encounter, EncounterKind } from './encounters'
@@ -29,6 +29,14 @@ export type StoryEvent = {
       | 'brood' | 'article' | 'breakdown' | 'sanity_low' | 'turn_end' | 'victory' | 'defeat'
   encounter: string; layer: number; kind: EncounterKind; turn: number
   stage?: number; killsThisTurn?: number; broodCount?: number; article?: string; enemyId?: string
+}
+
+export type VisualEnemyEntry = { enemy: EnemyState; dyingProgress: number | null }
+type EnemyVisualHold = {
+  preStrike?: { pos: Coord; robustness: number; block: number; marks: EnemyMarks }
+  strikeAt: number
+  removeAt: number
+  deadPos: Coord
 }
 
 const ROMAN = ['I', 'II', 'III', 'IV']
@@ -75,6 +83,10 @@ export class BattleStore {
   // frees a turn that is sitting one out when its battle is rebuilt.
   private held: Promise<void> | null = null
   private dropHold: () => void = () => undefined
+  private enemyHolds = new Map<string, EnemyVisualHold>()
+  private overloadOutcomeUntil = 0
+  private overloadVfxUntil = 0
+  private visualTimers = new Set<ReturnType<typeof setTimeout>>()
   sfx: Sfx = () => undefined
   startMusic: () => void = () => undefined
   // The story layer's hook. Called synchronously, as the thing happens.
@@ -153,9 +165,68 @@ export class BattleStore {
     }
   }
 
+  private clearVisualHolds(): void {
+    for (const timer of this.visualTimers) clearTimeout(timer)
+    this.visualTimers.clear()
+    this.enemyHolds.clear()
+    this.overloadOutcomeUntil = 0
+    this.overloadVfxUntil = 0
+  }
+
+  private scheduleVisualCommit(delayMs: number, fn?: () => void): void {
+    if (this.state.reducedMotion || typeof window === 'undefined') return
+    const timer = setTimeout(() => {
+      this.visualTimers.delete(timer)
+      fn?.()
+      this.commit()
+    }, Math.max(0, delayMs))
+    this.visualTimers.add(timer)
+  }
+
+  isOutcomeDelayed = (): boolean => (
+    !this.state.reducedMotion && typeof window !== 'undefined' && Date.now() < this.overloadOutcomeUntil
+  )
+
+  visualEnemies = (): VisualEnemyEntry[] => {
+    const now = Date.now()
+    const visible: VisualEnemyEntry[] = []
+    for (const enemy of this.state.enemies) {
+      const hold = !this.state.reducedMotion ? this.enemyHolds.get(enemy.id) : undefined
+      if (hold?.preStrike && now < hold.strikeAt) {
+        if (hold.preStrike.robustness > 0) {
+          visible.push({
+            enemy: {
+              ...enemy,
+              ...hold.preStrike.marks,
+              pos: { ...hold.preStrike.pos },
+              robustness: hold.preStrike.robustness,
+              block: hold.preStrike.block,
+            },
+            dyingProgress: null,
+          })
+        }
+        continue
+      }
+      if (enemy.robustness > 0) {
+        visible.push({ enemy, dyingProgress: null })
+        continue
+      }
+      if (hold && now < hold.removeAt) {
+        const span = Math.max(1, hold.removeAt - hold.strikeAt)
+        const dyingProgress = Math.min(1, Math.max(0, (now - hold.strikeAt) / span))
+        visible.push({
+          enemy: { ...enemy, pos: { ...hold.deadPos }, robustness: 0 },
+          dyingProgress,
+        })
+      }
+    }
+    return visible
+  }
+
   // A fresh battle on the current encounter, with what the run carried in.
   private rebuild(): void {
     this.runId++
+    this.clearVisualHolds()
     const { muted, reducedMotion } = this.state
     this.random = mulberry32(refillSeed(this.encounter))
     this.logId = 10
@@ -253,6 +324,7 @@ export class BattleStore {
 
   toggleReducedMotion(): void {
     this.state.reducedMotion = !this.state.reducedMotion
+    if (this.state.reducedMotion) this.clearVisualHolds()
     storage.set('reducedMotion', this.state.reducedMotion)
     this.commit()
   }
@@ -392,9 +464,21 @@ export class BattleStore {
     this.state.message = `${activePreset(this.state).name} released all 4 methods from the planned endpoint.`
     this.sfx('overload')
     this.emit('overload')
-    this.firePlayerAttackImmediate(releases, this.plannedPosition())
+    const finishMs = this.firePlayerAttackImmediate(releases, this.plannedPosition())
     enemyRoutes(this.state)
-    this.checkOutcome()
+    const ended = this.checkOutcome()
+    if (
+      ended &&
+      finishMs > 0 &&
+      !this.state.reducedMotion &&
+      typeof window !== 'undefined'
+    ) {
+      const until = Date.now() + finishMs
+      this.overloadOutcomeUntil = until
+      this.scheduleVisualCommit(finishMs + 10, () => {
+        if (this.overloadOutcomeUntil === until) this.overloadOutcomeUntil = 0
+      })
+    }
     this.commit()
   }
 
@@ -439,7 +523,7 @@ export class BattleStore {
     }
   }
 
-  private applyPlayerHit(presetName: string, hit: ReturnType<typeof predictedSequence>[number]): void {
+  private applyPlayerHit(presetName: string, hit: ReturnType<typeof predictedSequence>[number], isOverload = false): void {
     const enemy = this.state.enemies.find(candidate => candidate.id === hit.enemyId)
     if (!enemy) return
     enemy.robustness = hit.after
@@ -458,6 +542,14 @@ export class BattleStore {
     if (hit.charge) {
       this.state.interactionCharge += hit.charge
       this.state.player.overload = Math.min(this.state.tuning.overloadThreshold, this.state.player.overload + hit.charge)
+    }
+    if (!isOverload && hit.before > 0 && hit.after === 0 && !this.state.reducedMotion && typeof window !== 'undefined') {
+      const now = Date.now()
+      const removeAt = now + 260
+      this.enemyHolds.set(hit.enemyId, { strikeAt: now, removeAt, deadPos: { ...hit.marks.pos } })
+      this.scheduleVisualCommit(265, () => {
+        if (this.enemyHolds.get(hit.enemyId)?.removeAt === removeAt) this.enemyHolds.delete(hit.enemyId)
+      })
     }
     const step = activePreset(this.state).steps[hit.stepIndex]
     const shieldText = hit.absorbed ? ` / ${hit.absorbed} blocked` : ''
@@ -494,11 +586,27 @@ export class BattleStore {
     }
   }
 
-  private firePlayerAttackImmediate(steps: number, origin = this.state.player.pos): void {
-    if (!steps) return
+  private firePlayerAttackImmediate(steps: number, origin = this.state.player.pos): number {
+    if (!steps) return 0
     const preset = activePreset(this.state)
     const attackState = { ...this.state, player: { ...this.state.player, pos: origin } }
     const hits = predictedSequence(attackState, this.state.player.activeBash, steps, true)
+    const preByEnemy = new Map<string, NonNullable<EnemyVisualHold['preStrike']>>()
+    for (const enemy of this.state.enemies) {
+      if (enemy.robustness <= 0) continue
+      preByEnemy.set(enemy.id, {
+        pos: { ...enemy.pos },
+        robustness: enemy.robustness,
+        block: enemy.block,
+        marks: {
+          live: enemy.live,
+          breached: enemy.breached,
+          shifted: enemy.shifted,
+          struck: enemy.struck,
+          dropped: enemy.dropped,
+        },
+      })
+    }
     // Overload is shown as a single cascade, so each Geek gets one effect
     // carrying everything the four methods did to it.
     const effects = new Map<string, AttackEffect>()
@@ -529,8 +637,9 @@ export class BattleStore {
       } else {
         effects.set(hit.enemyId, { ...effect, fx: 'overload', cap: undefined, overload: true, overloadSteps: [sub] })
       }
-      this.applyPlayerHit(preset.name, hit)
+      this.applyPlayerHit(preset.name, hit, true)
     }
+    let finishMs = 0
     if (effects.size === 0) {
       const first = preset.steps[0]
       this.emitEffect({
@@ -538,9 +647,42 @@ export class BattleStore {
         stepIndex: 0, shape: first.shape, range: first.range, width: first.width,
         fx: 'overload', overload: true, amount: 0, dealt: 0, overloadSteps: [],
       })
+      finishMs = 1300
     } else {
+      if (!this.state.reducedMotion && typeof window !== 'undefined') {
+        const now = Date.now()
+        let targetIdx = 0
+        for (const [enemyId] of effects.entries()) {
+          const pre = preByEnemy.get(enemyId)
+          const afterEnemy = this.state.enemies.find(candidate => candidate.id === enemyId)
+          if (pre && afterEnemy) {
+            const strikeDelay = 820 + targetIdx * 40
+            const strikeAt = now + strikeDelay
+            const killed = afterEnemy.robustness <= 0
+            const removeAt = killed ? strikeAt + 260 : strikeAt
+            this.enemyHolds.set(enemyId, {
+              preStrike: pre,
+              strikeAt,
+              removeAt,
+              deadPos: { ...afterEnemy.pos },
+            })
+            this.scheduleVisualCommit(strikeDelay + 5)
+            if (killed) {
+              this.scheduleVisualCommit(strikeDelay + 265, () => {
+                if (this.enemyHolds.get(enemyId)?.removeAt === removeAt) this.enemyHolds.delete(enemyId)
+              })
+            }
+          }
+          targetIdx++
+        }
+        finishMs = 1360 + Math.max(0, effects.size - 1) * 40
+      }
       effects.forEach(effect => this.emitEffect(effect))
     }
+    if (!this.state.reducedMotion && typeof window !== 'undefined' && finishMs > 0) {
+      this.overloadVfxUntil = Date.now() + finishMs
+    }
+    return finishMs
   }
 
   // `run` is the turn's id. Whenever a pause ends, a rebuilt battle (restart,
@@ -804,6 +946,10 @@ export class BattleStore {
     this.state.resolvedMoves = 0
     this.state.message = 'Executing player route…'
     this.commit()
+    if (!this.state.reducedMotion && typeof window !== 'undefined' && this.overloadVfxUntil > Date.now()) {
+      await this.pause(this.overloadVfxUntil - Date.now())
+      if (id !== this.runId) return
+    }
     // A moment still playing when the turn is ordered: nothing moves under it.
     if (this.held && !await this.heldBack(id)) return
 

@@ -676,7 +676,8 @@ export class BattleRenderer {
       ? { ...state, player: { ...state.player, activeBash: 1 - state.player.activeBash, pos: this.store.plannedPosition() } }
       : state
     const stepsOverride = state.overloadArmed ? 4 : undefined
-    const living = livingEnemies(state)
+    const visualUnits = this.store.visualEnemies()
+    const living = visualUnits.filter(entry => entry.enemy.robustness > 0).map(entry => entry.enemy)
     const mapEnemy = this.hover ? living.find(enemy => sameCoord(enemy.pos, this.hover!)) ?? null : null
     const focusedEnemyId = state.enemyAttackPreview?.enemyId ?? this.panelHoveredEnemyId ?? mapEnemy?.id ?? null
     const focusedEnemy = focusedEnemyId ? living.find(enemy => enemy.id === focusedEnemyId) ?? null : null
@@ -829,8 +830,12 @@ export class BattleRenderer {
 
     // A hidden Geek has no glyph and no label: its cell looks empty. Its route is drawn above like any other.
     const units = [
-      { id: 'P', pos: state.player.pos },
-      ...livingEnemies(state).filter(enemy => !enemy.hidden).map(enemy => ({ id: enemy.id, pos: enemy.pos })),
+      { id: 'P', pos: state.player.pos, dyingProgress: null as number | null },
+      ...visualUnits.filter(entry => !entry.enemy.hidden).map(entry => ({
+        id: entry.enemy.id,
+        pos: entry.enemy.pos,
+        dyingProgress: entry.dyingProgress,
+      })),
     ]
     for (const unit of units) {
       const key = `${unit.pos.x},${unit.pos.y}`
@@ -839,6 +844,14 @@ export class BattleRenderer {
       }
       this.unitSeen.set(unit.id, key)
       const isFocusedEnemy = unit.id !== 'P' && focusedEnemy?.id === unit.id
+      const fadeAlpha = unit.dyingProgress === null
+        ? 1
+        : Math.max(0, 1 - Math.max(0, (unit.dyingProgress - 0.35) / 0.65))
+      if (fadeAlpha <= 0.01) continue
+      if (fadeAlpha < 1) {
+        ctx.save()
+        ctx.globalAlpha = fadeAlpha
+      }
       if (isFocusedEnemy) {
         this.drawEnemy(unit.pos, unit.id, true)
       } else if ((this.movingUntil.get(unit.id) ?? 0) > worldTime) {
@@ -846,6 +859,9 @@ export class BattleRenderer {
         else this.drawEnemy(unit.pos, unit.id)
       } else {
         this.drawBreathingDot(unit.pos, unit.id === 'P' ? COLORS.blue : COLORS.red, worldTime)
+      }
+      if (fadeAlpha < 1) {
+        ctx.restore()
       }
     }
     if (route.length && state.phase === 'planning') {

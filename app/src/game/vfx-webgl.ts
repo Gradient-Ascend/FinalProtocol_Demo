@@ -96,6 +96,7 @@ export const enum CloudMode {
   Corona = 2,
   LiquidCell = 3,
   JiQiVortex = 4,
+  PlasmaFlow = 5,
 }
 
 export const enum DecalKind {
@@ -247,6 +248,14 @@ export type CloudSpawn = {
   seed?: number
   dark?: boolean
   whirlpool?: boolean
+  /** PlasmaFlow (`mode === 5`) controls: 0 = directed plume, 1 = smin Cross, 2 = smin Squircle, 3 = wide Ultra wake. */
+  flowStyle?: number
+  /** Extra alpha-erosion dissolve bias for PlasmaFlow (`-0.25 .. 0.35`). */
+  erosion?: number
+  /** Nominal reach half-length in board cells for PlasmaFlow SDF (quad `radius` carries warp padding). */
+  spanLen?: number
+  /** Nominal half-width in board cells for PlasmaFlow SDF (quad `endRadius` carries warp padding). */
+  nomWid?: number
 }
 
 const DECAL_STRIDE = 4
@@ -1473,11 +1482,21 @@ export class VfxWebglEngine {
     const aB = pool.attrB.array as Float32Array
     const aC = pool.attrC.array as Float32Array
     const aD = pool.attrD.array as Float32Array
-    aA[b] = c.x; aA[b + 1] = c.y; aA[b + 2] = c.z; aA[b + 3] = c.radius
-    aB[b] = c.vx ?? 0; aB[b + 1] = c.vy ?? 0; aB[b + 2] = c.vz ?? 0; aB[b + 3] = c.endRadius ?? c.radius
-    aC[b] = c.height ?? 1.0; aC[b + 1] = 0; aC[b + 2] = Math.max(0.04, c.dur); aC[b + 3] = c.lut
-    const flags = c.whirlpool ? 2 : c.dark ? 1 : 0
-    aD[b] = c.mode; aD[b + 1] = c.seed ?? Math.random() * 6.283; aD[b + 2] = flags; aD[b + 3] = 0
+    if (c.mode === CloudMode.PlasmaFlow) {
+      aA[b] = c.x; aA[b + 1] = c.y; aA[b + 2] = c.z; aA[b + 3] = c.radius
+      aB[b] = c.flowStyle ?? 0
+      aB[b + 1] = c.erosion ?? 0
+      aB[b + 2] = c.spanLen ?? Math.max(1.0, c.radius - 1.6)
+      aB[b + 3] = c.endRadius ?? c.radius
+      aC[b] = c.height ?? 0; aC[b + 1] = 0; aC[b + 2] = Math.max(0.04, c.dur); aC[b + 3] = c.lut
+      aD[b] = c.mode; aD[b + 1] = c.seed ?? Math.random() * 6.283; aD[b + 2] = c.nomWid ?? 1.05; aD[b + 3] = 0
+    } else {
+      aA[b] = c.x; aA[b + 1] = c.y; aA[b + 2] = c.z; aA[b + 3] = c.radius
+      aB[b] = c.vx ?? 0; aB[b + 1] = c.vy ?? 0; aB[b + 2] = c.vz ?? 0; aB[b + 3] = c.endRadius ?? c.radius
+      aC[b] = c.height ?? 1.0; aC[b + 1] = 0; aC[b + 2] = Math.max(0.04, c.dur); aC[b + 3] = c.lut
+      const flags = c.whirlpool ? 2 : c.dark ? 1 : 0
+      aD[b] = c.mode; aD[b + 1] = c.seed ?? Math.random() * 6.283; aD[b + 2] = flags; aD[b + 3] = 0
+    }
     if (total + 1 > this.peakClouds) this.peakClouds = total + 1
   }
 
@@ -2813,6 +2832,8 @@ export class VfxWebglEngine {
       varying vec4 vMeta;
       varying float vSeed;
       varying float vFlags;
+      varying vec4 vFlowCoord;
+      varying vec4 vFlowParams;
 
       void main() {
         float t = aCloudC.y;
@@ -2829,7 +2850,20 @@ export class VfxWebglEngine {
         float r = mix(r0, r1, ease);
         vec3 world = aCloudA.xyz + aCloudB.xyz * (t * (1.0 - 0.32 * f));
 
-        if (mode >= 1.5) {
+        vFlowCoord = vec4(0.0);
+        vFlowParams = vec4(1.0, 1.0, 0.0, 0.0);
+
+        if (mode >= 4.5) {
+          float ang = aCloudC.x;
+          float ca = cos(ang), sa = sin(ang);
+          float grow = 0.78 + 0.22 * (1.0 - pow(1.0 - f, 3.0));
+          vec2 local = vec2(aQuad.x * 2.0 * r0, aQuad.y * 2.0 * r1);
+          vec2 rot = vec2(local.x * ca - local.y * sa, local.x * sa + local.y * ca);
+          vec2 worldXY = aCloudA.xy + rot;
+          gl_Position = uProj * vec4(worldXY, max(0.02, aCloudA.z), 1.0);
+          vFlowCoord = vec4(local / grow, worldXY);
+          vFlowParams = vec4(max(0.6, aCloudB.z), max(0.35, aCloudD.z), aCloudB.x, aCloudB.y);
+        } else if (mode >= 1.5) {
           vec3 p3 = vec3(world.xy + aQuad * 2.0 * r, max(0.02, world.z));
           gl_Position = uProj * vec4(p3, 1.0);
         } else if (mode >= 0.5) {
@@ -2862,6 +2896,91 @@ export class VfxWebglEngine {
       varying vec4 vMeta;
       varying float vSeed;
       varying float vFlags;
+      varying vec4 vFlowCoord;
+      varying vec4 vFlowParams;
+
+      float plasmaSmin(float a, float b, float k) {
+        float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+        return mix(b, a, h) - k * h * (1.0 - h);
+      }
+
+      float plasmaSmax(float a, float b, float k) {
+        return -plasmaSmin(-a, -b, k);
+      }
+
+      float evalPlasmaHeight(
+        vec2 lp,
+        vec2 flowShift,
+        vec2 seedVec,
+        float spanLen,
+        float nomWid,
+        float flowStyle,
+        float erosion,
+        float f,
+        out float outShallow,
+        out float outDense,
+        out float outSil
+      ) {
+        mat2 m1 = mat2(0.80, -0.60, 0.60, 0.80);
+        mat2 m2 = mat2(0.60, 0.80, -0.80, 0.60);
+
+        vec2 q = vec2(
+          texture2D(uBrush, m1 * (lp * 0.032 - flowShift * 0.048) + seedVec).g - 0.5,
+          texture2D(uBrush, m2 * (lp * 0.038 - flowShift * 0.056) + seedVec.yx + vec2(0.41, 0.19)).g - 0.5
+        );
+        vec2 r = vec2(
+          texture2D(uBrush, m2 * (lp * 0.056 - flowShift * 0.088 + q * 0.24) - seedVec * 0.7).g - 0.5,
+          texture2D(uBrush, m1 * (lp * 0.071 - flowShift * 0.105 + q * 0.28) + seedVec * 1.3 + vec2(0.23, 0.67)).g - 0.5
+        );
+
+        float sdShape = 1.0;
+        if (flowStyle >= 0.5 && flowStyle < 1.5) {
+          float mH = (q.y * 1.45 + r.x * 0.82) * smoothstep(0.25, 2.2, abs(lp.x));
+          float wH = nomWid * (0.48 + 0.76 * smoothstep(1.22, 0.12, abs(lp.x) / spanLen + r.y * 0.34)) * (1.0 + q.x * 0.62 + r.y * 0.38);
+          float dArmX = plasmaSmax(abs(lp.y - mH) - wH, abs(lp.x) - spanLen * (0.94 + 0.30 * q.x), 0.75);
+
+          float mV = (q.x * 1.45 - r.y * 0.82) * smoothstep(0.25, 2.2, abs(lp.y));
+          float wV = nomWid * (0.48 + 0.76 * smoothstep(1.22, 0.12, abs(lp.y) / spanLen - r.x * 0.34)) * (1.0 + q.y * 0.62 - r.x * 0.38);
+          float dArmY = plasmaSmax(abs(lp.x - mV) - wV, abs(lp.y) - spanLen * (0.94 + 0.30 * q.y), 0.75);
+
+          sdShape = plasmaSmin(dArmX, dArmY, 1.48);
+        } else if (flowStyle >= 1.5 && flowStyle < 2.5) {
+          vec2 sq = (lp + vec2(q.y, -q.x) * 1.25 + r * 0.72) / max(0.8, spanLen);
+          float sqPow = pow(max(1e-4, abs(sq.x)), 3.2) + pow(max(1e-4, abs(sq.y)), 3.2);
+          float sqDist = pow(max(1e-4, sqPow), 0.3125);
+          sdShape = (sqDist - 0.90) * spanLen;
+        } else {
+          float isUltra = step(2.5, flowStyle);
+          float uAlong = lp.x / spanLen;
+          float swayScale = mix(1.0, 1.32, isUltra);
+          float meander = (q.y * 1.68 + r.x * 0.92) * swayScale * (0.38 + 0.62 * smoothstep(-0.95, 0.65, uAlong));
+          float profile = smoothstep(-1.18, -0.52, uAlong) * smoothstep(1.30, 0.08, uAlong + r.y * 0.58);
+          float ultraBase = isUltra * 0.55 * exp(-pow((uAlong + 0.72) * 2.1, 2.0));
+          float localWid = nomWid * (0.30 + 0.98 * profile + ultraBase) * (1.0 + q.x * 0.68 + r.y * 0.44);
+          float dLat = abs(lp.y - meander) - localWid;
+          float dEnd = max(-lp.x - spanLen * 0.96, lp.x - spanLen * (1.02 + 0.36 * q.x));
+          sdShape = plasmaSmax(dLat, dEnd, 0.80);
+        }
+
+        vec2 dUv = m1 * (lp * 0.068 - flowShift * 0.115 + q * 0.35 + r * 0.22) + seedVec * 1.9;
+        float bA = texture2D(uBrush, dUv).g;
+        float bB = texture2D(uBrush, m2 * (dUv * 1.64 + vec2(0.31, 0.17))).g;
+        float vorPillow = texture2D(uBrush, dUv * 0.88 + r * 0.19).r;
+        float pocket = bA * 0.40 + bB * 0.24 + vorPillow * 0.36;
+        float diss = erosion + 0.28 * smoothstep(0.44, 1.0, f);
+        float erodedDist = sdShape - (pocket - 0.46) * 1.95 + diss * 0.62;
+        outSil = 1.0 - smoothstep(-0.095, 0.045, erodedDist);
+
+        float tNoise = texture2D(uBrush, m2 * (lp * 0.084 - flowShift * 0.145 + r * 0.31) - seedVec * 1.1).g;
+        float rawFluid = clamp(pocket * 0.54 + tNoise * 0.46 - diss * 0.16, 0.0, 1.0);
+        outShallow = smoothstep(0.14, 0.44, rawFluid);
+        outDense = smoothstep(0.46, 0.74, rawFluid);
+
+        float inside = clamp(-erodedDist / 0.44, 0.0, 1.0);
+        float meniscus = 1.0 - pow(max(1e-4, 1.0 - inside), 2.4);
+        float swell = smoothstep(0.16, 0.80, rawFluid);
+        return meniscus * (0.36 + 0.64 * swell);
+      }
 
       void main() {
         float f = vMeta.x;
@@ -2869,6 +2988,68 @@ export class VfxWebglEngine {
         float mode = vMeta.z;
         vec2 p = vUv * 2.0 - 1.0;
         float d = length(p);
+
+        if (mode >= 4.5) {
+          vec2 lp = vFlowCoord.xy;
+          vec2 wp = vFlowCoord.zw;
+          float spanLen = vFlowParams.x;
+          float nomWid = vFlowParams.y;
+          float flowStyle = vFlowParams.z;
+          float erosion = vFlowParams.w;
+          vec2 seedVec = vec2(fract(vSeed * 0.37), fract(vSeed * 0.73));
+
+          vec2 flowShift;
+          if (flowStyle >= 0.5 && flowStyle < 2.5) {
+            vec2 radDir = lp / (length(lp) + 0.85);
+            vec2 curlDir = vec2(-radDir.y, radDir.x) * 0.30;
+            flowShift = (radDir + curlDir) * (f * 3.4);
+          } else {
+            flowShift = vec2(f * 4.2, sin(f * 3.0 + vSeed) * 0.35);
+          }
+
+          float shallow = 0.0;
+          float dense = 0.0;
+          float sil = 0.0;
+          float h0 = evalPlasmaHeight(lp, flowShift, seedVec, spanLen, nomWid, flowStyle, erosion, f, shallow, dense, sil);
+          float quadFade = 1.0 - smoothstep(0.36, 0.50, max(abs(vUv.x - 0.5), abs(vUv.y - 0.5)));
+          float lifeEnv = smoothstep(0.0, 0.09, f) * (1.0 - smoothstep(0.16, 1.0, f));
+          if (sil * quadFade * lifeEnv <= 0.002) discard;
+
+          float eps = 0.09;
+          float dmyA;
+          float dmyB;
+          float dmyC;
+          float hX = evalPlasmaHeight(lp + vec2(eps, 0.0), flowShift, seedVec, spanLen, nomWid, flowStyle, erosion, f, dmyA, dmyB, dmyC);
+          float hY = evalPlasmaHeight(lp + vec2(0.0, eps), flowShift, seedVec, spanLen, nomWid, flowStyle, erosion, f, dmyA, dmyB, dmyC);
+          vec2 grad = vec2(hX - h0, hY - h0) / eps;
+          vec3 norm = normalize(vec3(-grad * 0.68, 1.0));
+
+          float ndh1 = max(dot(norm, normalize(vec3(-0.38, -0.48, 0.79))), 0.0);
+          float ndh2 = max(dot(norm, normalize(vec3(0.42, 0.46, 0.78))), 0.0);
+          float spec1 = pow(max(1e-4, ndh1), 34.0) * sil;
+          float spec2 = pow(max(1e-4, ndh2), 20.0) * 0.32 * sil;
+
+          vec2 cUv = lp * 0.095 - flowShift * 0.16 + norm.xy * 0.22 + seedVec;
+          float cRidge = 1.0 - abs(texture2D(uBrush, cUv).g * 2.0 - 1.0);
+          float caustic = pow(max(1e-4, clamp(cRidge, 0.0, 1.0)), 4.2) * sil * (0.28 + 0.72 * dense);
+
+          vec2 gf = abs(fract(wp + norm.xy * 0.32) - 0.5);
+          float refractedGrid = smoothstep(0.43, 0.495, max(gf.x, gf.y)) * sil;
+
+          float glassBody = 0.085 + shallow * 0.095 + dense * 0.20;
+          float optics = caustic * 0.11 + spec1 * 0.24 + spec2 * 0.08 + refractedGrid * 0.075;
+          float rawAlpha = (glassBody + optics) * sil * quadFade * lifeEnv;
+          float alpha = clamp(rawAlpha, 0.0, 0.48);
+          if (alpha <= 0.003) discard;
+          float energy = clamp(
+            0.20 + shallow * 0.12 + dense * 0.24 + caustic * 0.18 + spec1 * 0.34 + spec2 * 0.12 + refractedGrid * 0.08,
+            0.14,
+            0.86
+          );
+          vec4 col = sampleLut(row, energy);
+          gl_FragColor = vec4(col.rgb * alpha, 0.0);
+          return;
+        }
 
         if (mode >= 3.5) {
           if (d > 1.0) discard;
