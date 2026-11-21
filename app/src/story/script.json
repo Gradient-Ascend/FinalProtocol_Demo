@@ -104,12 +104,19 @@
         { "id": "1.B", "name": "DARK YOUNG / THOUSAND", "kind": "boss", "line": "the mother is not here. she sent what she has most of." }
       ],
       "enemies": { "hunter": "DESIRE / WANT", "collector": "DESIRE / MORE", "brood": "DESIRE / AGAIN" },
+      "elite": { "key": "sapling", "name": "DESIRE / SAPLING" },
+      "kits": {
+        "hunter": { "attack": "GRASP", "privilege": "ROOT" },
+        "collector": { "attack": "GLUT", "privilege": "HOARD" },
+        "brood": { "attack": "NIBBLE", "privilege": "HUDDLE" },
+        "sapling": { "attack": "THORN", "privilege": "HERD", "core": "SAP" }
+      },
       "boss": {
         "name": "DARK YOUNG",
         "epithet": "THOUSAND",
         "mechanic": "brood",
         "mechanicName": "BROOD",
-        "mechanicRule": "Its Soul does not heal it. When the counter fills, another DESIRE / AGAIN is born beside it at the end of the turn. Deny it Core Flags.",
+        "mechanicRule": "Its Soul does not heal it. When the counter fills, or when GESTATION reaches T−0, another DESIRE / AGAIN is born beside it at the end of the turn. Deny it Core Flags.",
         "counter": "{count} OF 1000",
         "sets": [
           { "desire": "GRAZE", "security": "HERD", "soul": "LITTER" },
@@ -138,6 +145,13 @@
         { "id": "2.B", "name": "QUEEN IN RED / VERDICT", "kind": "boss", "line": "sentence first. the trial is a courtesy." }
       ],
       "enemies": { "disruptor": "DESIRE / USHER", "collector": "DESIRE / CLERK", "hunter": "DESIRE / AXE" },
+      "elite": { "key": "bailiff", "name": "DESIRE / BAILIFF" },
+      "kits": {
+        "hunter": { "attack": "STRIKE", "privilege": "DECORUM" },
+        "collector": { "attack": "FILE", "privilege": "STAMP" },
+        "disruptor": { "attack": "USHER", "privilege": "OBJECTION" },
+        "bailiff": { "attack": "WRIT", "privilege": "CONTEMPT", "core": "RECESS" }
+      },
       "boss": {
         "name": "QUEEN IN RED",
         "epithet": "VERDICT",
@@ -171,12 +185,19 @@
         { "id": "3.B", "name": "▯▯▯▯▯▯ / UNDISCLOSED", "kind": "boss", "line": "" }
       ],
       "enemies": { "disruptor": "DESIRE / HUSH", "collector": "DESIRE / AVERT", "hunter": "DESIRE / AMEN" },
+      "elite": { "key": "mask", "name": "DESIRE / PALLID MASK" },
+      "kits": {
+        "hunter": { "attack": "AMEN", "privilege": "PIETY" },
+        "collector": { "attack": "AVERT", "privilege": "BLIND" },
+        "disruptor": { "attack": "HUSH", "privilege": "SILENCE" },
+        "mask": { "attack": "PALLOR", "privilege": "MASK", "core": "MERCY" }
+      },
       "boss": {
         "name": "▯▯▯▯▯▯",
         "epithet": "UNDISCLOSED",
         "mechanic": "undisclosed",
         "mechanicName": "UNDISCLOSED",
-        "mechanicRule": "Its route is public. Its numbers are withheld by the sandbox unless it is LIVE. Looking is something you do. MYSTERY restores its Security every turn in Act I.",
+        "mechanicRule": "Its route is public. Its numbers are withheld by the sandbox unless it is LIVE. Looking is something you do. MYSTERY restores its Security every turn in Act I; ADVENT rises at T−0.",
         "sets": [
           { "desire": "███", "security": "MYSTERY", "soul": "ABSOLUTION" },
           { "desire": "UNKNOWING", "security": "VEIL", "soul": "FAITH" }

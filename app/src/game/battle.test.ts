@@ -315,6 +315,13 @@ describe('Warden boss protocol', () => {
 
   it('Breakdown swaps Desire, Security and Soul sets at half Robustness', async () => {
     const store = readyStore()
+    const logs: string[] = []
+    const seen = new Set<number>()
+    store.subscribe(() => {
+      for (const entry of store.getSnapshot().log) {
+        if (!seen.has(entry.id)) { seen.add(entry.id); logs.push(entry.text) }
+      }
+    })
     const state = store.getSnapshot()
     state.enemies[0].robustness = 33
     state.enemies[0].route = []
@@ -324,12 +331,12 @@ describe('Warden boss protocol', () => {
     const boss = store.getSnapshot().enemies[0]
     expect(boss.stage).toBe(2)
     expect(boss.desireName).toBe('OVERTURE')
-    expect(boss.desire).toEqual([4, 5, 7])
+    expect(boss.desire).toEqual([4, 7])
     expect(boss.securityName).toBe('DEADLOCK')
     expect(boss.securityPerFlag).toBe(3)
     expect(boss.soulName).toBe('REWRITE')
     expect(boss.soulThreshold).toBe(2)
-    expect(store.getSnapshot().log.some(entry => entry.text.includes('BREAKDOWN / Stage II'))).toBe(true)
+    expect(logs.some(text => text.includes('BREAKDOWN / Stage II'))).toBe(true)
   })
 
   it('Stage II schedules a dual-axis Curtain with the same countdown', () => {
@@ -371,9 +378,9 @@ describe('rebalanced encounter and player forecast', () => {
     state.player.block = 1
     const counters = state.player.buffs.map(buff => buff.counter)
     const hits = predictedEnemySequence(state)
-    expect(hits.map(hit => hit.dealt)).toEqual([2, 3])
+    expect(hits.map(hit => hit.dealt)).toEqual([2, 5])
     expect(hits.every(hit => hit.origin.x === 7 && hit.origin.y === 5)).toBe(true)
-    expect(hits[hits.length - 1].after).toBe(31)
+    expect(hits[hits.length - 1].after).toBe(29)
     expect(state.player.buffs.map(buff => buff.counter)).toEqual(counters)
   })
 

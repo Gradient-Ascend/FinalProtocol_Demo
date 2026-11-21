@@ -127,7 +127,7 @@ describe('a Geek\'s card', () => {
     const state = battle('2.B')
     const queen = bossIn(state)
     const chips = desireChips(state, queen)
-    expect(chips.map(chip => chip.sure)).toEqual([true, false, false])
+    expect(chips.map(chip => chip.sure)).toEqual([true, false])
     expect(chips.map(chip => chip.amount)).toEqual(queen.desire.map(String))
     expect(sureText(chips)).toBe('I SURE')
     queen.desireFloor = 2
@@ -147,7 +147,7 @@ describe('a Geek\'s card', () => {
   it('withholds the undisclosed boss\'s amounts until it is LIVE or in Act II', () => {
     const state = battle('3.B')
     const boss = bossIn(state)
-    expect(desireChips(state, boss).map(chip => chip.amount)).toEqual([WITHHELD, WITHHELD, WITHHELD])
+    expect(desireChips(state, boss).map(chip => chip.amount)).toEqual([WITHHELD, WITHHELD])
     expect(shown(state, boss, boss.robustness)).toBe(WITHHELD)
     // Which steps are sure is public: only the amounts are withheld.
     expect(sureText(desireChips(state, boss))).toBe('I SURE')
@@ -359,11 +359,12 @@ describe('predictedEnemyIntent and shape formatting', () => {
     const boss = bossIn(state)
     const intent = predictedEnemyIntent(state, boss.id)!
     expect(intent.releaseCount).toBe(2)
-    expect(intent.steps.map(s => s.armed)).toEqual([true, true, false])
-    expect(intent.steps.map(s => s.sure)).toEqual([true, false, false])
-    expect(intent.steps.map(s => s.hitsPlayer)).toEqual([true, true, false])
+    expect(intent.steps.map(s => s.armed)).toEqual([true, true])
+    expect(intent.steps.map(s => s.sure)).toEqual([true, false])
+    expect(intent.steps.map(s => s.hitsPlayer)).toEqual([true, true])
     expect(stageBadgeText(state, boss)).toBe('STAGE I')
     expect(stageBadgeText(state, state.enemies[1])).toBeNull()
+    expect(stageBadgeText(battle('1.3'), battle('1.3').enemies[0])).toBe('ELITE')
   })
 
   it('keeps undisclosed enemy amounts withheld by shown() while projecting armed count', () => {

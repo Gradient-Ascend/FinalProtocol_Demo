@@ -15,7 +15,7 @@ function BreakdownText({ state, boss }: { state: BattleState; boss: EnemyState }
   const word = kind === 'undisclosed' ? 'Act' : 'Stage'
   return (
     <p>
-      <strong>BREAKDOWN</strong> at {at} Robustness: {word} {ROMAN[1]}. {first.desireName} becomes {second.desireName}, {first.securityName} becomes {second.securityName}, and {first.soulName} becomes {second.soulName}.
+      <strong>BREAKDOWN</strong> at {at} Robustness: {word} {ROMAN[1]}. {first.desireName} becomes {second.desireName}, {first.securityName} becomes {second.securityName}, and {first.soulName} becomes {second.soulName}. Any unfired Countdown fires when the turn ends.
       {kind === 'curtain' && ' Future Curtains cover both axes around the position you occupied when they were scheduled.'}
       {kind === 'brood' && ` ${second.soulName} fills at ${second.soulThreshold} Core Flags.`}
       {kind === 'articles' && ' A new Article is read out every turn.'}
@@ -76,7 +76,8 @@ export function Manual({
         <section><h3>OBJECTIVE</h3><p>Reduce every hostile’s <strong>Robustness</strong> to zero to break through. Your own health is <strong>Sanity</strong>. It carries from one battle to the next; at zero you are reset to where the layer began.</p></section>
         <section><h3>TURN</h3><p>Enemy routes are exposed first. Plan up to {MAX_ACTIONS} operations, execute your Functions, then enemies move and attack one step at a time. Warps reindex last.</p></section>
         <section><h3>BOARD FORECAST</h3><p>The small symbols above the coordinates are the next Warps entering each column. Only columns changed by a pickup or purge drop, so untouched routes remain stable.</p></section>
-        <section><h3>DESIRE</h3><p>A Geek releases one Desire step for each Bash Flag on its route, in order. A step its card marks <strong>SURE</strong> is released every turn, with or without a Bash Flag. Every release is previewed before execution.</p></section>
+        <section><h3>DESIRE</h3><p>A Geek releases one Desire form for each Bash Flag on its route, in order. A form its card marks <strong>SURE</strong> is released every turn, with or without a Bash Flag. Every release is previewed before execution.</p></section>
+        <section><h3>ENEMY TIERS</h3><p><strong>Mobs</strong> carry one Attack form (I) and one Privilege skill; Core Flags on their route are wasted. <strong>Elites</strong> hold two Attack forms (I–II, same reach), a Privilege skill, and a Core skill. <strong>Bosses</strong> hold two forms, Privilege, Core, and signature Countdowns (T−n); at Breakdown they switch every skill and fire any unfired Countdown at turn end.</p></section>
         <BossSection state={state} />
         <TraceSection state={state} />
         <section><h3><SquareTerminal size={15} /> BASH</h3><p>Release length is the lower of Bash collected, remaining AP, and IV. Each deck has a frame that sets its range (VECTOR is a 5×5 square, CoT a cross with arm length 5) and four skills, one per Roman numeral. A skill is stronger the later its slot. Decks are built on the main menu, and between battles as REWIRE.</p></section>

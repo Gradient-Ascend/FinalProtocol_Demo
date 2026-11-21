@@ -1,3 +1,5 @@
+import { writeFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { BattleStore } from './battle-store'
 import { createInitialState } from './battle-rules'
@@ -55,6 +57,35 @@ async function playWarden(store: BattleStore, turns: number) {
 }
 
 describe('the Warden battle is the one that shipped', () => {
+  if (process.env.UPDATE_GOLDEN) {
+    it('re-baselines warden.golden.json when UPDATE_GOLDEN is set', async () => {
+      const initial = legacy(createInitialState(), golden.initial)
+      const storeSnap = legacy(new BattleStore().getSnapshot(), golden.store)
+      const playthroughs = []
+      for (const playthrough of golden.playthroughs) {
+        const store = new BattleStore()
+        store.getSnapshot().reducedMotion = true
+        store.getSnapshot().player.overload = playthrough.setup.overload
+        store.getSnapshot().enemies[0].robustness = playthrough.setup.robustness
+        store.start()
+        const played = await playWarden(store, 9)
+        playthroughs.push({
+          setup: playthrough.setup,
+          turns: played.turns,
+          logs: played.logs,
+          final: legacy(played.final, playthrough.final),
+        })
+      }
+      const nextGolden = {
+        note: 'The Warden battle under the standardized enemy-kit rules.',
+        initial,
+        store: storeSnap,
+        playthroughs,
+      }
+      writeFileSync(fileURLToPath(new URL('./warden.golden.json', import.meta.url)), JSON.stringify(nextGolden))
+    }, 30000)
+  }
+
   it('createInitialState() with no arguments is today\'s state, byte for byte', () => {
     const state = createInitialState()
     expect(JSON.stringify(legacy(state, golden.initial))).toBe(JSON.stringify(golden.initial))

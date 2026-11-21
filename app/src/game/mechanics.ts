@@ -1,6 +1,6 @@
 import script from '../story/script.json'
 import { BOARD_SIZE } from './battle-config'
-import { createEnemy, isOccupied, isWarpLocked, livingEnemies, manhattan, mulberry32 } from './battle-rules'
+import { createEnemy, isOccupied, isWarpLocked, livingEnemies, manhattan, mulberry32, scheduleCurtains } from './battle-rules'
 import type { Article, ArticleEffect, BattleState, Coord, EnemyState, FlagKind, MechanicState } from './battle-types'
 import type { Encounter } from './encounters'
 export type { Article, ArticleEffect, MechanicState } from './battle-types'
@@ -38,14 +38,18 @@ function articleOrder(seed: number): string[] {
   return ids
 }
 
-export function mysteryActive(enemy: Pick<EnemyState, 'mystery' | 'stage'>): boolean {
-  return enemy.mystery !== undefined && enemy.stage < 2
+export function mysteryActive(enemy: Pick<EnemyState, 'privilegeSkill' | 'stage'>): boolean {
+  return enemy.privilegeSkill.kind === 'mystery' && enemy.stage < 2
+}
+
+export function mysteryFloor(enemy: Pick<EnemyState, 'privilegeSkill' | 'stage'>): number {
+  return mysteryActive(enemy) && enemy.privilegeSkill.kind === 'mystery' ? enemy.privilegeSkill.floor : 0
 }
 
 // Security a Geek holds when its resolve ends, given what its route gained.
 // The forecast and the store both ask here.
-export function securityAfterResolve(enemy: Pick<EnemyState, 'mystery' | 'stage'>, gained: number): number {
-  return mysteryActive(enemy) ? Math.max(gained, enemy.mystery ?? 0) : gained
+export function securityAfterResolve(enemy: Pick<EnemyState, 'privilegeSkill' | 'stage'>, gained: number): number {
+  return Math.max(gained, mysteryFloor(enemy))
 }
 
 // Whether this Geek's full Soul counter is a birth rather than a recovery.
@@ -75,7 +79,13 @@ export function createMechanic(encounter: Encounter, enemies: EnemyState[]): Mec
   if (encounter.mechanic === 'brood') {
     const parent = enemies.find(enemy => enemy.brood)
     if (!parent?.brood) return null
-    return { kind: 'brood', bossId: parent.id, births: 0, count: 1, queued: 0, alive: 0, limit: parent.brood.limit }
+    const gestation = parent.countdowns?.find(c => c.kind === 'gestation')
+    const gestationEvery = gestation?.kind === 'gestation' ? gestation.every : null
+    return {
+      kind: 'brood', bossId: parent.id, births: 0, count: 1, queued: 0, alive: 0, limit: parent.brood.limit,
+      gestationEvery,
+      gestationTurn: gestationEvery !== null ? 1 + gestationEvery : null,
+    }
   }
   if (encounter.mechanic === 'articles') {
     if (!boss || !ARTICLES.length) return null
@@ -91,7 +101,15 @@ export function createMechanic(encounter: Encounter, enemies: EnemyState[]): Mec
   if (encounter.mechanic === 'undisclosed') {
     const veiled = enemies.find(enemy => enemy.undisclosed) ?? boss
     if (!veiled) return null
-    return { kind: 'undisclosed', bossId: veiled.id, mystery: mysteryActive(veiled) ? veiled.mystery ?? null : null }
+    const advent = veiled.countdowns?.find(c => c.kind === 'advent')
+    const adventTurn = advent?.kind === 'advent' ? advent.turn : null
+    return {
+      kind: 'undisclosed',
+      bossId: veiled.id,
+      mystery: mysteryActive(veiled) ? mysteryFloor(veiled) : null,
+      adventTurn,
+      advented: veiled.routeLength > 0,
+    }
   }
   return null
 }
@@ -108,7 +126,63 @@ export type MechanicEvent =
   | { type: 'birth_lost' }
   // `enacted` is false when the Article took force but had nothing to act on.
   | { type: 'article'; article: Article; repealed: Article | null; enacted: boolean }
+  | { type: 'advent'; enemyId: string }
   | { type: 'trace'; level: number }
+
+export type CountdownView = {
+  id: string
+  name: string
+  turnsLeft: number
+  fired: boolean
+}
+
+export function countdowns(state: BattleState): CountdownView[] {
+  const list: CountdownView[] = []
+  const boss = livingEnemies(state).find(enemy => enemy.bossStages?.length)
+  if (boss) {
+    if (state.mechanic?.kind === 'curtain') {
+      const name = boss.countdowns?.find(c => c.kind === 'curtain')?.name ?? 'CURTAIN'
+      const locked = state.curtains.some(curtain => curtain.locked)
+      if (locked) list.push({ id: 'curtain', name, turnsLeft: 0, fired: true })
+      else if (state.curtains.length) list.push({ id: 'curtain', name, turnsLeft: Math.max(0, state.curtains[0].fireTurn - state.turn), fired: false })
+    } else if (state.mechanic?.kind === 'brood' && state.mechanic.gestationTurn !== null) {
+      const name = boss.countdowns?.find(c => c.kind === 'gestation')?.name ?? 'GESTATION'
+      list.push({ id: 'gestation', name, turnsLeft: Math.max(0, state.mechanic.gestationTurn - state.turn), fired: false })
+    } else if (state.mechanic?.kind === 'articles') {
+      const name = boss.countdowns?.find(c => c.kind === 'docket')?.name ?? 'DOCKET'
+      list.push({ id: 'docket', name, turnsLeft: state.mechanic.countdown, fired: !state.mechanic.pending })
+    } else if (state.mechanic?.kind === 'undisclosed') {
+      const name = boss.countdowns?.find(c => c.kind === 'advent')?.name ?? 'ADVENT'
+      const { advented, adventTurn } = state.mechanic
+      const turnsLeft = advented || adventTurn === null ? 0 : Math.max(0, adventTurn - state.turn)
+      list.push({ id: 'advent', name, turnsLeft, fired: advented })
+    }
+  }
+  if (state.trace !== null) {
+    list.push({ id: 'trace', name: 'TRACE', turnsLeft: state.trace, fired: state.trace === 0 })
+  }
+  return list
+}
+
+export function triggerOnBreakdown(state: BattleState, boss: EnemyState): void {
+  const mechanic = state.mechanic
+  if (!mechanic) return
+  if (mechanic.kind === 'curtain') {
+    if (!state.curtains.some(curtain => curtain.locked)) scheduleCurtains(state, state.turn)
+    return
+  }
+  if (mechanic.kind === 'brood' && mechanic.bossId === boss.id && mechanic.gestationTurn !== null) {
+    state.mechanic = { ...mechanic, gestationTurn: state.turn + 1 }
+    return
+  }
+  if (mechanic.kind === 'articles' && mechanic.bossId === boss.id && mechanic.pending) {
+    state.mechanic = { ...mechanic, pendingTurn: state.turn + 1, countdown: 1 }
+    return
+  }
+  if (mechanic.kind === 'undisclosed' && mechanic.bossId === boss.id) {
+    state.mechanic = { ...mechanic, advented: true }
+  }
+}
 
 function nearestFreeCell(state: BattleState, origin: Coord): Coord | null {
   let best: Coord | null = null
@@ -232,6 +306,33 @@ function advanceTrace(state: BattleState, events: MechanicEvent[]): void {
   state.trace = traceLeft(state.encounter, state.turn)
 }
 
+function advanceGestation(state: BattleState): void {
+  const mechanic = state.mechanic
+  if (mechanic?.kind !== 'brood' || mechanic.gestationEvery === null || mechanic.gestationTurn === null) return
+  const parent = state.enemies.find(enemy => enemy.id === mechanic.bossId)
+  if (!parent || parent.robustness <= 0) return
+  if (state.turn < mechanic.gestationTurn) return
+  state.mechanic = {
+    ...mechanic,
+    queued: mechanic.queued + 1,
+    gestationTurn: state.turn + mechanic.gestationEvery,
+  }
+}
+
+function advanceAdvent(state: BattleState, events: MechanicEvent[]): void {
+  const mechanic = state.mechanic
+  if (mechanic?.kind !== 'undisclosed' || mechanic.advented || mechanic.adventTurn === null) return
+  const veiled = state.enemies.find(enemy => enemy.id === mechanic.bossId)
+  if (!veiled || veiled.robustness <= 0) return
+  if (state.turn < mechanic.adventTurn) return
+  if (veiled.stage < 2) {
+    veiled.routeLength = 2
+    if (veiled.bossStages?.[0]) veiled.bossStages[0].routeLength = 2
+  }
+  state.mechanic = { ...mechanic, advented: true }
+  events.push({ type: 'advent', enemyId: veiled.id })
+}
+
 // Figures the panel shows that follow from the board: called whenever a Geek
 // may have died or a boss may have changed stage.
 export function refreshMechanic(state: BattleState): void {
@@ -241,19 +342,25 @@ export function refreshMechanic(state: BattleState): void {
     if (alive !== mechanic.alive) state.mechanic = { ...mechanic, alive }
   } else if (mechanic?.kind === 'undisclosed') {
     const veiled = state.enemies.find(enemy => enemy.id === mechanic.bossId)
-    const mystery = veiled && veiled.robustness > 0 && mysteryActive(veiled) ? veiled.mystery ?? null : null
+    const mystery = veiled && veiled.robustness > 0 && mysteryActive(veiled) ? mysteryFloor(veiled) : null
     if (mystery !== mechanic.mystery) state.mechanic = { ...mechanic, mystery }
   }
 }
 
 // The turn boundary, after the turn counter has advanced and before routes
-// are drawn for the new turn: births are placed, a due Article takes effect,
-// TRACE rises. Curtains keep their own step (`advanceCurtains`). The store
-// logs and reports what is returned; the changes are already on the state.
+// are drawn for the new turn: gestation queues, births are placed, a due
+// Article takes effect, advent rises, TRACE rises. Curtains keep their own
+// step (`advanceCurtains`). The store logs and reports what is returned;
+// the changes are already on the state.
 export function advanceMechanics(state: BattleState): MechanicEvent[] {
+  for (const enemy of state.enemies) {
+    if (enemy.surge && enemy.surge < state.turn) enemy.surge = 0
+  }
   const events: MechanicEvent[] = []
+  advanceGestation(state)
   placeBirths(state, events)
   advanceDocket(state, events)
+  advanceAdvent(state, events)
   advanceTrace(state, events)
   refreshMechanic(state)
   return events

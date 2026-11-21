@@ -1,7 +1,8 @@
 import { MAX_ACTIONS, STEP_MS } from './battle-config'
 import { effectTiming } from './attack-fx'
 import { predictedSequence, releaseCount } from './attack-methods'
-import { desireInRange, desireReleaseCount, desireStepsFor, enemyResourceOutcome, predictedEnemySequence } from './enemy-attack-methods'
+import { desireInRange, desireReleaseCount, desireStepsFor, enemyResourceOutcome, entitleBonus, predictedEnemySequence } from './enemy-attack-methods'
+import { applyStage } from './enemy-kits'
 import {
   activePreset, advanceCurtains, bossOf, coordKey, createInitialState, curtainLabel, enemyRoutes,
   isWarpLocked, livingEnemies, manhattan, mulberry32, refillBoard, routeStops, sameCoord,
@@ -12,7 +13,7 @@ import type {
 } from './battle-types'
 import { WARDEN_ENCOUNTER, layerName } from './encounters'
 import type { Encounter, EncounterKind } from './encounters'
-import { advanceMechanics, queueBirth, refreshMechanic, securityAfterResolve } from './mechanics'
+import { advanceMechanics, queueBirth, refreshMechanic, securityAfterResolve, triggerOnBreakdown } from './mechanics'
 import { storage } from './storage'
 import { buildPresets, cloneLoadout, sanitizeLoadout } from './skills'
 import type { Loadout } from './skills'
@@ -777,16 +778,17 @@ export class BattleStore {
     }
   }
 
-  private async enemyAttack(enemy: EnemyState, bashCount: number, run: number): Promise<void> {
-    const steps = desireStepsFor(enemy).slice(0, desireReleaseCount(enemy, bashCount))
+  private async enemyAttack(enemy: EnemyState, bashCount: number, run: number, bonus = 0): Promise<void> {
+    const steps = desireStepsFor(enemy).slice(0, desireReleaseCount(enemy, bashCount, this.state.turn))
     for (const [stepIndex, step] of steps.entries()) {
       if (!desireInRange(enemy.pos, this.state.player.pos, step)) continue
-      const absorbed = Math.min(this.state.player.block, step.amount)
-      const dealt = step.amount - absorbed
+      const amount = step.amount + bonus
+      const absorbed = Math.min(this.state.player.block, amount)
+      const dealt = amount - absorbed
       const effect: AttackEffect = {
         source: 'enemy', presetId: enemy.id, origin: { ...enemy.pos }, target: { ...this.state.player.pos },
         stepIndex, shape: step.shape, range: step.range, width: step.width,
-        amount: step.amount, dealt: Math.min(dealt, this.state.player.sanity), absorbed,
+        amount, dealt: Math.min(dealt, this.state.player.sanity), absorbed,
       }
       const timing = effectTiming(effect)
       this.emitEffect(effect)
@@ -797,7 +799,7 @@ export class BattleStore {
       const before = this.state.player.sanity
       this.state.player.sanity = Math.max(0, before - dealt)
       // A Desire step that PRIVILEGE swallows whole exposes the attacker.
-      const blocked = absorbed === step.amount && step.amount > 0
+      const blocked = absorbed === amount && amount > 0
       if (blocked && !enemy.live) {
         enemy.live = this.state.turn
         this.log(`${enemy.id} fully blocked: tagged LIVE.`, 'good')
@@ -840,19 +842,26 @@ export class BattleStore {
       await this.wait()
       if (run !== this.runId) return
     }
-    enemy.block += counts.privilege * enemy.securityPerFlag
+    const bonus = entitleBonus(enemy, counts.privilege)
+    if (enemy.privilegeSkill.kind !== 'entitle') {
+      enemy.block += counts.privilege * enemy.privilegeSkill.perFlag
+    } else if (bonus > 0) {
+      this.log(`${enemy.id} / ${enemy.privilegeSkill.name}: +${bonus} Desire damage this turn.`, 'bad')
+    }
     if (counts.privilege && enemy.live) {
       enemy.live = 0
       this.log(`${enemy.id} collected Privilege: LIVE scrubbed.`, 'bad')
     }
     // The same outcome the forecast showed for this route.
-    const filled = enemy.soulCounter + counts.core >= enemy.soulThreshold
+    const filled = !!enemy.coreSkill && enemy.soulCounter + counts.core >= enemy.coreSkill.threshold
     const outcome = enemyResourceOutcome(this.state, enemy, counts.privilege, counts.core)
     enemy.soulCounter = outcome.soulCounterAfter
     if (outcome.brood) {
       // BROOD: the Soul does not heal. The birth is placed when the turn ends.
       queueBirth(this.state)
       this.log(`${enemy.id} / ${enemy.soulName ?? 'SOUL'} filled: a birth is queued.`, 'bad')
+    } else if (outcome.surge) {
+      this.log(`${enemy.id} / ${enemy.soulName ?? 'CORE'} filled: +1 SURE next turn.`, 'bad')
     } else if (filled) {
       enemy.robustness += outcome.recovery
       this.log(`${enemy.id} / ${enemy.soulName ?? 'SOUL'} restored ${outcome.recovery} Robustness.`, 'bad')
@@ -868,8 +877,9 @@ export class BattleStore {
       }
       enemy.effectCell = null
     }
-    await this.enemyAttack(enemy, counts.bash, run)
+    await this.enemyAttack(enemy, counts.bash, run, bonus)
     if (run !== this.runId) return
+    if (outcome.surge) enemy.surge = this.state.turn + 1
     // Anything forecast for this enemy that did not land is no longer coming.
     this.state.incomingForecast = this.state.incomingForecast?.filter(hit => hit.enemyId !== enemy.id) ?? null
     // MYSTERY: whatever was stripped from it is back when its resolve ends.
@@ -906,23 +916,10 @@ export class BattleStore {
       if (enemy.robustness / enemy.maxRobustness > (enemy.breakdownAt ?? 0.5)) continue
       const next = enemy.bossStages.find(stage => stage.stage === enemy.stage + 1)
       if (!next) continue
-      enemy.stage = next.stage
-      enemy.desireName = next.desireName
-      enemy.desire = [...next.desire]
-      enemy.desireSteps = next.desireSteps?.map(step => ({ ...step }))
-      enemy.desireRange = next.desireRange
-      enemy.desireShape = next.desireShape
-      enemy.routeLength = next.routeLength
-      enemy.securityName = next.securityName
-      enemy.securityPerFlag = next.securityPerFlag
-      enemy.soulName = next.soulName
-      enemy.soulThreshold = next.soulThreshold
-      enemy.soulHeal = next.soulHeal
-      enemy.desireFloor = next.desireFloor
-      enemy.block = 0
-      enemy.soulCounter = 0
+      applyStage(enemy, next)
+      triggerOnBreakdown(this.state, enemy)
       const { note, banner } = this.breakdownText(enemy, next)
-      this.log(`BREAKDOWN / Stage ${ROMAN[next.stage - 1] ?? next.stage}: ${next.desireName}, ${next.securityName}, ${next.soulName}${note}.`, 'bad')
+      this.log(`BREAKDOWN / Stage ${ROMAN[next.stage - 1] ?? next.stage}: ${next.desireName}, ${next.securityName}, ${next.soulName ?? 'CORE'}${note}.`, 'bad')
       this.state.message = banner
       this.sfx('explosion')
       this.emit('breakdown', { enemyId: enemy.id, stage: next.stage })
@@ -1157,6 +1154,8 @@ export class BattleStore {
         const idle = event.enacted ? '' : ' No Geek is left to change places with.'
         this.log(`DOCKET / ARTICLE ${event.article.number} in force. ${event.article.rule}${idle}`, 'bad')
         this.emit('article', { turn: ended, article: event.article.id })
+      } else if (event.type === 'advent') {
+        this.log(`ADVENT / ${event.enemyId} rises and walks.`, 'bad')
       } else {
         this.log(`TRACE / every Desire step +1 (+${event.level} in all).`, 'bad')
       }

@@ -1,4 +1,5 @@
 import type { Encounter } from './encounters'
+import type { CoreSkill, CountdownDef, EnemyTier, PrivilegeSkill } from './enemy-kits'
 import type { Tuning } from './tuning'
 
 export type Coord = { x: number; y: number }
@@ -71,9 +72,11 @@ export type BossStageDefinition = {
   routeLength: number
   securityName: string
   securityPerFlag: number
-  soulName: string
+  privilegeSkill: PrivilegeSkill
+  soulName?: string
   soulThreshold: number
   soulHeal: number
+  coreSkill?: CoreSkill
   curtainLines: 1 | 2
   // Desire methods released even when no Bash Flag was collected.
   desireFloor: number
@@ -83,12 +86,13 @@ export type BossStageDefinition = {
 export type BroodDefinition = {
   // Most births alive at once; a birth beyond it is lost.
   limit: number
-  spawn: Omit<EnemyDefinition, 'id' | 'pos' | 'bossStages' | 'brood'>
+  spawn: Omit<EnemyDefinition, 'id' | 'pos' | 'bossStages' | 'brood' | 'countdowns'>
 }
 
 export type EnemyDefinition = {
   id: string
   name: string
+  tier: EnemyTier
   behavior: EnemyBehavior
   pos: Coord
   robustness: number
@@ -98,21 +102,22 @@ export type EnemyDefinition = {
   desireShape: AttackShape
   routeLength: number
   securityPerFlag: number
+  privilegeSkill: PrivilegeSkill
   soulThreshold: number
   soulHeal: number
+  coreSkill?: CoreSkill
   desireName?: string
   securityName?: string
   soulName?: string
   breakdownAt?: number
   desireFloor?: number
   bossStages?: BossStageDefinition[]
+  countdowns?: CountdownDef[]
   // No unit glyph on the board and no name on its card.
   hidden?: boolean
   // Its numbers are withheld while it is not LIVE and still in Stage I. The
   // rules never read this: see `disclosed` in mechanics.ts.
   undisclosed?: boolean
-  // MYSTERY: Security it is restored to at the end of its resolve, Stage I only.
-  mystery?: number
   // BROOD: a full Soul counter queues a birth instead of healing.
   brood?: BroodDefinition
 }
@@ -125,6 +130,8 @@ export type EnemyState = EnemyDefinition & {
   route: Coord[]
   effectCell: Coord | null
   statuses: string[]
+  // Turn in which SURGE grants +1 SURE form (0/undefined = inactive).
+  surge?: number
   // The turn a BROOD birth first stood on the board; absent on the roster.
   born?: number
 } & EnemyMarks
@@ -266,6 +273,8 @@ export type EnemyResourcePreview = {
   soulCounterAfter: number
   // The Soul counter fills on a BROOD Geek: a birth, not a recovery.
   brood?: boolean
+  // The Soul counter fills on a SURGE Geek: +1 SURE form next turn.
+  surge?: boolean
 }
 
 export type ArticleEffect = 'swap_bash_privilege' | 'swap_core_overload' | 'mirror' | 'floor_up' | 'croquet'
@@ -295,6 +304,8 @@ export type MechanicState =
     queued: number
     alive: number
     limit: number
+    gestationEvery: number | null
+    gestationTurn: number | null
   }
   | {
     kind: 'articles'
@@ -314,6 +325,8 @@ export type MechanicState =
     bossId: string
     // The Security MYSTERY restores each turn; null once it has ended.
     mystery: number | null
+    adventTurn: number | null
+    advented: boolean
   }
 
 export type BattleState = {

@@ -46,6 +46,8 @@ describe('script.json shape', () => {
     expect(broken(copy => { delete copy.interludes['3'] })).toContain('interludes.3: expected a list')
     expect(broken(copy => { copy.layers[1].nodes.pop() })).toContain('layers[1].nodes: expected three skirmishes then a boss')
     expect(broken(copy => { copy.layers[2].boss.sets.pop() })).toContain('layers[2].boss.sets: expected one set per stage (2)')
+    expect(broken(copy => { delete copy.layers[1].elite })).toContain('layers[1].elite: expected an object')
+    expect(broken(copy => { delete copy.layers[2].kits.bailiff.core })).toContain('layers[2].kits.bailiff.core: expected a core skill name on the elite kit')
     expect(broken(copy => { copy.articles[0].effect = 'swap' })).toContain('articles[0].effect: unknown effect "swap"')
     expect(broken(copy => { copy.weights[0].kind = 'CORES' })).toContain('weights[0].kind: expected CORE, FUNCTION or PATCH')
     expect(broken(copy => { copy.defeat.self[1].attempt = 2 })).toContain('defeat.self[1].attempt: expected attempts in rising order')

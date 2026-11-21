@@ -1,4 +1,5 @@
-import type { AttackPreset, EnemyDefinition, FlagKind } from './battle-types'
+import type { AttackPreset, BossStageDefinition, EnemyDefinition, FlagKind } from './battle-types'
+import { compileStage } from './enemy-kits'
 import { DEFAULT_LOADOUT, buildPresets } from './skills'
 
 export const BOARD_SIZE = 15
@@ -30,48 +31,71 @@ export const INTERACTIONS = {
 // come from the loadout picked on the menu.
 export const BASH_PRESETS: AttackPreset[] = buildPresets(DEFAULT_LOADOUT)
 
+const WARDEN_STAGES: BossStageDefinition[] = [
+  {
+    stage: 1,
+    curtainLines: 1,
+    ...compileStage({
+      attack: { name: 'REHEARSAL', shape: 'square', range: 4, forms: [3, 5] },
+      privilege: { kind: 'ward', name: 'CLOSE', perFlag: 2 },
+      core: { kind: 'mend', name: 'REPAIR', threshold: 2, heal: 4 },
+      sure: 1,
+      routeLength: 3,
+    }),
+  },
+  {
+    stage: 2,
+    curtainLines: 2,
+    ...compileStage({
+      attack: { name: 'OVERTURE', shape: 'rectangle', range: 15, width: 3, forms: [4, 7] },
+      privilege: { kind: 'ward', name: 'DEADLOCK', perFlag: 3 },
+      core: { kind: 'surge', name: 'REWRITE', threshold: 2 },
+      sure: 2,
+      routeLength: 3,
+    }),
+  },
+]
+
 export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
   {
-    id: 'B01', name: 'WARDEN / CURTAIN', behavior: 'warden', pos: { x: 7, y: 4 },
-    robustness: 64, breakdownAt: 0.5, desireFloor: 1,
-    desireName: 'REHEARSAL', desire: [3, 3, 5], desireRange: 3, desireShape: 'square', routeLength: 3,
-    desireSteps: [
-      { amount: 3, range: 4, shape: 'square' },
-      { amount: 3, range: 15, shape: 'rectangle', width: 2 },
-      { amount: 5, range: 5, shape: 'square' },
-    ],
-    securityName: 'CLOSE', securityPerFlag: 2,
-    soulName: 'REPAIR', soulThreshold: 2, soulHeal: 4,
-    bossStages: [
-      {
-        stage: 1, desireName: 'REHEARSAL', desire: [3, 3, 5], desireRange: 3, desireShape: 'square', routeLength: 3,
-        desireSteps: [
-          { amount: 3, range: 4, shape: 'square' },
-          { amount: 3, range: 15, shape: 'rectangle', width: 2 },
-          { amount: 5, range: 5, shape: 'square' },
-        ],
-        securityName: 'CLOSE', securityPerFlag: 2, soulName: 'REPAIR', soulThreshold: 2, soulHeal: 4, curtainLines: 1, desireFloor: 1,
-      },
-      {
-        stage: 2, desireName: 'OVERTURE', desire: [4, 5, 7], desireRange: 4, desireShape: 'square', routeLength: 3,
-        desireSteps: [
-          { amount: 4, range: 15, shape: 'rectangle', width: 3 },
-          { amount: 5, range: 5, shape: 'square' },
-          { amount: 7, range: 15, shape: 'rectangle', width: 4 },
-        ],
-        securityName: 'DEADLOCK', securityPerFlag: 3, soulName: 'REWRITE', soulThreshold: 2, soulHeal: 4, curtainLines: 2, desireFloor: 2,
-      },
-    ],
+    id: 'B01',
+    name: 'WARDEN / CURTAIN',
+    tier: 'boss',
+    behavior: 'warden',
+    pos: { x: 7, y: 4 },
+    robustness: 64,
+    breakdownAt: 0.5,
+    ...WARDEN_STAGES[0],
+    bossStages: WARDEN_STAGES,
+    countdowns: [{ kind: 'curtain', name: 'CURTAIN' }],
   },
   {
-    id: 'E02', name: 'DESIRE / RUSH', behavior: 'collector', pos: { x: 10, y: 7 },
-    robustness: 14, desire: [2, 3], desireRange: 4, desireShape: 'square', routeLength: 3,
-    securityPerFlag: 1, soulThreshold: 3, soulHeal: 3,
+    id: 'E02',
+    name: 'DESIRE / RUSH',
+    tier: 'mob',
+    behavior: 'collector',
+    pos: { x: 10, y: 7 },
+    robustness: 14,
+    ...compileStage({
+      attack: { name: 'RUSH', shape: 'square', range: 4, forms: [3] },
+      privilege: { kind: 'ward', name: 'WARD', perFlag: 1 },
+      sure: 0,
+      routeLength: 3,
+    }),
   },
   {
-    id: 'E03', name: 'DESIRE / PATCH', behavior: 'disruptor', pos: { x: 4, y: 7 },
-    robustness: 12, desire: [2, 2], desireRange: 6, desireShape: 'cross', routeLength: 2,
-    securityPerFlag: 2, soulThreshold: 4, soulHeal: 3,
+    id: 'E03',
+    name: 'DESIRE / PATCH',
+    tier: 'mob',
+    behavior: 'disruptor',
+    pos: { x: 4, y: 7 },
+    robustness: 12,
+    ...compileStage({
+      attack: { name: 'PATCH', shape: 'cross', range: 6, forms: [2] },
+      privilege: { kind: 'ward', name: 'WARD', perFlag: 2 },
+      sure: 0,
+      routeLength: 2,
+    }),
   },
 ]
 

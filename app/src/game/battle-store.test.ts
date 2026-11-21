@@ -4,7 +4,7 @@ import { BattleStore } from './battle-store'
 import type { StoryEvent } from './battle-store'
 import { createInitialState } from './battle-rules'
 import type { BossStageDefinition, EnemyState } from './battle-types'
-import { predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from './enemy-attack-methods'
+import { predictedEnemyIntent, predictedEnemyResources, predictedEnemySequence, predictedPlayerResources } from './enemy-attack-methods'
 import { ENCOUNTERS, WARDEN_ENCOUNTER } from './encounters'
 import type { Encounter } from './encounters'
 import { DEFAULT_TUNING, tuningFor } from './tuning'
@@ -343,7 +343,7 @@ describe('a turn held for the interface', () => {
       if (event.type === 'breakdown') store.holdFor(Promise.reject(new Error('the moment failed to play')))
     }
     await store.executeTurn()
-    expect(events.map(event => event.type)).toEqual(['battle_start', 'breakdown', 'hit_taken', 'hit_taken', 'turn_end'])
+    expect(events.map(event => event.type)).toEqual(['battle_start', 'breakdown', 'hit_taken', 'hit_taken', 'article', 'turn_end'])
     expect(JSON.stringify(store.getSnapshot())).toBe(await control())
   })
 
@@ -590,15 +590,15 @@ describe('story events', () => {
     const [queen, axe, clerk] = state.enemies
     clerk.robustness = 0
     // The Queen is one hit from her Breakdown, and Stage II strikes whatever
-    // she walks over; the Geek's Soul is full.
+    // she walks over; a mob's Core Flags do not heal it.
     queen.robustness = Math.floor(queen.maxRobustness * (queen.breakdownAt ?? 0.5)) + 1
     setDesire(queen.bossStages![1], [5, 6], 5, 1)
     queen.pos = { x: 8, y: 10 }
     queen.route = []
     axe.pos = { x: 0, y: 0 }
-    axe.route = []
+    axe.route = [{ x: 0, y: 0 }]
     axe.robustness -= 2
-    axe.soulCounter = axe.soulThreshold
+    state.flags[0][0] = 'core'
     state.flags[10][7] = 'bash'
     state.player.sanity = 1
     store.addStep(0, -1)
@@ -610,20 +610,21 @@ describe('story events', () => {
     expect(store.getSnapshot()).toMatchObject({ phase: 'gameover', message: 'ELIMINATED / COURT 2.B' })
     expect(store.getSnapshot().log.some(entry => entry.text.startsWith('BREAKDOWN / Stage II: EXECUTION, PRECEDENT, AMNESTY; a new Article every turn.'))).toBe(true)
 
-    store.restart()
-    const again = store.getSnapshot()
-    again.enemies[0].robustness = 0
-    again.enemies[2].robustness = 0
-    const geek = again.enemies[1]
-    geek.pos = { x: 0, y: 0 }
-    geek.route = []
-    geek.robustness -= 2
-    geek.soulHeal = 3
-    geek.soulCounter = geek.soulThreshold
-    await store.executeTurn()
-    expect(events.slice(4).map(event => event.type)).toEqual(['battle_start', 'soul_heal', 'turn_end'])
-    expect(events[5]).toMatchObject({ type: 'soul_heal', enemyId: geek.id, stage: 1 })
-    expect(geek.robustness).toBe(geek.maxRobustness)
+    // Elites carry a Core skill and emit soul_heal when mend triggers; mobs ignore Core.
+    const eliteBattle = loaded(ENCOUNTERS['1.3'])
+    eliteBattle.store.start()
+    const eliteState = eliteBattle.store.getSnapshot()
+    const [sapling, brood1, brood2] = eliteState.enemies
+    brood1.robustness = 0
+    brood2.robustness = 0
+    sapling.pos = { x: 0, y: 0 }
+    sapling.route = []
+    sapling.robustness -= 2
+    sapling.soulCounter = sapling.soulThreshold
+    await eliteBattle.store.executeTurn()
+    expect(eliteBattle.events.map(event => event.type)).toEqual(['battle_start', 'soul_heal', 'turn_end'])
+    expect(eliteBattle.events[1]).toMatchObject({ type: 'soul_heal', enemyId: sapling.id })
+    expect(sapling.robustness).toBe(sapling.maxRobustness)
   })
 
   it('finishes the turn even when the listener throws', async () => {
@@ -698,7 +699,12 @@ describe('PURGE in the forecast', () => {
       for (let x = 2; x <= 11; x++) { state.walls[y][x] = false; state.flags[y][x] = 'blank' }
     }
     for (const enemy of [first, second]) {
-      Object.assign(enemy, { route: [], effectCell: null, block: 0, securityPerFlag: 2, soulThreshold: 3, soulHeal: 3, soulCounter: 2 })
+      Object.assign(enemy, {
+        route: [], effectCell: null, block: 0,
+        securityPerFlag: 2, privilegeSkill: { kind: 'ward' as const, name: 'WARD', perFlag: 2 },
+        soulThreshold: 3, soulHeal: 3, coreSkill: { kind: 'mend' as const, name: 'MEND', threshold: 3, heal: 3 },
+        soulCounter: 2,
+      })
       enemy.robustness = enemy.maxRobustness - 3
     }
     first.pos = { x: 3, y: 8 }
@@ -979,5 +985,104 @@ describe('multi-target area skill pacing', () => {
 
     await vi.advanceTimersByTimeAsync(4000)
     await turn
+  })
+})
+
+describe('standardized enemy skills', () => {
+  it('entitle grants 0 Security and adds bonus damage per Privilege Flag, matching the forecast', async () => {
+    const { store } = loaded(ENCOUNTERS['2.3'])
+    store.start()
+    const state = store.getSnapshot()
+    const bailiff = state.enemies[0]
+    for (const enemy of state.enemies.slice(1)) enemy.robustness = 0
+    bailiff.pos = { x: 7, y: 5 }
+    bailiff.route = [{ x: 7, y: 6 }]
+    state.flags[6][7] = 'privilege'
+    state.player.sanity = 36
+    // Bailiff has WRIT band (3/5), CONTEMPT (entitle +1 DMG/PRIV), sure 1.
+    const resources = predictedEnemyResources(planned(store), bailiff.id)
+    expect(resources).toEqual({ securityGain: 0, recovery: 0, soulCounterAfter: 0 })
+    const intent = predictedEnemyIntent(planned(store), bailiff.id)!
+    expect(intent.steps[0].step.amount).toBe(4) // 3 base + 1 entitle
+    const incoming = predictedEnemySequence(planned(store))
+    expect(incoming).toHaveLength(1)
+    expect(incoming[0].dealt).toBe(4)
+
+    await store.executeTurn()
+    expect(bailiff.block).toBe(0)
+    expect(store.getSnapshot().player.sanity).toBe(32)
+  })
+
+  it('surge adds +1 SURE form for the following turn only, matching forecast, then clears', async () => {
+    const { store } = loaded(ENCOUNTERS['2.3'])
+    store.start()
+    const state = store.getSnapshot()
+    const bailiff = state.enemies[0]
+    for (const enemy of state.enemies.slice(1)) enemy.robustness = 0
+    bailiff.pos = { x: 7, y: 5 }
+    bailiff.route = [{ x: 7, y: 6 }]
+    bailiff.soulCounter = bailiff.soulThreshold - 1
+    state.flags[6][7] = 'core'
+    state.player.sanity = 100
+    expect(predictedEnemyResources(planned(store), bailiff.id)).toMatchObject({ surge: true, soulCounterAfter: 0 })
+
+    await store.executeTurn()
+    expect(bailiff.surge).toBe(2)
+
+    // Turn 2: both forms (3 and 5) are SURE even with an empty route.
+    bailiff.route = []
+    bailiff.pos = { x: 7, y: 6 }
+    const intentTurn2 = predictedEnemyIntent(planned(store), bailiff.id)!
+    expect(intentTurn2.steps.map(s => s.sure)).toEqual([true, true])
+    expect(intentTurn2.releaseCount).toBe(2)
+    const incomingTurn2 = predictedEnemySequence(planned(store))
+    expect(incomingTurn2.map(hit => hit.damage)).toEqual([3, 5])
+    const beforeTurn2 = store.getSnapshot().player.sanity
+    await store.executeTurn()
+    expect(beforeTurn2 - store.getSnapshot().player.sanity).toBe(8)
+
+    // Turn 3: expired surge is cleared.
+    expect(bailiff.surge).toBe(0)
+    expect(predictedEnemyIntent(planned(store), bailiff.id)!.steps.map(s => s.sure)).toEqual([true, false])
+  })
+
+  it('mobs ignore Core Flags on their route while blanking them from the board', async () => {
+    const { store } = loaded(ENCOUNTERS['1.1'])
+    store.start()
+    const state = store.getSnapshot()
+    const [mob, other] = state.enemies
+    other.robustness = 0
+    mob.robustness -= 3
+    mob.pos = { x: 4, y: 4 }
+    mob.route = [{ x: 4, y: 5 }]
+    state.flags[5][4] = 'core'
+    expect(predictedEnemyResources(planned(store), mob.id)).toEqual({ securityGain: 0, recovery: 0, soulCounterAfter: 0 })
+    let seenPreview: unknown
+    store.subscribe(() => {
+      const preview = store.getSnapshot().enemyResourcePreviews[mob.id]
+      if (preview) seenPreview = preview
+    })
+    await store.executeTurn()
+    expect(mob.robustness).toBe(mob.maxRobustness - 3)
+    expect(mob.soulCounter).toBe(0)
+    expect(seenPreview).toEqual({ securityGain: 0, recovery: 0, soulCounterAfter: 0 })
+  })
+
+  it('Warden Breakdown schedules Stage II dual Curtains to lock when the current turn ends', async () => {
+    const { store } = loaded(WARDEN_ENCOUNTER)
+    store.start()
+    const state = store.getSnapshot()
+    const warden = state.enemies[0]
+    warden.robustness = 33
+    warden.route = []
+    state.enemies[1].robustness = 0
+    state.enemies[2].robustness = 0
+    store.addStep(0, -1)
+    store.addStep(0, -1)
+    await store.executeTurn()
+    expect(warden.stage).toBe(2)
+    expect(store.getSnapshot().turn).toBe(2)
+    expect(store.getSnapshot().curtains).toHaveLength(2)
+    expect(store.getSnapshot().curtains.every(c => c.locked)).toBe(true)
   })
 })

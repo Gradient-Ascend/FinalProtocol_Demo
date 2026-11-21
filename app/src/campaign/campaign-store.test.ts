@@ -4,7 +4,7 @@ import { BattleStore } from '../game/battle-store'
 import { createInitialState } from '../game/battle-rules'
 import { ENCOUNTERS } from '../game/encounters'
 import { DEFAULT_TUNING, applyWeight, tuningFor } from '../game/tuning'
-import { campaignStore, createCampaignStore, offerFor, runCarry, sanitizeMeta, sanitizeRun, sanitizeSaid } from './campaign-store'
+import { ELITE_SANITY_BONUS, campaignStore, createCampaignStore, offerFor, runCarry, sanitizeMeta, sanitizeRun, sanitizeSaid } from './campaign-store'
 import type { CampaignStore, RunState, Scene } from './campaign-store'
 
 // localStorage as a browser gives it, held in a Map the test can read.
@@ -199,9 +199,9 @@ describe('a run from the title to the gate', () => {
     store.battleLost()
     expect(store.getSnapshot()).toBe(settled)
 
-    // Two nodes broken: the third closes and the boss opens.
+    // Two nodes broken: the third closes and the boss opens. 1.3 is an elite node (+4 Sanity bonus).
     winSkirmish(store, '1.3', 10)
-    expect(run(store).sanity).toBe(18)
+    expect(run(store).sanity).toBe(10 + ELITE_SANITY_BONUS + 8)
     expect(run(store).weights).toEqual([offer[0]])
     expect(nodes(store, ['1.1', '1.2', '1.3', '1.B'])).toEqual(['broken', 'closed', 'broken', 'open'])
     expect(store.selectNode('1.2')).toBeNull()
@@ -245,6 +245,20 @@ describe('a run from the title to the gate', () => {
     expect(scenes.filter(scene => scene === 'interlude')).toHaveLength(4)
     expect(scenes.filter(scene => scene === 'reward')).toHaveLength(6)
     expect(run(store).attempts).toEqual({ '0.B': 1, '1.1': 1, '1.3': 1, '1.B': 1, '2.2': 1, '2.3': 1, '2.B': 1, '3.1': 1, '3.2': 1, '3.B': 1 })
+  })
+
+  it('restores ELITE_SANITY_BONUS (+4, capped at maxSanity) only on elite nodes', () => {
+    const store = opened()
+    onFirstMap(store)
+    store.selectNode('1.1')
+    store.beginBattle()
+    store.battleWon(20)
+    expect(run(store).sanity).toBe(20)
+    store.chooseWeight((store.getSnapshot().offer ?? [])[0])
+    store.selectNode('1.3')
+    store.beginBattle()
+    store.battleWon(34)
+    expect(run(store).sanity).toBe(Math.min(run(store).tuning.maxSanity, 34 + ELITE_SANITY_BONUS))
   })
 
   // A run already standing at the gate.
@@ -636,7 +650,7 @@ describe('a win is kept from the moment it happens', () => {
     const disk1 = stored('run')
 
     store.recordWin(6)
-    expect(run(store)).toMatchObject({ broken: ['0.B', '1.1', '1.3'], sanity: 6, current: null })
+    expect(run(store)).toMatchObject({ broken: ['0.B', '1.1', '1.3'], sanity: 6 + ELITE_SANITY_BONUS, current: null })
     store.withdrawWin()
     // Exactly as it was: the same attempt on the same board, the node unbroken, the Sanity carried in, nothing offered.
     expect(store.getSnapshot()).toEqual(before)
@@ -656,7 +670,7 @@ describe('a win is kept from the moment it happens', () => {
     // Won again: one win, with the second fight's Sanity.
     store.recordWin(30)
     store.battleWon(30)
-    expect(store.getSnapshot()).toMatchObject({ scene: 'reward', run: { broken: ['0.B', '1.1', '1.3'], sanity: 30 } })
+    expect(store.getSnapshot()).toMatchObject({ scene: 'reward', run: { broken: ['0.B', '1.1', '1.3'], sanity: 30 + ELITE_SANITY_BONUS } })
     expect(run(store).attempts).toEqual({ '0.B': 1, '1.1': 1, '1.3': 1 })
     expect(run(store).broken.filter(id => id === '1.3')).toHaveLength(1)
 

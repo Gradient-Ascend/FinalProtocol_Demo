@@ -59,6 +59,8 @@ export type CgMovement = { id: string; hud: string; aside?: string; lines: CgLin
 
 export type LayerNode = { id: string; name: string; kind: NodeKind; line: string }
 export type BossSet = { desire: string; security: string; soul: string }
+export type LayerElite = { key: string; name: string }
+export type EnemyKitText = { attack: string; privilege: string; core?: string }
 export type LayerBoss = {
   name: string
   epithet: string
@@ -81,6 +83,8 @@ export type Layer = {
   releaseNotes?: string[]
   nodes: LayerNode[]
   enemies?: Record<string, string>
+  elite?: LayerElite
+  kits?: Record<string, EnemyKitText>
   boss?: LayerBoss
 }
 
@@ -322,6 +326,23 @@ export function validateScript(data: unknown = raw): string[] {
     if (isBag(layer.enemies)) {
       for (const [role, name] of Object.entries(layer.enemies)) if (!isText(name)) fail(`${path}.enemies.${role}`, 'expected a string')
     } else fail(`${path}.enemies`, 'expected an object')
+    texts(layer.elite, `${path}.elite`, ['key', 'name'])
+    if (isBag(layer.kits)) {
+      for (const [key, kit] of Object.entries(layer.kits)) {
+        texts(kit, `${path}.kits.${key}`, ['attack', 'privilege'])
+        if (isBag(kit) && kit.core !== undefined && !isText(kit.core)) fail(`${path}.kits.${key}.core`, 'expected a string')
+      }
+      if (isBag(layer.enemies)) {
+        for (const role of Object.keys(layer.enemies)) {
+          if (!isBag(layer.kits[role])) fail(`${path}.kits.${role}`, 'expected a kit for each enemy role')
+        }
+      }
+      if (isBag(layer.elite) && isText(layer.elite.key)) {
+        const eliteKit = layer.kits[layer.elite.key]
+        if (!isBag(eliteKit)) fail(`${path}.kits.${layer.elite.key}`, 'expected a kit for the elite')
+        else if (!isText(eliteKit.core)) fail(`${path}.kits.${layer.elite.key}.core`, 'expected a core skill name on the elite kit')
+      }
+    } else fail(`${path}.kits`, 'expected an object')
     texts(layer.boss, `${path}.boss`, ['name', 'epithet', 'mechanic', 'mechanicName', 'mechanicRule'])
     if (isBag(layer.boss)) {
       const sets = list(layer.boss.sets, `${path}.boss.sets`)

@@ -6,7 +6,7 @@ import type { BattleState, EnemyState, FlagKind } from './battle-types'
 import { desireReleaseCount, desireStepsFor, predictedEnemyResources, predictedEnemySequence } from './enemy-attack-methods'
 import { ENCOUNTERS } from './encounters'
 import type { Encounter } from './encounters'
-import { ARTICLES, advanceMechanics, articleById, disclosed, traceLevel } from './mechanics'
+import { ARTICLES, advanceMechanics, articleById, countdowns, disclosed, traceLevel, triggerOnBreakdown } from './mechanics'
 import script from '../story/script.json'
 
 // A battle on a campaign encounter, started, with the story events it emits.
@@ -16,11 +16,18 @@ function battle(encounter: Encounter) {
   store.load(encounter)
   const events: StoryEvent[] = []
   store.onStoryEvent = event => events.push(event)
+  const logs: string[] = []
+  const seen = new Set<number>()
+  store.subscribe(() => {
+    for (const entry of store.getSnapshot().log) {
+      if (!seen.has(entry.id)) { seen.add(entry.id); logs.push(entry.text) }
+    }
+  })
   store.start()
   // Tests that only wait out turns should not lose the battle doing it.
   store.getSnapshot().player.sanity = 900
   store.getSnapshot().player.maxSanity = 900
-  return { store, events }
+  return { store, events, logs }
 }
 
 // What a state looks like when a turn has just ended: the counter moved on.
@@ -45,20 +52,28 @@ describe('BROOD', () => {
     return { store, events, boss }
   }
 
-  it('forecasts BROOD where a Geek would recover, and does not heal', async () => {
+  it('forecasts BROOD where an elite would recover, and mobs ignore Core Flags', async () => {
     const { store, boss } = expecting()
     const hurt = boss.robustness
     expect(predictedEnemyResources(store.getSnapshot(), boss.id)).toMatchObject({ brood: true, recovery: 0, soulCounterAfter: 0 })
-    // The Geek beside it still recovers the ordinary way.
-    const other = store.getSnapshot().enemies[1]
-    other.robustness -= 1
-    other.soulCounter = other.soulThreshold
-    expect(predictedEnemyResources(store.getSnapshot(), other.id)).toMatchObject({ recovery: 1 })
-    expect(predictedEnemyResources(store.getSnapshot(), other.id).brood).toBeUndefined()
+    // The mob beside it consumes Core Flags along its route but gains no recovery or counter.
+    const mob = store.getSnapshot().enemies[1]
+    mob.robustness -= 1
+    mob.route = [{ ...mob.pos }]
+    store.getSnapshot().flags[mob.pos.y][mob.pos.x] = 'core'
+    expect(predictedEnemyResources(store.getSnapshot(), mob.id)).toMatchObject({ recovery: 0, soulCounterAfter: 0 })
+    expect(predictedEnemyResources(store.getSnapshot(), mob.id).brood).toBeUndefined()
+    let seenMobPreview: unknown
+    store.subscribe(() => {
+      const preview = store.getSnapshot().enemyResourcePreviews[mob.id]
+      if (preview) seenMobPreview = preview
+    })
     await store.executeTurn()
     expect(boss.robustness).toBe(hurt)
     expect(boss.soulCounter).toBe(0)
-    expect(other.robustness).toBe(other.maxRobustness)
+    expect(mob.robustness).toBe(mob.maxRobustness - 1)
+    expect(mob.soulCounter).toBe(0)
+    expect(seenMobPreview).toEqual({ securityGain: 0, recovery: 0, soulCounterAfter: 0 })
   })
 
   it('places the birth only at the turn boundary and never shifts that turn\'s forecast', async () => {
@@ -296,10 +311,15 @@ describe('UNDISCLOSED', () => {
   it('MYSTERY restores its Security at the end of its resolve in Stage I', async () => {
     const { store } = battle(ENCOUNTERS['3.B'])
     const king = store.getSnapshot().enemies[0]
-    const mystery = king.mystery!
+    if (king.privilegeSkill.kind !== 'mystery') throw new Error('expected mystery skill')
+    const mystery = king.privilegeSkill.floor
+    const adv = king.countdowns?.find(c => c.kind === 'advent')
+    const adventTurn = adv?.kind === 'advent' ? adv.turn : null
     // In place from the first turn.
     expect(king.block).toBe(mystery)
-    expect(store.getSnapshot().mechanic).toEqual({ kind: 'undisclosed', bossId: king.id, mystery })
+    expect(store.getSnapshot().mechanic).toEqual({
+      kind: 'undisclosed', bossId: king.id, mystery, adventTurn, advented: false,
+    })
     // Stripped, as MANIFOLD would leave it; nothing on its route to rebuild it.
     king.block = 0
     king.route = []
@@ -308,6 +328,7 @@ describe('UNDISCLOSED', () => {
     expect(king.block).toBe(mystery)
     expect(store.getSnapshot().log.some(entry => entry.text.includes(`restored Security to ${mystery}`))).toBe(true)
     // Privilege on its route counts when it is worth more than MYSTERY.
+    king.privilegeSkill = { kind: 'mystery', name: 'MYSTERY', perFlag: mystery + 2, floor: mystery }
     king.securityPerFlag = mystery + 2
     king.route = [{ ...king.pos }]
     store.getSnapshot().flags[king.pos.y][king.pos.x] = 'privilege'
@@ -317,9 +338,11 @@ describe('UNDISCLOSED', () => {
   })
 
   it('MYSTERY ends with Stage I', async () => {
-    const { store, events } = battle(ENCOUNTERS['3.B'])
+    const { store, events, logs } = battle(ENCOUNTERS['3.B'])
     const state = store.getSnapshot()
     const king = state.enemies[0]
+    const adv = king.countdowns?.find(c => c.kind === 'advent')
+    const adventTurn = adv?.kind === 'advent' ? adv.turn : null
     // One Bash hit from its Breakdown, standing next to the player.
     king.robustness = Math.floor(king.maxRobustness * (king.breakdownAt ?? 0.5)) + 1
     king.block = 0
@@ -332,10 +355,12 @@ describe('UNDISCLOSED', () => {
     await store.executeTurn()
     expect(king.stage).toBe(2)
     expect(king.block).toBe(0)
-    expect(store.getSnapshot().mechanic).toEqual({ kind: 'undisclosed', bossId: king.id, mystery: null })
+    expect(store.getSnapshot().mechanic).toEqual({
+      kind: 'undisclosed', bossId: king.id, mystery: null, adventTurn, advented: true,
+    })
     expect(disclosed(store.getSnapshot(), king)).toBe(true)
     expect(events.filter(event => event.type === 'breakdown')).toMatchObject([{ encounter: '3.B', stage: 2, enemyId: king.id }])
-    expect(store.getSnapshot().log.some(entry => entry.text.includes('MYSTERY ends'))).toBe(true)
+    expect(logs.some(text => text.includes('MYSTERY ends'))).toBe(true)
     // A turn with nothing on its route: no Security comes back in Act II.
     king.route = []
     await store.executeTurn()
@@ -396,5 +421,64 @@ describe('TRACE', () => {
     await store.executeTurn()
     expect(store.getSnapshot().trace).toBeNull()
     expect(amounts(store.getSnapshot().enemies[0])).toEqual(warden)
+  })
+})
+
+describe('signature countdowns and Breakdown triggers', () => {
+  it('GESTATION queues a birth on its cadence and fires at the next boundary on Breakdown', () => {
+    const state = createInitialState(false, true, undefined, ENCOUNTERS['1.B'])
+    const boss = state.enemies[0]
+    const gest = boss.countdowns?.find(c => c.kind === 'gestation')
+    if (!gest || gest.kind !== 'gestation') throw new Error('expected gestation countdown')
+    const every = gest.every
+    expect(countdowns(state)).toEqual([
+      { id: 'gestation', name: 'GESTATION', turnsLeft: every, fired: false },
+      { id: 'trace', name: 'TRACE', turnsLeft: ENCOUNTERS['1.B'].trace!, fired: false },
+    ])
+    for (let t = 0; t < every - 1; t++) expect(boundary(state)).toEqual([])
+    expect(state.turn).toBe(every)
+    expect(countdowns(state)[0]).toEqual({ id: 'gestation', name: 'GESTATION', turnsLeft: 1, fired: false })
+    const events = boundary(state)
+    expect(state.turn).toBe(every + 1)
+    expect(events.map(e => e.type)).toEqual(['birth'])
+    expect(countdowns(state)[0]).toEqual({ id: 'gestation', name: 'GESTATION', turnsLeft: every, fired: false })
+
+    // Breakdown speeds GESTATION to fire at the boundary of this turn, without touching TRACE.
+    const traceBefore = state.trace
+    triggerOnBreakdown(state, boss)
+    expect(state.trace).toBe(traceBefore)
+    expect(countdowns(state)[0].turnsLeft).toBe(1)
+    expect(boundary(state).map(e => e.type)).toEqual(['birth'])
+  })
+
+  it('ADVENT raises 3.B routeLength to 2 on its scheduled turn without changing TRACE', () => {
+    const state = createInitialState(false, true, undefined, ENCOUNTERS['3.B'])
+    const king = state.enemies[0]
+    const adv = king.countdowns?.find(c => c.kind === 'advent')
+    if (!adv || adv.kind !== 'advent') throw new Error('expected advent countdown')
+    expect(king.routeLength).toBe(0)
+    expect(countdowns(state)).toEqual([
+      { id: 'advent', name: 'ADVENT', turnsLeft: adv.turn - 1, fired: false },
+      { id: 'trace', name: 'TRACE', turnsLeft: ENCOUNTERS['3.B'].trace!, fired: false },
+    ])
+    for (let t = 0; t < adv.turn - 2; t++) expect(boundary(state)).toEqual([])
+    expect(king.routeLength).toBe(0)
+    const events = boundary(state)
+    expect(state.turn).toBe(adv.turn)
+    expect(events).toEqual([{ type: 'advent', enemyId: king.id }])
+    expect(king.routeLength).toBe(2)
+    expect(king.bossStages![0].routeLength).toBe(2)
+    expect(countdowns(state)[0]).toEqual({ id: 'advent', name: 'ADVENT', turnsLeft: 0, fired: true })
+  })
+
+  it('Breakdown fires pending DOCKET at the next boundary and leaves TRACE untouched', () => {
+    const state = createInitialState(false, true, undefined, ENCOUNTERS['2.B'])
+    const queen = state.enemies[0]
+    const traceBefore = state.trace
+    expect(countdowns(state)[0]).toEqual({ id: 'docket', name: 'DOCKET', turnsLeft: 2, fired: false })
+    triggerOnBreakdown(state, queen)
+    expect(state.trace).toBe(traceBefore)
+    expect(countdowns(state)[0]).toEqual({ id: 'docket', name: 'DOCKET', turnsLeft: 1, fired: false })
+    expect(boundary(state).map(e => e.type)).toEqual(['article'])
   })
 })

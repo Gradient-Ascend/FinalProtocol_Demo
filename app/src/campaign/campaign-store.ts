@@ -52,6 +52,7 @@ export type CampaignStore = {
 
 const PROLOGUE = '0.B'
 const BOSS_HEAL = 12
+export const ELITE_SANITY_BONUS = 4
 const TRANSCRIPT_CAP = 400
 const GHOST_CAP = 200
 const SEEN_CAP = 2000
@@ -263,7 +264,11 @@ export function createCampaignStore(options: { seed?: () => number } = {}): Camp
     const broken = unique([...before.broken, encounter.id])
     won = { before, deepest, sanity: kept }
     if (encounter.kind === 'skirmish') {
-      const next = { ...before, broken, current: null, sanity: kept }
+      const bonus = encounter.elite ? ELITE_SANITY_BONUS : 0
+      const next = {
+        ...before, broken, current: null,
+        sanity: Math.min(before.tuning.maxSanity, kept + bonus),
+      }
       reward = true
       interlude = false
       saveRun(next)

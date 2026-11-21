@@ -50,7 +50,7 @@ function buildSlides(tuning: Tuning): SlideCopy[] {
         {
           label: 'DESIRE',
           tone: 'red',
-          text: 'Enemies follow exposed routes and release Desire steps for every Bash Flag they collect (plus SURE steps on bosses).',
+          text: 'Enemies follow exposed routes and release Attack forms for every Bash Flag they collect (plus SURE forms on elites, bosses, and deeper layers).',
         },
       ],
     },
@@ -67,7 +67,7 @@ function buildSlides(tuning: Tuning): SlideCopy[] {
         {
           label: 'SECURITY',
           tone: 'white',
-          text: 'Enemy armor gained from Privilege Flags. Strip it to 0 for BREACH (+1 damage from later hits) or bypass with PIERCE.',
+          text: 'Enemy armor or attack bonus gained from Privilege Flags. Strip Security to 0 for BREACH (+1 damage from later hits) or bypass with PIERCE.',
         },
       ],
     },
@@ -84,7 +84,7 @@ function buildSlides(tuning: Tuning): SlideCopy[] {
         {
           label: 'SOUL',
           tone: 'red',
-          text: 'Enemy Core counters fill along their routes to restore Robustness or queue a BROOD spawn—intercept their path.',
+          text: 'Elites and bosses carry a Core skill (heal, BROOD spawn, or SURGE) triggered when their counter fills; mobs still consume Core Flags along their route.',
         },
       ],
     },

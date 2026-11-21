@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { battleStore } from '@/game/battle-store'
 import type { BattleState } from '@/game/battle-types'
+import { ENCOUNTERS } from '@/game/encounters'
 import { sigilPart } from '@/game/sigils'
 import { campaignStore } from '@/campaign/campaign-store'
 import type { CampaignSnapshot, RunState } from '@/campaign/campaign-store'
@@ -218,7 +219,7 @@ export function MapScreen({ campaign, state, reducedMotion }: { campaign: Campai
                   onClick={() => setSelected(node.id)}
                   onDoubleClick={() => { if (nodeState === 'open') enterNode(node.id) }}
                 >
-                  <span>{node.id}</span><strong>{node.name}</strong><em>{STATE_WORD[nodeState]}</em>
+                  <span>{node.id}</span><strong>{node.name}{ENCOUNTERS[node.id]?.elite ? ' · ELITE' : ''}</strong><em>{STATE_WORD[nodeState]}</em>
                 </button>
               )
             })}

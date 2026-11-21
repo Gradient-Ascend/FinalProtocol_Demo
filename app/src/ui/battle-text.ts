@@ -1,6 +1,6 @@
 import type { BattleState, DesireStep, EnemyState } from '@/game/battle-types'
 import { layerName } from '@/game/encounters'
-import { desireStepsFor } from '@/game/enemy-attack-methods'
+import { desireStepsFor, sureCount } from '@/game/enemy-attack-methods'
 import { disclosed, traceLevel } from '@/game/mechanics'
 import { fillText, layerAt } from '@/story/script'
 
@@ -156,10 +156,10 @@ export function behaviourText(enemy: Pick<EnemyState, 'behavior' | 'routeLength'
 export type DesireChip = { numeral: string; amount: string; sure: boolean }
 
 // A Geek's Desire steps in the order it releases them. The first `desireFloor`
-// are released whatever its route collects; a step dropped by a skill comes
-// off that count for the turn.
+// (plus SURGE when active on this turn) are released whatever its route
+// collects; a step dropped by a skill comes off that count for the turn.
 export function desireChips(state: BattleState, enemy: EnemyState): DesireChip[] {
-  const sure = Math.max(0, (enemy.desireFloor ?? 0) - (enemy.dropped ?? 0))
+  const sure = sureCount(enemy, state.turn)
   return desireStepsFor(enemy).map((step, index) => ({
     numeral: ROMAN[index] ?? String(index + 1),
     amount: shown(state, enemy, step.amount),
@@ -181,8 +181,9 @@ export function desireShapeText(step: DesireStep): string {
   return `ORTHO R${step.range}`
 }
 
-/** Boss stage or act badge (e.g. 'STAGE I' or 'ACT II'), or null for minor Geeks. */
+/** Tier, stage, or act badge (e.g. 'ELITE', 'STAGE I', or 'ACT II'), or null for mobs. */
 export function stageBadgeText(state: BattleState, enemy: EnemyState): string | null {
+  if (enemy.tier === 'elite') return 'ELITE'
   if (!enemy.bossStages?.length) return null
   return `${stageWord(state)} ${ROMAN[enemy.stage - 1] ?? enemy.stage}`
 }

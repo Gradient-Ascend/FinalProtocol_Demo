@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { bossOf, curtainLabel } from '@/game/battle-rules'
-import { disclosed } from '@/game/mechanics'
+import { countdowns, disclosed } from '@/game/mechanics'
 import type { Article, BattleState, EnemyState, MechanicState } from '@/game/battle-types'
 import { VoiceLine } from '@/story/VoiceLine'
 import { WITHHELD, bossRule, breakdownText, broodCount, protocolHeading, traceText } from './battle-text'
@@ -123,6 +123,12 @@ export function ProtocolPanel({ state, broodForecast, said }: { state: BattleSta
         <span>TRACE <b>{trace.value}</b></span>
         <strong>{trace.note}</strong>
       </div>}
+      {countdowns(state).filter(c => c.id === 'gestation' || c.id === 'advent').map(c => (
+        <div className={`breakdown-line trace-line ${c.fired ? '' : c.turnsLeft <= 1 ? 'trace-near' : 'trace-far'}`} key={c.id}>
+          <span>{c.name} <b>{c.fired ? 'RISEN' : `T−${c.turnsLeft}`}</b></span>
+          <strong>{c.id === 'gestation' ? 'BIRTH AT T−0' : c.fired ? 'WALKS' : 'RISES AT T−0'}</strong>
+        </div>
+      ))}
       {mechanic?.kind === 'curtain' && standing && <div className="curtain-list">
         {state.curtains.map(curtain => <span className={curtain.locked ? 'locked' : ''} key={`${curtain.axis}-${curtain.index}`}>
           {curtain.locked ? 'SEALED' : `T−${Math.max(0, curtain.fireTurn - state.turn)}`} / {curtainLabel(curtain)}

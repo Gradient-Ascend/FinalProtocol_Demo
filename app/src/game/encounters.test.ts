@@ -56,7 +56,11 @@ describe('encounter table', () => {
       expect(encounter.trace).toBeGreaterThan(0)
       const text = script.layers[encounter.layer].nodes.find(candidate => candidate.id === encounter.id)
       expect(encounter.name).toBe(text?.name)
-      const names: string[] = Object.values(script.layers[encounter.layer].enemies ?? {})
+      const eliteCfg = script.layers[encounter.layer].elite
+      const names: string[] = [
+        ...Object.values(script.layers[encounter.layer].enemies ?? {}),
+        ...(eliteCfg ? [eliteCfg.name] : []),
+      ]
       for (const enemy of encounter.enemies) {
         if (enemy.bossStages) expect(enemy.name).toBe(encounter.name)
         else expect(names).toContain(enemy.name)
@@ -118,11 +122,15 @@ describe('encounter table', () => {
     expect(court.length).toBeGreaterThan(0)
     const [king] = ENCOUNTERS['3.B'].enemies
     expect(king).toMatchObject({ hidden: true, undisclosed: true })
-    expect(king.mystery).toBeGreaterThan(0)
+    expect(king.privilegeSkill).toMatchObject({ kind: 'mystery' })
+    if (king.privilegeSkill.kind === 'mystery') expect(king.privilegeSkill.floor).toBeGreaterThan(0)
     // Act II: the floor is 2 and Desire is larger.
     expect(king.bossStages![1].desireFloor).toBe(2)
     expect(Math.max(...king.bossStages![1].desire)).toBeGreaterThan(Math.max(...king.bossStages![0].desire))
-    for (const boss of [young, queen]) expect(boss.hidden ?? boss.undisclosed ?? boss.mystery).toBeUndefined()
+    for (const boss of [young, queen]) {
+      expect(boss.hidden ?? boss.undisclosed).toBeUndefined()
+      expect(boss.privilegeSkill.kind).not.toBe('mystery')
+    }
   })
 })
 

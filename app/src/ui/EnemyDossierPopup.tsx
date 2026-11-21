@@ -3,6 +3,7 @@ import { coordKey } from '@/game/battle-rules'
 import type { BattleState, EnemyResourcePreview, EnemyState, FlagKind } from '@/game/battle-types'
 import { desireStepsFor } from '@/game/enemy-attack-methods'
 import type { PredictedEnemyIntent } from '@/game/enemy-attack-methods'
+import { coreRuleText, privilegeRuleText } from '@/game/enemy-kits'
 import { mysteryActive } from '@/game/mechanics'
 import {
   ROMAN, WITHHELD, behaviourText, breakdownText, desireChips, desireShapeText, shown, stageBadgeText, sureText,
@@ -156,18 +157,19 @@ export function EnemyDossierPopup({
               <em className="dossier-gain"> {mysteryActive(enemy) ? '→ ' : '+'}{resources.securityGain}</em>
             )}
           </strong>
-          <small className="dossier-sub">+{enemy.securityPerFlag} / PRIV</small>
+          <small className="dossier-sub">{privilegeRuleText(enemy.privilegeSkill)}</small>
         </div>
 
         <div className="dossier-cell">
-          <span>{enemy.soulName ?? 'SOUL'}</span>
+          <span>{enemy.soulName ?? 'CORE'}</span>
           <strong>
-            {enemy.soulCounter}/{enemy.soulThreshold}
+            {enemy.coreSkill ? `${enemy.soulCounter}/${enemy.soulThreshold}` : '—'}
             {forecast && resources.brood && <em className="dossier-gain brood"> BROOD</em>}
+            {forecast && resources.surge && <em className="dossier-gain brood"> SURGE</em>}
             {forecast && resources.recovery > 0 && <em className="dossier-gain"> +{open ? resources.recovery : WITHHELD} HP</em>}
           </strong>
           <small className="dossier-sub">
-            {enemy.brood ? 'ON FULL: BROOD' : `ON FULL: +${open ? enemy.soulHeal : WITHHELD} HP`}
+            {coreRuleText(enemy.coreSkill, open, WITHHELD)}
           </small>
         </div>
       </div>

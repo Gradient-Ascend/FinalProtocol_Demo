@@ -1,6 +1,8 @@
 import script from '../story/script.json'
 import { ENEMY_DEFINITIONS, EXPLICIT_FLAGS, FLAG_WEIGHTS, WALLS } from './battle-config'
-import type { BossStageDefinition, BroodDefinition, Coord, DesireStep, EnemyDefinition, FlagKind } from './battle-types'
+import type { BossStageDefinition, BroodDefinition, Coord, EnemyBehavior, EnemyDefinition, FlagKind } from './battle-types'
+import { compileStage } from './enemy-kits'
+import type { AttackSkill, CoreSkill, CountdownDef, PrivilegeSkill, StageKit } from './enemy-kits'
 import { SIGILS, sigilPart } from './sigils'
 
 export type GodId = 'none' | 'grove' | 'court' | 'carcosa'
@@ -12,6 +14,7 @@ export type Encounter = {
   id: string                      // '0.B', '1.1' … '3.B'
   layer: 0 | 1 | 2 | 3
   kind: EncounterKind
+  elite?: boolean
   name: string
   god: GodId
   // Seeds the board and, through it, the Warps that fall in later.
@@ -32,6 +35,8 @@ type LayerText = {
   name: string
   nodes: { id: string; name: string }[]
   enemies?: Record<string, string>
+  elite?: { key: string; name: string }
+  kits?: Record<string, { attack: string; privilege: string; core?: string }>
   boss?: { sets: { desire: string; security: string; soul: string }[] }
 }
 const LAYERS = script.layers as LayerText[]
@@ -45,8 +50,8 @@ export function layerName(layer: number): string {
   return LAYERS[layer]?.name ?? `LAYER ${layer}`
 }
 
-// The prologue is the battle the game shipped with, unchanged: the constants
-// in battle-config.ts are still where its numbers live.
+// The prologue is the battle the game shipped with, unchanged in structure:
+// its kit constants live in battle-config.ts.
 export const WARDEN_ENCOUNTER: Encounter = {
   id: '0.B', layer: 0, kind: 'prologue', name: nodeName('0.B'), god: 'none',
   seed: 0xF1A6,
@@ -69,53 +74,101 @@ function geekName(layer: number, key: string): string {
   return LAYERS[layer]?.enemies?.[key] ?? `DESIRE / ${key.toUpperCase()}`
 }
 
-type GeekStats = Omit<EnemyDefinition, 'id' | 'name' | 'pos' | 'robustness'>
-
-const square = (amount: number, range: number): DesireStep => ({ amount, range, shape: 'square' })
-// A band along the Geek's row and column, `width` cells to either side, the
-// length of the board.
-const band = (amount: number, width: number): DesireStep => ({ amount, range: 15, shape: 'rectangle', width })
-
-// Desire as a list of steps. Steps that share one reach are written in the
-// flat fields alone, as the prologue's Geeks are; a list with mixed reaches,
-// or a band wider than 1, needs `desireSteps` to say so.
-function desire(steps: DesireStep[]): Pick<GeekStats, 'desire' | 'desireSteps' | 'desireRange' | 'desireShape'> {
-  const [first] = steps
-  const flat = { desire: steps.map(step => step.amount), desireRange: first.range, desireShape: first.shape }
-  const uniform = steps.every(step => step.range === first.range && step.shape === first.shape && (step.width ?? 1) === 1)
-  return uniform ? flat : { ...flat, desireSteps: steps }
+function kitNames(layer: number, key: string): { attack: string; privilege: string; core?: string } {
+  return LAYERS[layer]?.kits?.[key] ?? { attack: 'DESIRE', privilege: 'SECURITY', core: 'SOUL' }
 }
 
-// Minor Geeks: the three existing behaviours under each layer's names, with
-// that layer's numbers. `brood` is the Grove's small hunter.
-//
-// A Desire floor of 1 means the first step is released every turn, Bash Flag
-// or not; steps past it still have to be collected. The Grove has none: its
-// Geeks strike only on what they eat, as the prologue's do. From the Court on
-// every Geek has one, small enough to block with a Privilege Flag or two.
-// Without it a player who reads the forecast takes next to nothing from a
-// skirmish: every strike can be denied by walking the Geek's route first.
-const GEEKS: Record<number, Record<string, GeekStats>> = {
-  // GROVE, appetite. They are led by what lies on the board and grow on it:
-  // long routes, three steps to feed, Souls that fill fast.
+type GeekKit = Omit<EnemyDefinition, 'id' | 'name' | 'pos' | 'robustness'>
+type Nameless<T> = T extends unknown ? Omit<T, 'name'> : never
+
+function mobKit(
+  layer: number,
+  key: string,
+  behavior: EnemyBehavior,
+  attack: Nameless<AttackSkill>,
+  privilege: Nameless<PrivilegeSkill>,
+  routeLength: number,
+  sure: number,
+): GeekKit {
+  const names = kitNames(layer, key)
+  return {
+    tier: 'mob',
+    behavior,
+    ...compileStage({
+      attack: { ...attack, name: names.attack } as AttackSkill,
+      privilege: { ...privilege, name: names.privilege } as PrivilegeSkill,
+      sure,
+      routeLength,
+    }),
+  }
+}
+
+function eliteKit(
+  layer: number,
+  behavior: EnemyBehavior,
+  attack: Nameless<AttackSkill>,
+  privilege: Nameless<PrivilegeSkill>,
+  core: Nameless<CoreSkill>,
+  routeLength: number,
+  sure: number,
+): GeekKit {
+  const key = LAYERS[layer]?.elite?.key ?? 'elite'
+  const names = kitNames(layer, key)
+  return {
+    tier: 'elite',
+    behavior,
+    ...compileStage({
+      attack: { ...attack, name: names.attack } as AttackSkill,
+      privilege: { ...privilege, name: names.privilege } as PrivilegeSkill,
+      core: { ...core, name: names.core ?? 'CORE' } as CoreSkill,
+      sure,
+      routeLength,
+    }),
+  }
+}
+
+const GEEKS: Record<number, Record<string, GeekKit>> = {
+  // GROVE, appetite. Mobs carry no Core skill and no sure forms; the Sapling
+  // elite holds THORN (I/II), HERD ward, and SAP mend.
   1: {
-    hunter: { behavior: 'hunter', ...desire([square(2, 4), square(3, 4)]), routeLength: 3, securityPerFlag: 1, soulThreshold: 3, soulHeal: 3 },
-    collector: { behavior: 'collector', ...desire([square(1, 5), square(2, 5), square(3, 5)]), routeLength: 4, securityPerFlag: 2, soulThreshold: 2, soulHeal: 4 },
-    brood: { behavior: 'hunter', ...desire([square(2, 3), square(2, 3)]), routeLength: 3, securityPerFlag: 1, soulThreshold: 4, soulHeal: 2 },
+    hunter: mobKit(1, 'hunter', 'hunter', { shape: 'square', range: 4, forms: [3] }, { kind: 'ward', perFlag: 1 }, 3, 0),
+    collector: mobKit(1, 'collector', 'collector', { shape: 'square', range: 5, forms: [3] }, { kind: 'ward', perFlag: 2 }, 4, 0),
+    brood: mobKit(1, 'brood', 'hunter', { shape: 'square', range: 3, forms: [2] }, { kind: 'ward', perFlag: 1 }, 3, 0),
+    elite: eliteKit(
+      1, 'grazer',
+      { shape: 'square', range: 4, forms: [2, 4] },
+      { kind: 'ward', perFlag: 2 },
+      { kind: 'mend', threshold: 3, heal: 4 },
+      3, 0,
+    ),
   },
-  // COURT, confusion. They take the board apart and strike along its lines:
-  // the Usher's band is its row and column, one cell to either side.
+  // COURT, confusion. From here on every non-boss has 1 sure form; Usher
+  // introduces entitle, and the Bailiff elite brings surge.
   2: {
-    hunter: { behavior: 'hunter', ...desire([square(3, 3), square(4, 3)]), routeLength: 3, securityPerFlag: 1, soulThreshold: 3, soulHeal: 3, desireFloor: 1 },
-    collector: { behavior: 'collector', ...desire([square(1, 5), square(3, 5)]), routeLength: 4, securityPerFlag: 2, soulThreshold: 3, soulHeal: 3, desireFloor: 1 },
-    disruptor: { behavior: 'disruptor', ...desire([band(2, 1), band(3, 1)]), routeLength: 2, securityPerFlag: 2, soulThreshold: 3, soulHeal: 3, desireFloor: 1 },
+    hunter: mobKit(2, 'hunter', 'hunter', { shape: 'square', range: 3, forms: [4] }, { kind: 'ward', perFlag: 1 }, 3, 1),
+    collector: mobKit(2, 'collector', 'collector', { shape: 'square', range: 5, forms: [3] }, { kind: 'ward', perFlag: 2 }, 4, 1),
+    disruptor: mobKit(2, 'disruptor', 'disruptor', { shape: 'rectangle', range: 15, width: 1, forms: [3] }, { kind: 'entitle', bonusPerFlag: 1 }, 2, 1),
+    elite: eliteKit(
+      2, 'hunter',
+      { shape: 'rectangle', range: 15, width: 1, forms: [3, 5] },
+      { kind: 'entitle', bonusPerFlag: 1 },
+      { kind: 'surge', threshold: 2 },
+      3, 1,
+    ),
   },
-  // CARCOSA, ignorance. Few walls and long reach: bands the length of the
-  // board, and hunters that strike from four cells off.
+  // CARCOSA, ignorance. Long reach and thin Flags; the Pallid Mask elite holds
+  // mystery Security and mend.
   3: {
-    hunter: { behavior: 'hunter', ...desire([square(3, 4), square(5, 4)]), routeLength: 3, securityPerFlag: 1, soulThreshold: 3, soulHeal: 3, desireFloor: 1 },
-    collector: { behavior: 'collector', ...desire([band(2, 2), band(4, 2)]), routeLength: 4, securityPerFlag: 2, soulThreshold: 3, soulHeal: 4, desireFloor: 1 },
-    disruptor: { behavior: 'disruptor', ...desire([band(2, 1), band(4, 1)]), routeLength: 2, securityPerFlag: 2, soulThreshold: 4, soulHeal: 3, desireFloor: 1 },
+    hunter: mobKit(3, 'hunter', 'hunter', { shape: 'square', range: 4, forms: [4] }, { kind: 'ward', perFlag: 1 }, 3, 1),
+    collector: mobKit(3, 'collector', 'collector', { shape: 'rectangle', range: 15, width: 2, forms: [3] }, { kind: 'ward', perFlag: 2 }, 4, 1),
+    disruptor: mobKit(3, 'disruptor', 'disruptor', { shape: 'rectangle', range: 15, width: 1, forms: [3] }, { kind: 'entitle', bonusPerFlag: 1 }, 2, 1),
+    elite: eliteKit(
+      3, 'disruptor',
+      { shape: 'rectangle', range: 15, width: 2, forms: [4, 6] },
+      { kind: 'mystery', perFlag: 1, floor: 2 },
+      { kind: 'mend', threshold: 3, heal: 3 },
+      3, 1,
+    ),
   },
 }
 
@@ -123,52 +176,70 @@ function geek(layer: number, kind: string, id: string, x: number, y: number, rob
   return { id, name: geekName(layer, kind), pos: { x, y }, robustness, ...GEEKS[layer][kind] }
 }
 
-type StageNumbers = {
-  desire: DesireStep[]
+function elite(layer: number, id: string, x: number, y: number, robustness: number): EnemyDefinition {
+  const name = LAYERS[layer]?.elite?.name ?? `DESIRE / ELITE ${layer}`
+  return { id, name, pos: { x, y }, robustness, ...GEEKS[layer].elite }
+}
+
+type StageSpec = {
+  attack: Nameless<AttackSkill>
+  privilege: Nameless<PrivilegeSkill>
+  core: Nameless<CoreSkill>
   routeLength: number
-  securityPerFlag: number
-  soulThreshold: number
-  soulHeal: number
-  desireFloor: number
+  sure: number
 }
 
 // A boss stage under the names script.json gives that boss's sets.
-function stage(layer: number, index: number, numbers: StageNumbers): BossStageDefinition {
+function stage(layer: number, index: number, spec: StageSpec): BossStageDefinition {
   const set = LAYERS[layer]?.boss?.sets[index] ?? { desire: 'DESIRE', security: 'SECURITY', soul: 'SOUL' }
+  const kit: StageKit = {
+    attack: { ...spec.attack, name: set.desire } as AttackSkill,
+    privilege: { ...spec.privilege, name: set.security } as PrivilegeSkill,
+    core: { ...spec.core, name: set.soul } as CoreSkill,
+    sure: spec.sure,
+    routeLength: spec.routeLength,
+  }
   return {
     stage: index + 1,
-    desireName: set.desire, securityName: set.security, soulName: set.soul,
-    desire: numbers.desire.map(step => step.amount), desireSteps: numbers.desire,
-    desireRange: numbers.desire[0].range, desireShape: numbers.desire[0].shape,
-    routeLength: numbers.routeLength, securityPerFlag: numbers.securityPerFlag,
-    soulThreshold: numbers.soulThreshold, soulHeal: numbers.soulHeal,
-    desireFloor: numbers.desireFloor, curtainLines: 1,
+    curtainLines: 1,
+    ...compileStage(kit),
   }
 }
 
 type BossBase = Pick<EnemyDefinition, 'id' | 'name' | 'behavior' | 'pos' | 'robustness'>
-  & Partial<Pick<EnemyDefinition, 'breakdownAt' | 'hidden' | 'undisclosed' | 'mystery' | 'brood'>>
+  & Partial<Pick<EnemyDefinition, 'breakdownAt' | 'hidden' | 'undisclosed' | 'brood'>>
+  & { countdowns: CountdownDef[] }
 
 // A boss starts the battle as its first stage.
 function boss(base: BossBase, stages: BossStageDefinition[]): EnemyDefinition {
   const first = stages[0]
   return {
-    breakdownAt: 0.5, ...base,
-    desireName: first.desireName, desire: [...first.desire], desireSteps: first.desireSteps?.map(step => ({ ...step })),
-    desireRange: first.desireRange, desireShape: first.desireShape, routeLength: first.routeLength,
-    securityName: first.securityName, securityPerFlag: first.securityPerFlag,
-    soulName: first.soulName, soulThreshold: first.soulThreshold, soulHeal: first.soulHeal,
+    tier: 'boss',
+    breakdownAt: 0.5,
+    ...base,
+    desireName: first.desireName,
+    desire: [...first.desire],
+    desireSteps: first.desireSteps?.map(step => ({ ...step })),
+    desireRange: first.desireRange,
+    desireShape: first.desireShape,
+    routeLength: first.routeLength,
+    securityName: first.securityName,
+    securityPerFlag: first.securityPerFlag,
+    privilegeSkill: { ...first.privilegeSkill },
+    soulName: first.soulName,
+    soulThreshold: first.soulThreshold,
+    soulHeal: first.soulHeal,
+    coreSkill: first.coreSkill ? { ...first.coreSkill } : undefined,
     desireFloor: first.desireFloor,
     bossStages: stages,
   }
 }
 
 // What the Dark Young gives birth to: the Grove's small hunter, without a place
-// yet. A point slighter than the brood of 1.3: the births are what a player
-// who only chases damage is worn down by, on top of the boss's own sure steps.
+// yet.
 const AGAIN: BroodDefinition = {
   limit: 3,
-  spawn: { name: geekName(1, 'brood'), robustness: 5, ...GEEKS[1].brood },
+  spawn: { name: geekName(1, 'brood'), robustness: 4, ...GEEKS[1].brood },
 }
 
 // Flag weights are bash / privilege / core / overload / blank, out of 100.
@@ -177,8 +248,7 @@ const weights = (bash: number, privilege: number, core: number, overload: number
 
 const CAMPAIGN: Encounter[] = [
   // Layer 1, GROVE: abundance. Fewer blanks, more Core and Overload: the
-  // board feeds whoever walks it, and the Geeks walk it too. It is the gentle
-  // layer: a player who only chases damage still gets through it.
+  // board feeds whoever walks it, and the Geeks walk it too.
   {
     id: '1.1', layer: 1, kind: 'skirmish', name: nodeName('1.1'), god: 'grove', seed: 0x6A0111,
     walls: sigilPart('1.1'), sigil: SIGILS.grove, playerStart: { x: 7, y: 8 },
@@ -194,11 +264,11 @@ const CAMPAIGN: Encounter[] = [
     trace: 5,
   },
   {
-    id: '1.3', layer: 1, kind: 'skirmish', name: nodeName('1.3'), god: 'grove', seed: 0x6A0113,
+    id: '1.3', layer: 1, kind: 'skirmish', elite: true, name: nodeName('1.3'), god: 'grove', seed: 0x6A0113,
     walls: sigilPart('1.3'), sigil: SIGILS.grove, playerStart: { x: 7, y: 9 },
     enemies: [
-      geek(1, 'brood', 'E01', 4, 5, 6), geek(1, 'brood', 'E02', 7, 4, 6), geek(1, 'brood', 'E03', 10, 5, 6),
-      geek(1, 'collector', 'E04', 7, 12, 8),
+      elite(1, 'E01', 7, 12, 15),
+      geek(1, 'brood', 'E02', 4, 5, 6), geek(1, 'collector', 'E03', 10, 5, 8),
     ],
     flagWeights: weights(24, 8, 16, 10, 42),
     trace: 5,
@@ -207,26 +277,31 @@ const CAMPAIGN: Encounter[] = [
     id: '1.B', layer: 1, kind: 'boss', name: nodeName('1.B'), god: 'grove', seed: 0x6A011B,
     walls: SIGILS.grove, sigil: SIGILS.grove, playerStart: { x: 7, y: 13 },
     enemies: [
-      // It goes for Core first: its Soul is how it multiplies. The Core on
-      // this board is what it breeds on and what REPAIR runs on, so denying
-      // it and mending are the same walk.
-      // What it grazes thickens it too: 3 Security for each Privilege Flag,
-      // in both stages.
-      boss({ id: 'B01', name: nodeName('1.B'), behavior: 'grazer', pos: { x: 7, y: 5 }, robustness: 44, brood: AGAIN }, [
-        stage(1, 0, { desire: [square(2, 4), square(3, 4), square(4, 4)], routeLength: 3, securityPerFlag: 3, soulThreshold: 3, soulHeal: 0, desireFloor: 1 }),
-        // Stage II fills its Soul one Core Flag sooner and, like every other
-        // boss's second stage, releases two steps a turn whatever it eats.
-        // That is what the fight costs a player who denies it everything else.
-        stage(1, 1, { desire: [square(3, 5), square(4, 5), square(5, 5)], routeLength: 3, securityPerFlag: 3, soulThreshold: 2, soulHeal: 0, desireFloor: 2 }),
+      boss({
+        id: 'B01', name: nodeName('1.B'), behavior: 'grazer', pos: { x: 7, y: 5 }, robustness: 44, brood: AGAIN,
+        countdowns: [{ kind: 'gestation', name: 'GESTATION', every: 6 }],
+      }, [
+        stage(1, 0, {
+          attack: { shape: 'square', range: 4, forms: [2, 3] },
+          privilege: { kind: 'ward', perFlag: 1 },
+          core: { kind: 'brood', threshold: 3 },
+          routeLength: 3, sure: 1,
+        }),
+        stage(1, 1, {
+          attack: { shape: 'square', range: 5, forms: [3, 4] },
+          privilege: { kind: 'entitle', bonusPerFlag: 1 },
+          core: { kind: 'brood', threshold: 2 },
+          routeLength: 3, sure: 2,
+        }),
       ]),
-      geek(1, 'collector', 'E02', 11, 7, 10),
+      geek(1, 'collector', 'E02', 11, 7, 7),
     ],
     flagWeights: weights(24, 8, 12, 10, 46),
     mechanic: 'brood', trace: 11,
   },
 
   // Layer 2, COURT: confusion. Core is scarce, so little is mended here, and
-  // from here on a Geek strikes once a turn whatever it collects.
+  // from here on every Geek has 1 sure form.
   {
     id: '2.1', layer: 2, kind: 'skirmish', name: nodeName('2.1'), god: 'court', seed: 0xC0A221,
     walls: sigilPart('2.1'), sigil: SIGILS.court, playerStart: { x: 7, y: 10 },
@@ -242,9 +317,12 @@ const CAMPAIGN: Encounter[] = [
     trace: 6,
   },
   {
-    id: '2.3', layer: 2, kind: 'skirmish', name: nodeName('2.3'), god: 'court', seed: 0xC0A223,
+    id: '2.3', layer: 2, kind: 'skirmish', elite: true, name: nodeName('2.3'), god: 'court', seed: 0xC0A223,
     walls: sigilPart('2.3'), sigil: SIGILS.court, playerStart: { x: 7, y: 9 },
-    enemies: [geek(2, 'hunter', 'E01', 5, 3, 9), geek(2, 'hunter', 'E02', 9, 3, 9), geek(2, 'disruptor', 'E03', 7, 2, 8)],
+    enemies: [
+      elite(2, 'E01', 5, 3, 18),
+      geek(2, 'hunter', 'E02', 9, 3, 9), geek(2, 'disruptor', 'E03', 7, 2, 8),
+    ],
     flagWeights: weights(26, 9, 5, 6, 54),
     trace: 5,
   },
@@ -252,11 +330,22 @@ const CAMPAIGN: Encounter[] = [
     id: '2.B', layer: 2, kind: 'boss', name: nodeName('2.B'), god: 'court', seed: 0xC0A22B,
     walls: SIGILS.court, sigil: SIGILS.court, playerStart: { x: 7, y: 11 },
     enemies: [
-      // Moderate numbers: the Docket is the difficulty. She walks down the
-      // board's axis and holds the waist of the hourglass.
-      boss({ id: 'B01', name: nodeName('2.B'), behavior: 'hunter', pos: { x: 7, y: 3 }, robustness: 50 }, [
-        stage(2, 0, { desire: [square(4, 5), band(4, 2), square(5, 5)], routeLength: 2, securityPerFlag: 2, soulThreshold: 3, soulHeal: 4, desireFloor: 1 }),
-        stage(2, 1, { desire: [band(5, 3), square(5, 6), band(7, 4)], routeLength: 3, securityPerFlag: 3, soulThreshold: 2, soulHeal: 4, desireFloor: 2 }),
+      boss({
+        id: 'B01', name: nodeName('2.B'), behavior: 'hunter', pos: { x: 7, y: 3 }, robustness: 50,
+        countdowns: [{ kind: 'docket', name: 'DOCKET' }],
+      }, [
+        stage(2, 0, {
+          attack: { shape: 'square', range: 5, forms: [4, 5] },
+          privilege: { kind: 'ward', perFlag: 2 },
+          core: { kind: 'mend', threshold: 3, heal: 4 },
+          routeLength: 2, sure: 1,
+        }),
+        stage(2, 1, {
+          attack: { shape: 'rectangle', range: 15, width: 3, forms: [5, 7] },
+          privilege: { kind: 'entitle', bonusPerFlag: 1 },
+          core: { kind: 'surge', threshold: 2 },
+          routeLength: 3, sure: 2,
+        }),
       ]),
       // CHANGE PLACES needs someone to change places with.
       geek(2, 'hunter', 'E02', 3, 7, 10),
@@ -266,8 +355,7 @@ const CAMPAIGN: Encounter[] = [
     mechanic: 'articles', trace: 14,
   },
 
-  // Layer 3, CARCOSA: ignorance. Open ground, thin Flags, long reach: almost
-  // no Privilege to block with and almost no Core to mend with.
+  // Layer 3, CARCOSA: ignorance. Open ground, thin Flags, long reach.
   {
     id: '3.1', layer: 3, kind: 'skirmish', name: nodeName('3.1'), god: 'carcosa', seed: 0xCA5031,
     walls: sigilPart('3.1'), sigil: SIGILS.carcosa, playerStart: { x: 7, y: 7 },
@@ -283,9 +371,12 @@ const CAMPAIGN: Encounter[] = [
     trace: 5,
   },
   {
-    id: '3.3', layer: 3, kind: 'skirmish', name: nodeName('3.3'), god: 'carcosa', seed: 0xCA5033,
+    id: '3.3', layer: 3, kind: 'skirmish', elite: true, name: nodeName('3.3'), god: 'carcosa', seed: 0xCA5033,
     walls: sigilPart('3.3'), sigil: SIGILS.carcosa, playerStart: { x: 4, y: 10 },
-    enemies: [geek(3, 'hunter', 'E01', 7, 5, 11), geek(3, 'hunter', 'E02', 9, 7, 11), geek(3, 'disruptor', 'E03', 5, 3, 10)],
+    enemies: [
+      elite(3, 'E01', 7, 5, 13),
+      geek(3, 'hunter', 'E02', 9, 7, 8), geek(3, 'disruptor', 'E03', 5, 3, 8),
+    ],
     flagWeights: weights(24, 6, 4, 6, 60),
     trace: 5,
   },
@@ -293,18 +384,26 @@ const CAMPAIGN: Encounter[] = [
     id: '3.B', layer: 3, kind: 'boss', name: nodeName('3.B'), god: 'carcosa', seed: 0xCA503B,
     walls: SIGILS.carcosa, sigil: SIGILS.carcosa, playerStart: { x: 11, y: 12 },
     enemies: [
-      // It stands in the empty centre of the ring and does not rise until
-      // Act II. Stage I is mild on purpose: one small step and MYSTERY. Stage
-      // II is the hardest thing in the game: two sure steps that reach nearly
-      // the whole board, and it walks. On the turn it rises it still stands
-      // where Stage I left it (that turn keeps the routes it was forecast
-      // with), so the two sure steps carry Act II on their own: 6 and 7.
-      boss({ id: 'B01', name: nodeName('3.B'), behavior: 'hunter', pos: { x: 7, y: 5 }, robustness: 60, hidden: true, undisclosed: true, mystery: 3 }, [
-        stage(3, 0, { desire: [square(2, 5), band(3, 2), square(4, 5)], routeLength: 0, securityPerFlag: 2, soulThreshold: 3, soulHeal: 3, desireFloor: 1 }),
-        stage(3, 1, { desire: [band(6, 5), square(7, 8), band(8, 7)], routeLength: 3, securityPerFlag: 3, soulThreshold: 2, soulHeal: 5, desireFloor: 2 }),
+      boss({
+        id: 'B01', name: nodeName('3.B'), behavior: 'hunter', pos: { x: 7, y: 5 }, robustness: 60,
+        hidden: true, undisclosed: true,
+        countdowns: [{ kind: 'advent', name: 'ADVENT', turn: 7 }],
+      }, [
+        stage(3, 0, {
+          attack: { shape: 'square', range: 5, forms: [2, 4] },
+          privilege: { kind: 'mystery', perFlag: 2, floor: 3 },
+          core: { kind: 'mend', threshold: 3, heal: 3 },
+          routeLength: 0, sure: 1,
+        }),
+        stage(3, 1, {
+          attack: { shape: 'rectangle', range: 15, width: 5, forms: [6, 7] },
+          privilege: { kind: 'ward', perFlag: 3 },
+          core: { kind: 'mend', threshold: 2, heal: 5 },
+          routeLength: 3, sure: 2,
+        }),
       ]),
-      geek(3, 'disruptor', 'E02', 1, 5, 10),
-      geek(3, 'hunter', 'E03', 13, 5, 10),
+      geek(3, 'disruptor', 'E02', 1, 5, 8),
+      geek(3, 'hunter', 'E03', 13, 5, 8),
     ],
     flagWeights: weights(22, 6, 4, 6, 62),
     mechanic: 'undisclosed', trace: 12,

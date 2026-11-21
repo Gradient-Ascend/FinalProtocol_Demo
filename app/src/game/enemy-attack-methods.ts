@@ -1,5 +1,6 @@
 import { simulateRelease } from './attack-methods'
 import { livingEnemies, routeStops } from './battle-rules'
+import { applyStage } from './enemy-kits'
 import { broods, securityAfterResolve } from './mechanics'
 import type {
   BattleState, Coord, DesireStep, EnemyResourcePreview, EnemyState, FlagKind, PlayerResourcePreview, PredictedEnemyHit,
@@ -14,10 +15,26 @@ export function desireStepsFor(enemy: EnemyState): DesireStep[] {
   }))
 }
 
+export function sureCount(
+  enemy: Pick<EnemyState, 'desireFloor' | 'dropped' | 'surge' | 'desire' | 'desireSteps'>,
+  turn = 0,
+): number {
+  const total = enemy.desireSteps?.length ?? enemy.desire.length
+  const surge = turn > 0 && enemy.surge === turn ? 1 : 0
+  return Math.min(total, Math.max(0, (enemy.desireFloor ?? 0) + surge - (enemy.dropped ?? 0)))
+}
+
 // A Desire step dropped by a skill is taken off the end of the release, even
 // below a boss's guaranteed steps.
-export function desireReleaseCount(enemy: EnemyState, bashCount: number): number {
-  return Math.max(0, Math.max(enemy.desireFloor ?? 0, bashCount) - (enemy.dropped ?? 0))
+export function desireReleaseCount(enemy: EnemyState, bashCount: number, turn = 0): number {
+  const total = desireStepsFor(enemy).length
+  const surge = turn > 0 && enemy.surge === turn ? 1 : 0
+  const floor = (enemy.desireFloor ?? 0) + surge
+  return Math.min(total, Math.max(0, Math.max(floor, bashCount) - (enemy.dropped ?? 0)))
+}
+
+export function entitleBonus(enemy: Pick<EnemyState, 'privilegeSkill'>, privilegeCount: number): number {
+  return enemy.privilegeSkill.kind === 'entitle' ? privilegeCount * enemy.privilegeSkill.bonusPerFlag : 0
 }
 
 export function desireInRange(origin: Coord, target: Coord, step: DesireStep): boolean {
@@ -68,14 +85,17 @@ function projectedBoard(state: BattleState, playerPos: Coord, playerStepsOverrid
     const after = sim.enemies.find(candidate => candidate.id === enemy.id)
     if (!after || after.hp <= 0) return []
     const moved: EnemyState = {
-      ...enemy, pos: after.pos, route: after.route, effectCell: after.effectCell, robustness: after.hp,
+      ...enemy,
+      desire: [...enemy.desire],
+      desireSteps: enemy.desireSteps?.map(step => ({ ...step })),
+      pos: after.pos, route: after.route, effectCell: after.effectCell, robustness: after.hp,
       live: after.live, dropped: after.dropped,
     }
     if (!enemy.bossStages?.length || enemy.stage >= enemy.bossStages.length) return [moved]
     if (after.hp / enemy.maxRobustness > (enemy.breakdownAt ?? 0.5)) return [moved]
     const next = enemy.bossStages.find(stage => stage.stage === enemy.stage + 1)
-    // A Breakdown also empties the Soul counter and drops Security, as the store does.
-    return [next ? { ...moved, ...next, stage: next.stage, soulCounter: 0, block: 0 } : moved]
+    if (next) applyStage(moved, next)
+    return [moved]
   })
   return { enemies, blanked: sim.blanked }
 }
@@ -107,14 +127,24 @@ function projectedWalks(state: BattleState, targetPos: Coord, playerStepsOverrid
 
 // What a Geek's resolve does with the Privilege and Core Flags on its route.
 // The store resolves through this same function, so the forecast and the turn
-// cannot drift apart: a full Soul counter heals, or on a BROOD Geek queues a
-// birth; MYSTERY tops Security up to its fixed value.
+// cannot drift apart: mobs have no Core skill and ignore Core Flags; elites and
+// bosses trigger mend, brood, or surge when full.
 export function enemyResourceOutcome(state: BattleState, enemy: EnemyState, privilege: number, core: number): EnemyResourcePreview {
-  const securityGain = securityAfterResolve(enemy, privilege * enemy.securityPerFlag)
+  const priv = enemy.privilegeSkill
+  const rawSecurity = priv.kind === 'entitle' ? 0 : privilege * priv.perFlag
+  const securityGain = priv.kind === 'mystery' ? securityAfterResolve(enemy, rawSecurity) : rawSecurity
+  const coreSkill = enemy.coreSkill
+  if (!coreSkill) return { securityGain, recovery: 0, soulCounterAfter: 0 }
   const soulCounterAfter = enemy.soulCounter + core
-  if (soulCounterAfter < enemy.soulThreshold) return { securityGain, recovery: 0, soulCounterAfter }
-  if (broods(state, enemy)) return { securityGain, recovery: 0, soulCounterAfter: 0, brood: true }
-  return { securityGain, recovery: Math.min(enemy.soulHeal, enemy.maxRobustness - enemy.robustness), soulCounterAfter: 0 }
+  if (soulCounterAfter < coreSkill.threshold) return { securityGain, recovery: 0, soulCounterAfter }
+  if (coreSkill.kind === 'brood' && broods(state, enemy)) {
+    return { securityGain, recovery: 0, soulCounterAfter: 0, brood: true }
+  }
+  if (coreSkill.kind === 'surge') {
+    return { securityGain, recovery: 0, soulCounterAfter: 0, surge: true }
+  }
+  const heal = coreSkill.kind === 'mend' ? coreSkill.heal : 0
+  return { securityGain, recovery: Math.min(heal, enemy.maxRobustness - enemy.robustness), soulCounterAfter: 0 }
 }
 
 export function predictedEnemyResources(state: BattleState, enemyId: string, playerStepsOverride?: number): EnemyResourcePreview {
@@ -132,17 +162,19 @@ export function predictedEnemySequence(state: BattleState, playerPos?: Coord, pl
   let sanity = state.player.sanity
   const hits: PredictedEnemyHit[] = []
   for (const { enemy, cursor, counts } of projectedWalks(state, targetPos, playerStepsOverride)) {
-    const steps = desireStepsFor(enemy).slice(0, desireReleaseCount(enemy, counts.bash))
-    for (const [stepIndex, step] of steps.entries()) {
-      if (!desireInRange(cursor, targetPos, step)) continue
-      const absorbed = Math.min(block, step.amount)
+    const bonus = entitleBonus(enemy, counts.privilege)
+    const steps = desireStepsFor(enemy).slice(0, desireReleaseCount(enemy, counts.bash, state.turn))
+    for (const [stepIndex, baseStep] of steps.entries()) {
+      if (!desireInRange(cursor, targetPos, baseStep)) continue
+      const amount = baseStep.amount + bonus
+      const absorbed = Math.min(block, amount)
       block -= absorbed
       const before = sanity
-      const dealt = Math.min(before, step.amount - absorbed)
+      const dealt = Math.min(before, amount - absorbed)
       sanity = Math.max(0, before - dealt)
       hits.push({
-        enemyId: enemy.id, stepIndex, damage: step.amount, absorbed, dealt, before, after: sanity,
-        origin: { ...cursor }, target: { ...targetPos }, shape: step.shape, range: step.range, width: step.width,
+        enemyId: enemy.id, stepIndex, damage: amount, absorbed, dealt, before, after: sanity,
+        origin: { ...cursor }, target: { ...targetPos }, shape: baseStep.shape, range: baseStep.range, width: baseStep.width,
       })
     }
   }
@@ -177,14 +209,16 @@ export function predictedEnemyIntent(
   const walk = projectedWalks(state, targetPos, playerStepsOverride).find(candidate => candidate.enemy.id === enemyId)
   if (!walk) return null
   const { enemy, cursor, counts } = walk
-  const sureCount = Math.max(0, (enemy.desireFloor ?? 0) - (enemy.dropped ?? 0))
-  const releaseCount = desireReleaseCount(enemy, counts.bash)
-  const steps: PredictedEnemyStep[] = desireStepsFor(enemy).map((step, stepIndex) => {
+  const sureTotal = sureCount(enemy, state.turn)
+  const releaseCount = desireReleaseCount(enemy, counts.bash, state.turn)
+  const bonus = entitleBonus(enemy, counts.privilege)
+  const steps: PredictedEnemyStep[] = desireStepsFor(enemy).map((baseStep, stepIndex) => {
     const armed = stepIndex < releaseCount
+    const step = armed && bonus ? { ...baseStep, amount: baseStep.amount + bonus } : { ...baseStep }
     return {
       stepIndex,
       step,
-      sure: stepIndex < sureCount,
+      sure: stepIndex < sureTotal,
       armed,
       hitsPlayer: armed && desireInRange(cursor, targetPos, step),
       origin: { ...cursor },
