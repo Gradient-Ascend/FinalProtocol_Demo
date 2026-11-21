@@ -925,3 +925,59 @@ describe('visual defeat and Overload outcome pacing', () => {
     expect(store.getSnapshot().phase).toBe('victory')
   })
 })
+
+describe('multi-target area skill pacing', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('batches ARRAY effects across N enemies into a single synchronized scan instead of repeating N times', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(30000)
+    const emitted: { fx?: string; target: { x: number; y: number }; at: number }[] = []
+    vi.stubGlobal('window', {
+      dispatchEvent: (event: Event) => {
+        const detail = (event as CustomEvent<{ fx?: string; target: { x: number; y: number } }>).detail
+        if (event.type === 'battle-attack-effect' && detail) {
+          emitted.push({ fx: detail.fx, target: detail.target, at: Date.now() })
+        }
+        return true
+      },
+    })
+
+    const { store } = loaded(WARDEN_ENCOUNTER)
+    store.start()
+    const state = store.getSnapshot()
+    state.reducedMotion = false
+    for (let y = 2; y <= 8; y++) {
+      for (let x = 4; x <= 11; x++) state.walls[y][x] = false
+    }
+    const [e1, e2, ...rest] = state.enemies
+    for (const enemy of rest) enemy.robustness = 0
+    Object.assign(e1, { pos: { x: 8, y: 4 }, robustness: 20, block: 0, route: [], effectCell: null })
+    Object.assign(e2, { pos: { x: 5, y: 5 }, robustness: 20, block: 0, route: [], effectCell: null })
+    state.flags[6][7] = 'bash'
+    state.flags[5][7] = 'bash'
+    state.flags[4][7] = 'bash'
+    store.addStep(0, -1)
+    store.addStep(0, -1)
+    store.addStep(0, -1)
+
+    const turn = store.executeTurn()
+    // Walk (3 * 180) + BASE (740) + MANHATTAN (120 + 430) = 1830 ms -> ARRAY batch starts here.
+    await vi.advanceTimersByTimeAsync(1900)
+    const arrayEmits = emitted.filter(item => item.fx === 'array')
+    expect(arrayEmits).toHaveLength(2)
+    expect(arrayEmits[1].at - arrayEmits[0].at).toBe(0)
+
+    // Single synchronized ARRAY step (max strike ~201 + 430 settle) finishes all hits under 700 ms,
+    // rather than repeating full strike+settle N times (> 1100 ms).
+    await vi.advanceTimersByTimeAsync(700)
+    expect(e1).toMatchObject({ robustness: 15, pos: { x: 8, y: 4 } })
+    expect(e2).toMatchObject({ robustness: 18, pos: { x: 6, y: 5 } })
+
+    await vi.advanceTimersByTimeAsync(4000)
+    await turn
+  })
+})

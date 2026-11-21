@@ -1097,7 +1097,7 @@ export class VfxWebglEngine {
       return { geo, mesh, attrA, attrB, attrC, attrD, count: 0 }
     }
     this.cloudDark = makeCloudPool(CLOUD_DARK_CAP, true, 1)
-    this.cloudAdd = makeCloudPool(CLOUD_ADD_CAP, false, 4)
+    this.cloudAdd = makeCloudPool(CLOUD_ADD_CAP, false, 1)
 
     // Post-processing shaders
     this.triGeo = makeFullscreenTriangleGeometry()
@@ -2148,8 +2148,8 @@ export class VfxWebglEngine {
         if (style > 2.5 && style < 3.5) {
           float env = sin(u * 3.1415926);
           float j = sin(u * 28.0 + seed + t * 44.0) * 0.55 + cos(u * 53.0 - t * 68.0) * 0.45;
-          pos.z += j * env * 0.48;
-          pos.xy += perp3 * j * env * 0.28;
+          pos.z += j * env * 0.22;
+          pos.xy += perp3 * j * env * 0.18;
         } else if (style > 6.5 && style < 7.5) {
           float tri = abs(fract(u * 9.0 + seed) * 4.0 - 2.0) - 1.0;
           float tri2 = abs(fract(u * 19.0 + seed * 1.7) * 4.0 - 2.0) - 1.0;
@@ -3036,15 +3036,15 @@ export class VfxWebglEngine {
           vec2 gf = abs(fract(wp + norm.xy * 0.32) - 0.5);
           float refractedGrid = smoothstep(0.43, 0.495, max(gf.x, gf.y)) * sil;
 
-          float glassBody = 0.085 + shallow * 0.095 + dense * 0.20;
-          float optics = caustic * 0.11 + spec1 * 0.24 + spec2 * 0.08 + refractedGrid * 0.075;
+          float glassBody = 0.070 + shallow * 0.080 + dense * 0.16;
+          float optics = caustic * 0.095 + spec1 * 0.20 + spec2 * 0.065 + refractedGrid * 0.065;
           float rawAlpha = (glassBody + optics) * sil * quadFade * lifeEnv;
-          float alpha = clamp(rawAlpha, 0.0, 0.48);
+          float alpha = clamp(rawAlpha, 0.0, 0.38);
           if (alpha <= 0.003) discard;
           float energy = clamp(
-            0.20 + shallow * 0.12 + dense * 0.24 + caustic * 0.18 + spec1 * 0.34 + spec2 * 0.12 + refractedGrid * 0.08,
+            0.18 + shallow * 0.11 + dense * 0.22 + caustic * 0.16 + spec1 * 0.30 + spec2 * 0.10 + refractedGrid * 0.07,
             0.14,
-            0.86
+            0.76
           );
           vec4 col = sampleLut(row, energy);
           gl_FragColor = vec4(col.rgb * alpha, 0.0);

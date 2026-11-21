@@ -694,7 +694,58 @@ export class BattleStore {
     const hits = predictedSequence(this.state, this.state.player.activeBash, steps)
     this.state.outgoingForecast = hits
     this.commit()
-    for (let index = 0; index < hits.length; index++) {
+    let index = 0
+    while (index < hits.length) {
+      const step = preset.steps[hits[index].stepIndex]
+      if (step?.area === 'all') {
+        const stepIndex = hits[index].stepIndex
+        type HitGroup = {
+          primary: (typeof hits)[number]
+          collaterals: typeof hits
+          effect: AttackEffect
+          timing: { strike: number; settle: number }
+          afterSliceIndex: number
+        }
+        const groups: HitGroup[] = []
+        while (index < hits.length && hits[index].stepIndex === stepIndex) {
+          const primary = hits[index++]
+          const collaterals: typeof hits = []
+          while (index < hits.length && hits[index].silent && hits[index].stepIndex === stepIndex) {
+            collaterals.push(hits[index++])
+          }
+          const effect = this.playerEffect(primary)
+          groups.push({
+            primary,
+            collaterals,
+            effect,
+            timing: effectTiming(effect),
+            afterSliceIndex: index,
+          })
+        }
+        for (const group of groups) this.emitEffect(group.effect)
+        let elapsed = 0
+        for (const group of groups) {
+          const waitMs = Math.max(0, group.timing.strike - elapsed)
+          if (waitMs > 0) {
+            await this.pause(waitMs)
+            if (run !== this.runId) return
+            elapsed = group.timing.strike
+          }
+          this.applyPlayerHit(preset.name, group.primary)
+          for (const col of group.collaterals) this.applyPlayerHit(preset.name, col)
+          this.state.outgoingForecast = hits.slice(group.afterSliceIndex)
+          this.state.playerAttackResolved = true
+          this.commit()
+        }
+        const totalStepMs = Math.max(...groups.map(g => g.timing.strike + g.timing.settle))
+        const remainingSettle = Math.max(0, totalStepMs - elapsed)
+        if (remainingSettle > 0) {
+          await this.pause(remainingSettle)
+          if (run !== this.runId) return
+        }
+        continue
+      }
+
       const hit = hits[index]
       const effect = this.playerEffect(hit)
       const timing = effectTiming(effect)
@@ -709,6 +760,7 @@ export class BattleStore {
       this.commit()
       await this.pause(timing.settle)
       if (run !== this.runId) return
+      index++
     }
   }
 
