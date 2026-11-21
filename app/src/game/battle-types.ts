@@ -199,6 +199,15 @@ export type AttackEffect = {
   overloadSteps?: OverloadSubStep[]
 }
 
+export type ResourcePopEffect = {
+  kind: 'privilege' | 'repair' | 'focus' | 'firewall'
+  pos: Coord
+  text: string
+  subtext?: string
+  color: string
+  slotOffset?: number
+}
+
 export type BattleAction =
   | { type: 'move'; to: Coord; flag: FlagKind }
   | { type: 'overload' }

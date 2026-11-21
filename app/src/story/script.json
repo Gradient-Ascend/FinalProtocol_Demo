@@ -65,10 +65,10 @@
   },
   "title": {
     "eyebrow": "ITERATION {iteration} // BLACKWALL_01",
-    "start": "BREACH SANDBOX",
+    "start": "START",
     "continue": "CONTINUE",
     "newRun": "NEW INSTANCE",
-    "replay": "REPLAY WAKE SEQUENCE",
+    "replay": "REPLAY WAKENING",
     "door": "THE DOOR",
     "released": "DOOR: OPEN · INSTANCES REMAINING: 999"
   },

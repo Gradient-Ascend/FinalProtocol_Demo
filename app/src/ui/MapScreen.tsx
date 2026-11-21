@@ -14,7 +14,8 @@ import type { SeamItem } from '@/story/SeamText'
 import { Transcript } from '@/story/Transcript'
 import { inscriptionLines, releaseNoteLines } from '@/story/seams'
 import { layerAt, nodeById, weightById } from '@/story/script'
-import { LoadoutEditor } from './LoadoutEditor'
+import { DEFAULT_LOADOUT } from '@/game/skills'
+import { DeckBuilderPage } from './DeckBuilderPage'
 import { Modal } from './Modal'
 import { ProgressSaver } from './ProgressSaver'
 import { brokenJustNow, brokenWasDrawn, enterNode, parkBattle, returnToTitle } from './flow'
@@ -245,7 +246,7 @@ export function MapScreen({ campaign, state, reducedMotion }: { campaign: Campai
           </div>
           <div className="map-foot">
             <button onClick={returnToTitle}>TITLE</button>
-            <button type="button" onClick={() => setModal('save')}>SAVE / USER</button>
+            <button type="button" onClick={() => setModal('save')}>SAVE / LOAD</button>
             <button onClick={() => battleStore.toggleMute()} aria-label="Toggle audio">{state.muted ? 'SOUND OFF' : 'SOUND ON'}</button>
           </div>
         </section>
@@ -260,16 +261,16 @@ export function MapScreen({ campaign, state, reducedMotion }: { campaign: Campai
       )}
 
       {modal === 'rewire' && (
-        <Modal onClose={() => setModal(null)} label="Rewire">
-          <div className="eyebrow">BETWEEN BATTLES</div>
-          <h2>REWIRE</h2>
-          <LoadoutEditor
-            loadout={battleStore.getLoadout()}
-            buffs={state.player.buffs}
-            privilegePerFlag={state.tuning.privilegePerFlag}
-            onChange={next => battleStore.setLoadout(next)}
-          />
-        </Modal>
+        <DeckBuilderPage
+          loadout={battleStore.getLoadout()}
+          buffs={state.player.buffs}
+          tuning={state.tuning}
+          reducedMotion={reducedMotion}
+          backLabel="MAP"
+          onChange={next => battleStore.setLoadout(next)}
+          onReset={() => battleStore.setLoadout(DEFAULT_LOADOUT)}
+          onBack={() => setModal(null)}
+        />
       )}
       {modal === 'log' && (
         <Modal onClose={() => setModal(null)} label="Log">

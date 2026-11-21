@@ -24,6 +24,7 @@ let session: {
   dispose: () => void
   zoom: (command: MapZoomCommand) => void
   hoverEnemy: (enemyId: string | null) => void
+  viewState: () => ReturnType<BattleRenderer['viewState']>
 } | null = null
 
 export function zoomMap(command: MapZoomCommand): void {
@@ -32,6 +33,10 @@ export function zoomMap(command: MapZoomCommand): void {
 
 export function hoverEnemyOnMap(enemyId: string | null): void {
   session?.hoverEnemy(enemyId)
+}
+
+export function getMapViewState(): { x: number; y: number; cell: number; zoom: number } | null {
+  return session?.viewState() ?? null
 }
 
 export function startGame(canvas: HTMLCanvasElement): void {
@@ -177,6 +182,7 @@ export function startGame(canvas: HTMLCanvasElement): void {
       else renderer.resetZoom()
     },
     hoverEnemy: enemyId => renderer.setHoveredEnemy(enemyId),
+    viewState: () => renderer.viewState(),
     dispose: () => {
       renderer.dispose()
       audio.dispose()

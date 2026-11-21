@@ -8,7 +8,7 @@ import {
 } from './battle-rules'
 import type {
   AttackEffect, AttackPreview, BattleAction, BattleState, BossStageDefinition, Coord, EnemyAttackPreview,
-  EnemyMarks, EnemyState, FlagKind, OverloadSubStep,
+  EnemyMarks, EnemyState, FlagKind, OverloadSubStep, ResourcePopEffect,
 } from './battle-types'
 import { WARDEN_ENCOUNTER, layerName } from './encounters'
 import type { Encounter, EncounterKind } from './encounters'
@@ -147,6 +147,12 @@ export class BattleStore {
   private emitEffect(effect: AttackEffect): void {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent<AttackEffect>('battle-attack-effect', { detail: effect }))
+    }
+  }
+
+  private emitResourcePop(pop: ResourcePopEffect): void {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent<ResourcePopEffect>('battle-resource-pop', { detail: pop }))
     }
   }
 
@@ -503,6 +509,13 @@ export class BattleStore {
       const privilege = counts.privilege * tuning.privilegePerFlag
       this.state.player.block += privilege
       this.log(`PRIVILEGE / SHELL +${privilege} PRIVILEGE.`, 'good')
+      this.emitResourcePop({
+        kind: 'privilege',
+        pos: { ...this.state.player.pos },
+        text: `+${privilege} PRIV`,
+        subtext: 'SHELL',
+        color: '#79bfff',
+      })
     }
     for (let i = 0; i < counts.core; i++) {
       for (const buff of this.state.player.buffs) {
@@ -1005,6 +1018,8 @@ export class BattleStore {
     // A moment still playing when the turn is ordered: nothing moves under it.
     if (this.held && !await this.heldBack(id)) return
 
+    const walkCounters = this.state.player.buffs.map(buff => buff.counter)
+    const { tuning } = this.state
     for (const action of this.state.actions) {
       if (id !== this.runId) return
       if (action.type !== 'move') continue
@@ -1012,6 +1027,43 @@ export class BattleStore {
       this.state.playerTrail = [...this.state.playerTrail, { ...action.to }]
       this.state.resolvedMoves++
       this.collectPlayerFlag(action.flag)
+      if (action.flag === 'core') {
+        let triggeredHere = 0
+        for (let bi = 0; bi < this.state.player.buffs.length; bi++) {
+          const buff = this.state.player.buffs[bi]
+          walkCounters[bi]++
+          if (walkCounters[bi] < buff.threshold) continue
+          walkCounters[bi] = 0
+          if (buff.id === 'repair') {
+            this.emitResourcePop({
+              kind: 'repair',
+              pos: { ...action.to },
+              text: `REPAIR +${tuning.repairHeal}`,
+              subtext: 'CORE',
+              color: '#7ee787',
+              slotOffset: triggeredHere++,
+            })
+          } else if (buff.id === 'focus') {
+            this.emitResourcePop({
+              kind: 'focus',
+              pos: { ...action.to },
+              text: 'FOCUS → LIVE',
+              subtext: 'CORE',
+              color: '#f2d16b',
+              slotOffset: triggeredHere++,
+            })
+          } else {
+            this.emitResourcePop({
+              kind: 'firewall',
+              pos: { ...action.to },
+              text: `FIREWALL +${tuning.firewallPrivilege}`,
+              subtext: 'CORE',
+              color: '#79bfff',
+              slotOffset: triggeredHere++,
+            })
+          }
+        }
+      }
       this.state.flags[action.to.y][action.to.x] = 'blank'
       changedColumns.add(action.to.x)
       this.commit()
@@ -1019,8 +1071,14 @@ export class BattleStore {
     }
     if (id !== this.runId) return
 
+    const hadPrivilege = this.plannedFlagCounts().privilege > 0
     this.resolvePlayerResources()
     this.state.resourcesResolved = true
+    this.commit()
+    if (hadPrivilege && !this.state.reducedMotion && typeof window !== 'undefined') {
+      await this.pause(240)
+      if (id !== this.runId) return
+    }
     await this.firePlayerAttack(releaseCount(this.state), id)
     if (id !== this.runId) return
     // LIVE lasts until the end of the release after the one that applied it.

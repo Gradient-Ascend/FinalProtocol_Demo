@@ -128,8 +128,42 @@ try {
   await page.goto(`http://127.0.0.1:${port}/?intro=0`, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => window.__GAME_READY__ === true)
 
-  // Verify Title-screen Progress Saver + multi-user host isolation
-  await page.getByRole('button', { name: /SAVE \/ USER/ }).click()
+  // Verify Entry Page 5 buttons (1 rounded primary pill + 4 pure-text buttons with 1/2 split lines on hover)
+  const entryButtons = await page.evaluate(() => {
+    const primary = document.querySelector('.title-primary-row .primary-action')
+    const items = [...document.querySelectorAll('.title-menu-list .title-menu-item')]
+    return {
+      primaryText: primary?.textContent?.trim() ?? '',
+      primaryRadius: primary ? getComputedStyle(primary).borderRadius : '',
+      itemTexts: items.map(el => el.textContent?.trim() ?? ''),
+      itemDefaults: items.map(el => ({
+        bg: getComputedStyle(el).backgroundColor,
+        bw: getComputedStyle(el).borderWidth,
+      })),
+    }
+  })
+  if (!entryButtons.primaryText.startsWith('START')) throw new Error(`Expected START primary button, got ${JSON.stringify(entryButtons)}`)
+  if (entryButtons.itemTexts.length !== 4) throw new Error(`Expected 4 secondary pure-text menu buttons, got ${JSON.stringify(entryButtons.itemTexts)}`)
+  for (const d of entryButtons.itemDefaults) {
+    if (d.bg !== 'rgba(0, 0, 0, 0)' || d.bw !== '0px') throw new Error(`Secondary button should be pure text by default: ${JSON.stringify(d)}`)
+  }
+  await page.getByRole('button', { name: 'BUILD DECKS' }).hover()
+  await page.waitForFunction(() => {
+    const el = document.querySelector('.title-menu-item.is-middle')
+    return el && getComputedStyle(el, '::before').opacity === '1' && getComputedStyle(el, '::after').opacity === '1'
+  }, null, { timeout: 2000 })
+  const hoverSplitLines = await page.locator('.title-menu-item.is-middle').first().evaluate(el => ({
+    beforeOpacity: getComputedStyle(el, '::before').opacity,
+    afterOpacity: getComputedStyle(el, '::after').opacity,
+    beforeDisplay: getComputedStyle(el, '::before').display,
+  }))
+  if (hoverSplitLines.beforeOpacity !== '1' || hoverSplitLines.afterOpacity !== '1' || hoverSplitLines.beforeDisplay === 'none') {
+    throw new Error(`Middle menu item did not show 2 horizontal split lines on hover: ${JSON.stringify(hoverSplitLines)}`)
+  }
+  await page.screenshot({ path: join(SHOTS, '01-entry-overhaul.png') })
+
+  // Verify Title-screen Progress Saver + multi-user host isolation via SAVE / LOAD
+  await page.getByRole('button', { name: 'SAVE / LOAD' }).click()
   await page.getByRole('textbox', { name: 'User ID' }).fill('qa-guest')
   await page.getByRole('button', { name: /SWITCH \/ CREATE/ }).click()
   await page.waitForFunction(() => window.location.search.includes('user=qa-guest'))
@@ -140,7 +174,65 @@ try {
   await page.waitForFunction(() => !window.location.search.includes('user='))
   await page.getByRole('dialog', { name: 'Progress saver' }).getByRole('button', { name: 'Close', exact: true }).click()
 
-  await page.getByRole('button', { name: /BREACH SANDBOX/ }).click()
+  // Verify BUILD DECKS -> Binary Transition -> 3-pane Windows-11-style Deck Page
+  await page.getByRole('button', { name: 'BUILD DECKS' }).click()
+  await page.getByRole('dialog', { name: 'Deck builder' }).waitFor({ timeout: 4000 })
+  const railStyle = await page.locator('.deck-rail-item').evaluateAll(els =>
+    els.map(el => ({ bg: getComputedStyle(el).backgroundColor, bw: getComputedStyle(el).borderWidth })),
+  )
+  if (railStyle.length !== 4 || railStyle.some(r => r.bg !== 'rgba(0, 0, 0, 0)' || r.bw !== '0px')) {
+    throw new Error(`Deck rail icons must have zero containers: ${JSON.stringify(railStyle)}`)
+  }
+  await page.getByRole('tab', { name: 'Preview level III' }).click()
+  if ((await page.getByRole('tab', { name: 'Preview level III' }).getAttribute('aria-selected')) !== 'true') {
+    throw new Error('Manual level dot III did not select in DeckPreviewStage')
+  }
+  await page.waitForTimeout(280)
+  await page.screenshot({ path: join(SHOTS, '01c-deck-attack.png') })
+  await page.getByRole('button', { name: 'Privilege Deck' }).click()
+  await page.waitForTimeout(1280)
+  await page.screenshot({ path: join(SHOTS, '01d-deck-privilege.png') })
+  await page.getByRole('button', { name: 'Core Deck' }).click()
+  await page.getByRole('button', { name: /FOCUS/ }).click()
+  await page.waitForTimeout(620)
+  await page.screenshot({ path: join(SHOTS, '01e-deck-core.png') })
+  await page.getByRole('button', { name: 'TITLE' }).click()
+  await page.locator('.title-overlay').waitFor({ timeout: 4000 })
+
+  await page.getByRole('button', { name: /^START\b/ }).click()
+  // Verify First-Battle Tutorial Stage 1 (veiled center modal) & Stage 2 (side popups)
+  const tutModal = page.getByRole('dialog', { name: 'First battle tutorial' })
+  await tutModal.waitFor({ timeout: 4000 })
+  await tutModal.getByRole('tab', { name: /Slide 3:/ }).click()
+  await page.waitForTimeout(1180)
+  await page.screenshot({ path: join(SHOTS, '02a-tutorial-stage1.png') })
+  await tutModal.getByRole('button', { name: /GUIDED FIRST TURN/ }).click()
+  await page.locator('.tutorial-coach-popup[data-coach-step="0"]').waitFor()
+  await page.screenshot({ path: join(SHOTS, '02b-tutorial-coach-player.png') })
+  await page.getByRole('button', { name: /^NEXT/ }).click()
+  await page.locator('.tutorial-coach-popup[data-coach-step="1"]').waitFor()
+  await page.getByRole('button', { name: /^NEXT/ }).click()
+  await page.locator('.tutorial-coach-popup[data-coach-step="2"]').waitFor()
+  await page.getByRole('button', { name: /^NEXT/ }).click()
+  await page.locator('.tutorial-coach-popup[data-coach-step="3"]').waitFor()
+  await page.locator('.enemy-card[data-enemy="B01"]').hover()
+  await page.waitForSelector('.enemy-dossier-popup[data-enemy-dossier="B01"]')
+  const coachOverlap = await page.evaluate(() => {
+    const c = document.querySelector('.tutorial-coach-popup')?.getBoundingClientRect()
+    const d = document.querySelector('.enemy-dossier-popup')?.getBoundingClientRect()
+    if (!c || !d) return null
+    return !(c.right <= d.left || c.left >= d.right || c.bottom <= d.top || c.top >= d.bottom)
+  })
+  if (coachOverlap) throw new Error('Coach Step 3 popup overlapped EnemyDossierPopup')
+  await page.screenshot({ path: join(SHOTS, '02c-tutorial-coach-card.png') })
+  await page.mouse.move(0, 0)
+  await page.waitForFunction(() => !document.querySelector('.enemy-dossier-popup'))
+  await page.getByRole('button', { name: /^DONE/ }).click()
+
+  await page.evaluate(() => {
+    window.__resourcePops = []
+    window.addEventListener('battle-resource-pop', event => window.__resourcePops.push(event.detail))
+  })
   await waitPhase(['planning'])
   const vfxIdle = await page.evaluate(() => window.__vfxProbe?.())
   if (!vfxIdle || vfxIdle.setting !== 'high' || vfxIdle.tier !== 'high' || vfxIdle.backend !== 'webgl2' || vfxIdle.renderPassesLastFrame !== 0) {
@@ -469,10 +561,16 @@ try {
     throw new Error(`VFX failed to recover WebGL2 context on restore: ${JSON.stringify(vfxRestored)}`)
   }
 
+  const resourcePopKinds = await page.evaluate(() => [...new Set((window.__resourcePops ?? []).map(p => p.kind))])
+  if (!resourcePopKinds.includes('privilege') || !resourcePopKinds.some(k => k === 'repair' || k === 'focus' || k === 'firewall')) {
+    throw new Error(`Expected real-battle Privilege and Core resource pops during playthrough, got: ${JSON.stringify(resourcePopKinds)}`)
+  }
+
   if (errors.length) throw new Error(`Browser errors: ${errors.join(' | ')}`)
   console.log(JSON.stringify({
     result: 'PASS', openingDamage: 3, victory: true, victoryStats, elimination: true,
     overloadTriggeredInBrowser: overloadUsed, menus: true, settings: true,
+    entryOverhaul: true, deckBuilder: true, tutorial: true, resourcePopKinds,
     restart: true, resized: true, performance,
     vfx: { tier: vfxActive.tier, hdrFloat: vfxActive.hdrFloat, peakParticles: vfxActive.peakParticles, peakRibbons: vfxActive.peakRibbons, vramBytesApprox: vfxActive.vramBytesApprox, contextRecovery: true },
     consoleErrors: 0,

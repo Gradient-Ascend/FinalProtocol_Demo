@@ -192,6 +192,11 @@ await page.screenshot({ path: join(SHOTS, "01-title.png") });
 // 2) Enter playing
 await page.keyboard.press("Space");
 await page.waitForTimeout(400);
+const tutorialSkip = page.getByRole("dialog", { name: "First battle tutorial" }).getByRole("button", { name: "SKIP" });
+if (await tutorialSkip.isVisible().catch(() => false)) {
+  await tutorialSkip.click();
+  await page.waitForTimeout(150);
+}
 
 // 3) Direction assertions for the 2D grid: W decreases Y (toward the top), D increases X (toward the right).
 async function playerPos() {

@@ -55,7 +55,17 @@ function TraceSection({ state }: { state: BattleState }) {
 
 // The battle manual. Its numbers are the run's: a weight shows here as it
 // shows on the panels.
-export function Manual({ state, weights, onClose }: { state: BattleState; weights: readonly string[]; onClose: () => void }) {
+export function Manual({
+  state,
+  weights,
+  onClose,
+  onReplayTutorial,
+}: {
+  state: BattleState
+  weights: readonly string[]
+  onClose: () => void
+  onReplayTutorial?: () => void
+}) {
   const { tuning } = state
   const installed = weights.map(id => weightById(id)?.name).filter((name): name is string => !!name)
   return (
@@ -78,6 +88,18 @@ export function Manual({ state, weights, onClose }: { state: BattleState; weight
         <section><h3>VOICES</h3><p>Lines appear under the board while a turn resolves, never while you plan. <strong>SYS&gt;</strong> is the sandbox. Shaded lines are yours: the brighter a word, the more of your attention is on it. The dim lower-case lines are not addressed to you. A boss speaks in its protocol panel.</p></section>
       </div>
       <div className="controls-table"><span>WASD / ARROWS</span><strong>Plan route</strong><span>DRAG / ONE FINGER</span><strong>Pan map</strong><span>PINCH / WHEEL</span><strong>Zoom map</strong><span>BACKSPACE</span><strong>Undo move</strong><span>SPACE</span><strong>Execute</strong><span>O</span><strong>Overload</strong><span>ESC</span><strong>Pause</strong></div>
+      {onReplayTutorial && (
+        <button
+          type="button"
+          className="secondary-action full-width"
+          onClick={() => {
+            onClose()
+            onReplayTutorial()
+          }}
+        >
+          REPLAY BATTLE TUTORIAL
+        </button>
+      )}
     </Modal>
   )
 }

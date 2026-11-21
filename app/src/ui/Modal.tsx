@@ -9,6 +9,15 @@ export function modalOpen(): boolean {
   return showing > 0
 }
 
+/** Suppresses battle/title global shortcuts while a full-screen overlay is active. */
+export function useOverlayKeyLock(active = true): void {
+  useLayoutEffect(() => {
+    if (!active) return
+    showing += 1
+    return () => { showing -= 1 }
+  }, [active])
+}
+
 const FOCUSABLE = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 // A dialog over whatever is on screen. Focus moves into it when it opens and

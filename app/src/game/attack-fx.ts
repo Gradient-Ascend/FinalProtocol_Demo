@@ -1,6 +1,6 @@
 import { MONO, allowFlash } from '../cinematic/display'
 import { inAttackRange } from './attack-methods'
-import type { AttackEffect, Coord } from './battle-types'
+import type { AttackEffect, Coord, ResourcePopEffect } from './battle-types'
 import type { GodId } from './encounters'
 import { vfxQualityStore } from './vfx-quality'
 import {
@@ -219,12 +219,19 @@ export class AttackFx {
   private gl: VfxWebglEngine | null = null
   private readoutHost: HTMLDivElement | null = null
   private readoutPool: HTMLSpanElement[] = []
+  private readonly recordMemory: boolean
 
-  attachOverlay(stage: HTMLElement | null): void {
+  constructor(options: { recordMemory?: boolean } = {}) {
+    this.recordMemory = options.recordMemory ?? true
+  }
+
+  attachOverlay(stage: HTMLElement | null, options: { webgl?: boolean } = {}): void {
     if (!stage || typeof document === 'undefined') return
     this.disposeOverlay()
 
-    this.gl = VfxWebglEngine.create(stage)
+    if (options.webgl ?? true) {
+      this.gl = VfxWebglEngine.create(stage)
+    }
     const host = document.createElement('div')
     host.className = 'vfx-readout'
     host.setAttribute('aria-hidden', 'true')
@@ -502,7 +509,7 @@ export class AttackFx {
     if (suppress) return
     this.tags = this.tags.filter(tag => tag.x !== at.x || tag.y !== at.y)
     this.tags.push({ x: at.x, y: at.y, text, color, t: 0, dur: 1.15 })
-    if (color === AMBER[0]) rememberAmber(at, text)
+    if (this.recordMemory && color === AMBER[0]) rememberAmber(at, text)
   }
 
   // The interactions a hit triggered (PUSH, PINNED, BREACH, LIVE…), in white
@@ -520,7 +527,50 @@ export class AttackFx {
     const text = dealt > 0 ? `−${dealt}` : fx.absorbed ? 'BLOCKED' : '−0'
     this.nums = this.nums.filter(num => num.x !== at.x || num.y !== at.y)
     this.nums.push({ x: at.x, y: at.y, text, color: dealt > 0 ? col[0] : '#8d8b85', big: dealt >= 5, t: 0, dur: 0.95 })
-    if (dealt > 0 && col === AMBER) rememberAmber(at, text)
+    if (this.recordMemory && dealt > 0 && col === AMBER) rememberAmber(at, text)
+  }
+
+  /** Displays a Privilege settlement or Core counter trigger pop over a unit cell. */
+  playResourcePop(pop: ResourcePopEffect, reduced: boolean): void {
+    const c = mid(pop.pos)
+    const slot = pop.slotOffset ?? 0
+    const yOffset = slot * 0.52
+    const popAt = { x: c.x, y: c.y - yOffset }
+    this.nums = this.nums.filter(num => Math.abs(num.x - popAt.x) > 0.05 || Math.abs(num.y - popAt.y) > 0.05)
+    this.nums.push({
+      x: popAt.x,
+      y: popAt.y,
+      text: pop.text,
+      color: pop.color,
+      big: false,
+      t: 0,
+      dur: 1.15,
+    })
+    if (pop.subtext && slot === 0) {
+      this.tags = this.tags.filter(tag => Math.abs(tag.x - c.x) > 0.05 || Math.abs(tag.y - c.y) > 0.05)
+      this.tags.push({ x: c.x, y: c.y, text: pop.subtext, color: '#d8d8d8', t: 0, dur: 1.05 })
+    }
+    if (reduced) return
+    this.ring(c, 0.22, 1.05, 0.42, pop.color, 2.2)
+    this.burst(c.x, c.y, {
+      n: 10,
+      dir: -Math.PI / 2,
+      spread: Math.PI * 1.1,
+      speed: [1.0, 3.2],
+      life: [0.3, 0.58],
+      colors: [pop.color, '#f5f5f5'],
+      size: 2.2,
+      drag: 2.8,
+      type: 'dot',
+    })
+    const gl = this.useGl(reduced)
+    if (gl) {
+      const lut = pop.kind === 'focus' ? LutRow.Amber : pop.kind === 'repair' ? LutRow.Grove : LutRow.Cyan
+      gl.spawnWave({
+        x: c.x, y: c.y, z: 0.28, r0: 0.2, r1: 1.05,
+        pitchX: 0.35, rollY: 0, thickness: 0.09, dur: 0.38, lut, mode: WaveMode.Shock,
+      })
+    }
   }
 
   private ripple(at: Coord, force: number, radius = 3.2): void {

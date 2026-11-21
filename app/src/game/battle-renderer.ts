@@ -4,7 +4,7 @@ import { inAttackRange } from './attack-methods'
 import { desireInRange, predictedEnemyIntent, predictedEnemySequence } from './enemy-attack-methods'
 import { disclosed } from './mechanics'
 import type { BattleStore } from './battle-store'
-import type { AttackEffect, BattleState, Coord, FlagKind } from './battle-types'
+import type { AttackEffect, BattleState, Coord, FlagKind, ResourcePopEffect } from './battle-types'
 import type { Encounter, GodId } from './encounters'
 import { MONO } from '../cinematic/display'
 import { ROMAN, WITHHELD } from '../ui/battle-text'
@@ -139,9 +139,15 @@ export class BattleRenderer {
     this.canvas.addEventListener('pointercancel', this.onPointerUp)
     this.canvas.addEventListener('wheel', this.onWheel, { passive: false })
     window.addEventListener('battle-attack-effect', this.onAttackEffect)
+    window.addEventListener('battle-resource-pop', this.onResourcePop)
     this.fx.attachOverlay(this.canvas.parentElement)
     this.resize()
     this.loop(0)
+  }
+
+  private onResourcePop = (event: Event): void => {
+    const pop = (event as CustomEvent<ResourcePopEffect>).detail
+    this.fx.playResourcePop(pop, this.store.getSnapshot().reducedMotion)
   }
 
   private onAttackEffect = (event: Event): void => {
@@ -940,6 +946,7 @@ export class BattleRenderer {
     this.canvas.removeEventListener('pointercancel', this.onPointerUp)
     this.canvas.removeEventListener('wheel', this.onWheel)
     window.removeEventListener('battle-attack-effect', this.onAttackEffect)
+    window.removeEventListener('battle-resource-pop', this.onResourcePop)
     this.fx.dispose()
   }
 }

@@ -67,8 +67,13 @@ try {
     // ?intro=0: straight to the title, without the attach screen and the opening sequence.
     await page.goto(`http://127.0.0.1:${server.address().port}/?intro=0`, { waitUntil: 'networkidle' })
     await page.waitForFunction(() => window.__GAME_READY__ === true)
-    await page.getByRole('button', { name: /BREACH SANDBOX/ }).click()
+    await page.getByRole('button', { name: /^(START|BREACH SANDBOX)\b/ }).click()
     await page.waitForTimeout(250)
+    const tutSkip = page.getByRole('dialog', { name: 'First battle tutorial' }).getByRole('button', { name: 'SKIP' })
+    if (await tutSkip.isVisible().catch(() => false)) {
+      await tutSkip.click()
+      await page.waitForTimeout(150)
+    }
     await page.evaluate(() => {
       window.__panCount = 0
       window.addEventListener('map-pan-changed', () => { window.__panCount++ })

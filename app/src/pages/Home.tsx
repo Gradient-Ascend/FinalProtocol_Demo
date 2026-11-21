@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
-  ArrowRight, BookOpen, Check, ChevronRight, Circle, Cpu, Gauge,
+  ArrowRight, BookOpen, Check, ChevronRight, Circle, Cpu, Gauge, HelpCircle,
   Home as HomeIcon, Maximize2, Minimize2, Play, RotateCcw, Settings, Shield, ShieldAlert, SquareTerminal,
   Zap,
 } from 'lucide-react'
@@ -18,6 +18,8 @@ import type { Coord, EnemyMarks, FlagKind } from '@/game/battle-types'
 import { Transcript } from '@/story/Transcript'
 import { VoiceLine } from '@/story/VoiceLine'
 import { BattleTicker } from '@/ui/BattleTicker'
+import { BattleTutorialCoach } from '@/ui/BattleTutorialCoach'
+import { BattleTutorialModal } from '@/ui/BattleTutorialModal'
 import { EnemyDossierPopup } from '@/ui/EnemyDossierPopup'
 import type { DossierAnchorRect } from '@/ui/EnemyDossierPopup'
 import { Manual } from '@/ui/Manual'
@@ -29,6 +31,7 @@ import { TitleScreen } from '@/ui/TitleScreen'
 import { ROMAN, WITHHELD, glitchName, heardSoFar, panelLine, routeAhead, segmentKeys, shown, stageBadgeText } from '@/ui/battle-text'
 import { bootCampaign, campaignBattle, reportOutcome, returnToTitle } from '@/ui/flow'
 import { layerHue, layerInk } from '@/ui/layers'
+import { hasSeen, markSeen } from '@/ui/seen'
 import { storyFeed } from '@/ui/story-feed'
 
 const BLOCK_COLOR = '#f5f5f5'
@@ -247,6 +250,8 @@ export default function Home() {
   const presets = state.presets
   const [manualOpen, setManualOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [tutorialStage, setTutorialStage] = useState<'none' | 'briefing' | 'coach'>('none')
+  const tutorialAutoShown = useRef(false)
   const [methodInspector, setMethodInspector] = useState<{ presetIndex: number; stepIndex: number } | null>(null)
   const [bashView, setBashView] = useState(0)
   const [devicePanel, setDevicePanel] = useState<'operator' | 'geeks'>('operator')
@@ -437,6 +442,35 @@ export default function Home() {
     }
   }, [covered, ended, state.phase, inspectedEnemy, aliveEnemies])
 
+  useEffect(() => {
+    if (scene !== 'battle') {
+      tutorialAutoShown.current = false
+      setTutorialStage('none')
+      return
+    }
+    if (ended) {
+      setTutorialStage('none')
+      return
+    }
+    if (state.phase === 'resolving' && tutorialStage === 'coach') {
+      markSeen('tutorial:battle')
+      setTutorialStage('none')
+      return
+    }
+    const disabledByQuery = typeof window !== 'undefined' && /(?:^|[?&#])tutorial=0(?:[&#]|$)/.test(window.location.search)
+    if (
+      state.encounter.id === '0.B'
+      && state.phase === 'planning'
+      && state.turn === 1
+      && !disabledByQuery
+      && !hasSeen('tutorial:battle')
+      && !tutorialAutoShown.current
+    ) {
+      tutorialAutoShown.current = true
+      setTutorialStage('briefing')
+    }
+  }, [scene, ended, state.encounter.id, state.phase, state.turn, tutorialStage])
+
   let incomingFocusText: string | null = null
   if ((forecast || live) && focusedEnemy) {
     const tagId = focusedEnemy.hidden ? 'HOSTILE' : focusedEnemy.id
@@ -523,6 +557,17 @@ export default function Home() {
           >
             {fullscreen.isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
           </button>
+          {scene === 'battle' && state.phase === 'planning' && (
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => setTutorialStage('briefing')}
+              aria-label="Open tutorial"
+              title="Battle Tutorial"
+            >
+              <HelpCircle size={18} />
+            </button>
+          )}
           <button className="icon-button" onClick={() => setManualOpen(true)} aria-label="Open manual" title="Manual"><BookOpen size={18} /></button>
           <button className="icon-button" onClick={() => setSettingsOpen(true)} aria-label="Open settings" title="Settings"><Settings size={18} /></button>
         </div>
@@ -898,7 +943,39 @@ export default function Home() {
         </div>
       )}
 
-      {manualOpen && <Manual state={state} weights={campaign.run?.weights ?? []} onClose={() => setManualOpen(false)} />}
+      {manualOpen && (
+        <Manual
+          state={state}
+          weights={campaign.run?.weights ?? []}
+          onClose={() => setManualOpen(false)}
+          onReplayTutorial={scene === 'battle' && state.phase === 'planning' ? () => setTutorialStage('briefing') : undefined}
+        />
+      )}
+
+      {scene === 'battle' && !ended && tutorialStage === 'briefing' && (
+        <BattleTutorialModal
+          tuning={state.tuning}
+          reducedMotion={state.reducedMotion}
+          onStartGuide={() => setTutorialStage('coach')}
+          onSkip={() => {
+            markSeen('tutorial:battle')
+            setTutorialStage('none')
+          }}
+        />
+      )}
+
+      {scene === 'battle' && !ended && !covered && state.phase === 'planning' && !manualOpen && !settingsOpen && tutorialStage === 'coach' && (
+        <BattleTutorialCoach
+          state={state}
+          canvasRef={canvasRef}
+          hoveredEnemyId={hoveredEnemy}
+          inspectedEnemyId={inspectedEnemy?.id ?? null}
+          onFinish={() => {
+            markSeen('tutorial:battle')
+            setTutorialStage('none')
+          }}
+        />
+      )}
 
       {settingsOpen && (
         <Modal onClose={() => setSettingsOpen(false)} label="Settings">
