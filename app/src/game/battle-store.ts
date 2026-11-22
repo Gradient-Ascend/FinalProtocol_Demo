@@ -415,8 +415,11 @@ export class BattleStore {
 
   setEnemyAttackPreview(preview: EnemyAttackPreview | null): void {
     if (this.state.phase !== 'planning') return
-    this.state.enemyAttackPreview = preview
-    this.state.attackPreview = null
+    const resolved = preview && this.state.enemies.find(candidate => candidate.id === preview.enemyId)?.hidden
+      ? null
+      : preview
+    this.state.enemyAttackPreview = resolved
+    if (resolved) this.state.attackPreview = null
     this.commit()
   }
 
@@ -873,7 +876,8 @@ export class BattleStore {
       if (this.state.flags[y][x] !== 'blank') {
         this.state.flags[y][x] = 'blank'
         changedColumns.add(x)
-        this.log(`${enemy.id} / PURGE erased ${coordKey(enemy.effectCell)}.`, 'bad')
+        const purgeLabel = enemy.hidden ? 'a Warp' : coordKey(enemy.effectCell)
+        this.log(`${enemy.hidden ? 'HOSTILE' : enemy.id} / PURGE erased ${purgeLabel}.`, 'bad')
       }
       enemy.effectCell = null
     }

@@ -197,7 +197,7 @@
         "epithet": "UNDISCLOSED",
         "mechanic": "undisclosed",
         "mechanicName": "UNDISCLOSED",
-        "mechanicRule": "Its route is public. Its numbers are withheld by the sandbox unless it is LIVE. Looking is something you do. MYSTERY restores its Security every turn in Act I; ADVENT rises at T−0.",
+        "mechanicRule": "Its position and route are unseen. Its numbers are withheld by the sandbox unless it is LIVE. Looking is something you do. MYSTERY restores its Security every turn in Act I; ADVENT rises at T−0.",
         "sets": [
           { "desire": "███", "security": "MYSTERY", "soul": "ABSOLUTION" },
           { "desire": "UNKNOWING", "security": "VEIL", "soul": "FAITH" }

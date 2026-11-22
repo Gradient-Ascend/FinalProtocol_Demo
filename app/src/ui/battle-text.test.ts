@@ -1,14 +1,17 @@
 import { readFileSync } from 'node:fs'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { predictedSequence } from '@/game/attack-methods'
-import { createInitialState } from '@/game/battle-rules'
+import { coordKey, createInitialState, enemyRoutes } from '@/game/battle-rules'
 import { BattleStore } from '@/game/battle-store'
 import type { BattleState, EnemyState } from '@/game/battle-types'
-import { predictedEnemyIntent, predictedPlayerResources } from '@/game/enemy-attack-methods'
+import { predictedEnemyIntent, predictedEnemyResources, predictedPlayerResources } from '@/game/enemy-attack-methods'
 import { ENCOUNTERS, encounterById } from '@/game/encounters'
 import { DEFAULT_LOADOUT } from '@/game/skills'
 import { DEFAULT_TUNING } from '@/game/tuning'
 import { layerAt, script } from '@/story/script'
+import { EnemyDossierPopup } from './EnemyDossierPopup'
 import {
   WITHHELD, behaviourText, bossRule, bossTitle, breakdownText, broodCount, desireChips, desireShapeText, glitchName,
   heardSoFar, panelLine, protocolHeading, routeAhead, segmentKeys, shown, speaksInPanel, stageBadgeText, sureText, tickerInsertAt, traceText,
@@ -374,5 +377,54 @@ describe('predictedEnemyIntent and shape formatting', () => {
     expect(intent.releaseCount).toBe(1)
     expect(shown(state, boss, intent.steps[0].step.amount)).toBe(WITHHELD)
     expect(stageBadgeText(state, boss)).toBe('ACT I')
+  })
+
+  it('suppresses board attack previews and hides coordinates for hidden enemies (3.B)', () => {
+    const store = new BattleStore()
+    store.load(ENCOUNTERS['3.B'])
+    store.start()
+    const state = store.getSnapshot()
+    const boss = bossIn(state)
+    const mob = state.enemies.find(e => !e.hidden)!
+
+    // Visible mob previews work normally; hidden boss refuses preview and clears any active one.
+    store.setEnemyAttackPreview({ enemyId: mob.id, stepIndex: 0 })
+    expect(store.getSnapshot().enemyAttackPreview).toEqual({ enemyId: mob.id, stepIndex: 0 })
+    store.setEnemyAttackPreview({ enemyId: boss.id, stepIndex: 0 })
+    expect(store.getSnapshot().enemyAttackPreview).toBeNull()
+
+    // Even when walking in Act II with pickups and an effectCell, the hidden boss's dossier leaks no coords.
+    breakDown(boss)
+    enemyRoutes(state)
+    boss.effectCell = { x: 6, y: 5 }
+    const intent = predictedEnemyIntent(state, boss.id)
+    const html = renderToStaticMarkup(createElement(EnemyDossierPopup, {
+      state,
+      enemy: boss,
+      nameShown: glitchName(3, 'sig'),
+      open: true,
+      projectedRobustness: boss.robustness,
+      showForecast: false,
+      live: false,
+      forecast: true,
+      pending: 0,
+      resources: predictedEnemyResources(state, boss.id),
+      intent,
+      activePreviewStepIndex: null,
+      anchorRect: { top: 80, bottom: 160, left: 900, right: 1200, width: 300, height: 80 },
+      panelLeft: 900,
+      onMouseEnter: () => undefined,
+      onMouseLeave: () => undefined,
+      onPreviewStep: () => undefined,
+      onClearStep: () => undefined,
+      onClose: () => undefined,
+    }))
+    expect(html).not.toContain(coordKey(boss.pos))
+    for (const stop of boss.route) expect(html).not.toContain(coordKey(stop))
+    expect(html).not.toContain(coordKey(boss.effectCell))
+    expect(html).not.toContain('COLLECTS:')
+    expect(html).not.toContain('enemy-id-badge')
+    expect(html).toContain('UNDISCLOSED')
+    expect(html).toContain('dossier-step-row no-preview')
   })
 })

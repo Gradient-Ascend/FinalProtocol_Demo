@@ -684,19 +684,21 @@ export class BattleRenderer {
     const stepsOverride = state.overloadArmed ? 4 : undefined
     const visualUnits = this.store.visualEnemies()
     const living = visualUnits.filter(entry => entry.enemy.robustness > 0).map(entry => entry.enemy)
-    const mapEnemy = this.hover ? living.find(enemy => sameCoord(enemy.pos, this.hover!)) ?? null : null
+    const mapEnemy = this.hover ? living.find(enemy => !enemy.hidden && sameCoord(enemy.pos, this.hover!)) ?? null : null
     const focusedEnemyId = state.enemyAttackPreview?.enemyId ?? this.panelHoveredEnemyId ?? mapEnemy?.id ?? null
-    const focusedEnemy = focusedEnemyId ? living.find(enemy => enemy.id === focusedEnemyId) ?? null : null
+    const candidateEnemy = focusedEnemyId ? living.find(enemy => enemy.id === focusedEnemyId) ?? null : null
+    const focusedEnemy = candidateEnemy && !candidateEnemy.hidden ? candidateEnemy : null
     const focusedIntent = focusedEnemy && (state.phase === 'planning' || state.phase === 'resolving')
       ? predictedEnemyIntent(previewState, focusedEnemy.id, stepsOverride)
       : null
     let threatPill: { origin: Coord; text: string; below: boolean } | null = null
 
-    if (state.enemyAttackPreview) {
-      const preview = state.enemyAttackPreview
-      const previewEnemy = living.find(enemy => enemy.id === preview.enemyId)
-      const intentStep = previewEnemy
-        ? predictedEnemyIntent(previewState, previewEnemy.id, stepsOverride)?.steps.find(s => s.stepIndex === preview.stepIndex)
+    const preview = state.enemyAttackPreview
+    const previewEnemy = preview ? state.enemies.find(enemy => enemy.id === preview.enemyId) : undefined
+    if (preview && !previewEnemy?.hidden) {
+      const livePreviewEnemy = living.find(enemy => enemy.id === preview.enemyId)
+      const intentStep = livePreviewEnemy
+        ? predictedEnemyIntent(previewState, livePreviewEnemy.id, stepsOverride)?.steps.find(s => s.stepIndex === preview.stepIndex)
         : undefined
       const seqHit = !intentStep
         ? predictedEnemySequence(state).find(candidate => candidate.enemyId === preview.enemyId && candidate.stepIndex === preview.stepIndex)
@@ -716,12 +718,12 @@ export class BattleRenderer {
             ctx.strokeRect(px + 2.5, py + 2.5, this.cell - 5, this.cell - 5)
           }
         }
-        const prefix = previewEnemy && !previewEnemy.hidden ? `${previewEnemy.id} ` : ''
-        const amountLabel = previewEnemy && !disclosed(state, previewEnemy) ? WITHHELD : step.amount
+        const prefix = livePreviewEnemy ? `${livePreviewEnemy.id} ` : ''
+        const amountLabel = livePreviewEnemy && !disclosed(state, livePreviewEnemy) ? WITHHELD : step.amount
         threatPill = {
           origin,
           text: `${prefix}${ROMAN[preview.stepIndex] ?? preview.stepIndex + 1}:${amountLabel}`,
-          below: Boolean(previewEnemy && !previewEnemy.hidden && sameCoord(origin, previewEnemy.pos)),
+          below: Boolean(livePreviewEnemy && sameCoord(origin, livePreviewEnemy.pos)),
         }
       }
     } else if (focusedEnemy && focusedIntent) {
@@ -775,6 +777,7 @@ export class BattleRenderer {
       ? [...living.filter(enemy => enemy.id !== focusedEnemy.id), focusedEnemy]
       : living
     for (const enemy of orderedEnemies) {
+      if (enemy.hidden) continue
       const isFocused = focusedEnemy?.id === enemy.id
       const dim = Boolean(focusedEnemy && !isFocused)
       const routeColor = isFocused ? COLORS.red : dim ? 'rgba(119,119,119,0.26)' : COLORS.muted
@@ -834,7 +837,7 @@ export class BattleRenderer {
       ctx.strokeRect(px + 2.5, py + 2.5, this.cell - 5, this.cell - 5)
     }
 
-    // A hidden Geek has no glyph and no label: its cell looks empty. Its route is drawn above like any other.
+    // A hidden Geek has no glyph, no route, and no label on the board: its cell looks empty.
     const units = [
       { id: 'P', pos: state.player.pos, dyingProgress: null as number | null },
       ...visualUnits.filter(entry => !entry.enemy.hidden).map(entry => ({

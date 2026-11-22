@@ -52,7 +52,7 @@ type HealthHit = {
   active?: boolean
   // Its size is withheld: it is drawn as part of one unmeasured stretch.
   unknown?: boolean
-  onPreview: () => void
+  onPreview?: () => void
 }
 
 // The bar shows raw damage only. `hits` are the hits still to land, in order;
@@ -190,32 +190,46 @@ function HealthBar({ value, max, hits, live, label, className = '', lossColor, a
         <i className={`loss-ghost ${ghostTop === null ? 'draining' : 'struck'}`} style={{ left: pct(value), width: pct(Math.max(0, (ghostTop ?? value) - value)), background: lossColor }} />
         {blocked && <i className="block-strip" key={blocked.seq} style={{ left: pct(value - blocked.amount), width: pct(Math.min(value, blocked.amount)) }} />}
         {placed.map((hit, index) => (
-          <button
-            type="button"
-            key={hit.key}
-            className={`health-segment ${hit.className} ${hit.active ? 'previewing' : ''} ${index === placed.length - 1 ? 'left-edge' : ''} ${index === 0 ? 'right-edge' : ''}`}
-            style={{ left: pct(hit.left), width: pct(hit.right - hit.left), transitionDelay: live ? `${60 + index * 45}ms` : undefined }}
-            onMouseEnter={hit.onPreview}
-            onMouseLeave={onLeave}
-            onFocus={hit.onPreview}
-            onBlur={onLeave}
-            onClick={hit.onPreview}
-            aria-label={hit.label}
-          />
+          hit.onPreview ? (
+            <button
+              type="button"
+              key={hit.key}
+              className={`health-segment ${hit.className} ${hit.active ? 'previewing' : ''} ${index === placed.length - 1 ? 'left-edge' : ''} ${index === 0 ? 'right-edge' : ''}`}
+              style={{ left: pct(hit.left), width: pct(hit.right - hit.left), transitionDelay: live ? `${60 + index * 45}ms` : undefined }}
+              onMouseEnter={hit.onPreview}
+              onMouseLeave={onLeave}
+              onFocus={hit.onPreview}
+              onBlur={onLeave}
+              onClick={hit.onPreview}
+              aria-label={hit.label}
+            />
+          ) : (
+            <span
+              key={hit.key}
+              role="img"
+              className={`health-segment no-preview ${hit.className} ${hit.active ? 'previewing' : ''} ${index === placed.length - 1 ? 'left-edge' : ''} ${index === 0 ? 'right-edge' : ''}`}
+              style={{ left: pct(hit.left), width: pct(hit.right - hit.left), transitionDelay: live ? `${60 + index * 45}ms` : undefined }}
+              aria-label={hit.label}
+            />
+          )
         ))}
         {veiled.length > 0 && cursor > 0 && (
-          <div className={`health-unknown ${veiled.some(hit => hit.active) ? 'previewing' : ''}`} style={{ width: pct(cursor) }}>
+          <div className={`health-unknown ${veiled.every(hit => !hit.onPreview) ? 'no-preview' : ''} ${veiled.some(hit => hit.active) ? 'previewing' : ''}`} style={{ width: pct(cursor) }}>
             {veiled.map(hit => (
-              <button
-                type="button"
-                key={hit.key}
-                onMouseEnter={hit.onPreview}
-                onMouseLeave={onLeave}
-                onFocus={hit.onPreview}
-                onBlur={onLeave}
-                onClick={hit.onPreview}
-                aria-label={hit.label}
-              />
+              hit.onPreview ? (
+                <button
+                  type="button"
+                  key={hit.key}
+                  onMouseEnter={hit.onPreview}
+                  onMouseLeave={onLeave}
+                  onFocus={hit.onPreview}
+                  onBlur={onLeave}
+                  onClick={hit.onPreview}
+                  aria-label={hit.label}
+                />
+              ) : (
+                <span key={hit.key} role="img" aria-label={hit.label} />
+              )
             ))}
           </div>
         )}
@@ -351,7 +365,7 @@ export default function Home() {
   const bashDisplayIndex = state.overloadArmed ? displayActiveBash : bashView
   const inspector = methodInspector ?? state.attackPreview
   // The Geek under the cursor on the map lights its card in the list.
-  const hoveredEnemy = mapHover ? aliveEnemies.find(enemy => enemy.pos.x === mapHover.x && enemy.pos.y === mapHover.y)?.id ?? null : null
+  const hoveredEnemy = mapHover ? aliveEnemies.find(enemy => !enemy.hidden && enemy.pos.x === mapHover.x && enemy.pos.y === mapHover.y)?.id ?? null : null
   const focusedEnemyId = state.enemyAttackPreview?.enemyId ?? inspectedEnemy?.id ?? hoveredEnemy
   const focusedEnemy = focusedEnemyId ? aliveEnemies.find(enemy => enemy.id === focusedEnemyId) ?? null : null
   const enemyHoverLinking = !state.enemyAttackPreview && focusedEnemyId !== null
@@ -360,8 +374,10 @@ export default function Home() {
     enemyList.current?.querySelector(`[data-enemy="${hoveredEnemy}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [hoveredEnemy])
   useEffect(() => {
-    hoverEnemyOnMap(inspectedEnemy?.id ?? hoveredEnemy)
-  }, [inspectedEnemy?.id, hoveredEnemy])
+    const id = inspectedEnemy?.id ?? hoveredEnemy
+    const target = id ? aliveEnemies.find(enemy => enemy.id === id) : undefined
+    hoverEnemyOnMap(target && !target.hidden ? target.id : null)
+  }, [inspectedEnemy?.id, hoveredEnemy, aliveEnemies])
 
   const measureEnemyAnchor = (el: HTMLElement | null): { rect: DossierAnchorRect; panelLeft: number | null } => {
     const r = el?.getBoundingClientRect()
@@ -401,6 +417,11 @@ export default function Home() {
   const previewEnemyAttack = (enemyId: string, stepIndex: number) => {
     cancelMethodClear()
     setMethodInspector(null)
+    const target = state.enemies.find(enemy => enemy.id === enemyId)
+    if (target?.hidden) {
+      battleStore.setEnemyAttackPreview(null)
+      return
+    }
     battleStore.setEnemyAttackPreview({ enemyId, stepIndex })
   }
   const clearEnemyAttackPreview = () => battleStore.setEnemyAttackPreview(null)
@@ -521,7 +542,7 @@ export default function Home() {
     // picked by what the card shows (never by a withheld number), so it
     // changes when the card does and at no other time.
     const nameShown = enemy.hidden
-      ? glitchName(state.encounter.layer, JSON.stringify([state.turn, live, enemy.block, enemy.soulCounter, tags, tagsAfter, events, pending, resources.securityGain, resources.soulCounterAfter, enemy.route]))
+      ? glitchName(state.encounter.layer, JSON.stringify([state.turn, live, enemy.block, enemy.soulCounter, tags, tagsAfter, events, pending, resources.securityGain, resources.soulCounterAfter]))
       : enemy.name
     return {
       enemy, allHits, barHits, barKeys, projected, resources, intent,
@@ -601,7 +622,9 @@ export default function Home() {
             value={state.player.sanity}
             max={state.player.maxSanity}
             hits={incomingSequence.filter(hit => hit.damage > 0).map(hit => {
-              const isStepMatch = state.enemyAttackPreview?.enemyId === hit.enemyId && state.enemyAttackPreview.stepIndex === hit.stepIndex
+              const hitEnemy = state.enemies.find(enemy => enemy.id === hit.enemyId)
+              const isHidden = Boolean(hitEnemy?.hidden)
+              const isStepMatch = !isHidden && state.enemyAttackPreview?.enemyId === hit.enemyId && state.enemyAttackPreview.stepIndex === hit.stepIndex
               const isEnemyMatch = enemyHoverLinking && hit.enemyId === focusedEnemyId
               const dimmed = (state.enemyAttackPreview !== null && !isStepMatch) || (enemyHoverLinking && hit.enemyId !== focusedEnemyId)
               return {
@@ -609,9 +632,9 @@ export default function Home() {
                 amount: hit.damage,
                 unknown: veiledIds.has(hit.enemyId),
                 className: ['incoming-segment', isEnemyMatch ? 'enemy-linked' : '', dimmed ? 'enemy-dimmed' : ''].filter(Boolean).join(' '),
-                label: `Preview ${hit.enemyId} attack ${hit.stepIndex + 1}: ${veiledIds.has(hit.enemyId) ? 'withheld' : hit.damage} raw damage`,
+                label: `${isHidden ? 'Hostile' : `Preview ${hit.enemyId}`} attack ${hit.stepIndex + 1}: ${veiledIds.has(hit.enemyId) ? 'withheld' : hit.damage} raw damage`,
                 active: isStepMatch || isEnemyMatch,
-                onPreview: () => previewEnemyAttack(hit.enemyId, hit.stepIndex),
+                onPreview: isHidden ? undefined : () => previewEnemyAttack(hit.enemyId, hit.stepIndex),
               }
             })}
             live={live}
@@ -838,16 +861,29 @@ export default function Home() {
                       <div className="health-wrap"><div className={`health-withheld ${showForecast && !live ? 'struck' : ''}`} role="img" aria-label="Robustness withheld" /></div>
                     )}
                     <div className="enemy-card-meta">
-                      <div className="enemy-tags" aria-label={`Tags on ${enemy.id}`}>
+                      <div className="enemy-tags" aria-label={enemy.hidden ? 'Tags on hostile' : `Tags on ${enemy.id}`}>
                         {enemy.block > 0 && <span className="enemy-tag sec">SEC {enemy.block}</span>}
                         {tags.map(tag => <span className={`enemy-tag ${tagsAfter.includes(tag) ? '' : 'spent'}`} key={tag}>{tag}</span>)}
                         {tagsAfter.filter(tag => !tags.includes(tag)).map(tag => <span className="enemy-tag pending" key={tag}>→ {tag}</span>)}
                         {events.map(word => <span className="enemy-tag event pending" key={word}>{word}</span>)}
                         {!enemy.block && !tags.length && tagsAfter.length === 0 && !events.length && <span className="enemy-tag none">NO TAGS</span>}
                       </div>
-                      <div className="enemy-next-attack" aria-label={`Next attacks of ${enemy.id}`}>
+                      <div className="enemy-next-attack" aria-label={enemy.hidden ? 'Next hostile attacks' : `Next attacks of ${enemy.id}`}>
                         <span>NEXT</span>
                         {armedSteps.length > 0 ? armedSteps.map(step => {
+                          const numeral = ROMAN[step.stepIndex] ?? String(step.stepIndex + 1)
+                          if (enemy.hidden) {
+                            return (
+                              <span
+                                key={step.stepIndex}
+                                className={`next-chip no-preview ${step.hitsPlayer ? 'hits' : ''}`}
+                                aria-label={`Hostile attack ${numeral}: ${open ? step.step.amount : 'withheld'}`}
+                              >
+                                <i>{numeral}</i>
+                                <b>{shown(state, enemy, step.step.amount)}</b>
+                              </span>
+                            )
+                          }
                           const previewing = state.enemyAttackPreview?.enemyId === enemy.id && state.enemyAttackPreview.stepIndex === step.stepIndex
                           return (
                             <button
@@ -862,9 +898,9 @@ export default function Home() {
                                 event.stopPropagation()
                                 previewEnemyAttack(enemy.id, step.stepIndex)
                               }}
-                              aria-label={`Preview ${enemy.id} attack ${ROMAN[step.stepIndex] ?? step.stepIndex + 1}: ${open ? step.step.amount : 'withheld'}`}
+                              aria-label={`Preview ${enemy.id} attack ${numeral}: ${open ? step.step.amount : 'withheld'}`}
                             >
-                              <i>{ROMAN[step.stepIndex] ?? String(step.stepIndex + 1)}</i>
+                              <i>{numeral}</i>
                               <b>{shown(state, enemy, step.step.amount)}</b>
                             </button>
                           )

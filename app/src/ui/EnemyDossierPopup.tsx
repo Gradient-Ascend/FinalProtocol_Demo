@@ -106,8 +106,8 @@ export function EnemyDossierPopup({
   const sure = sureText(chips)
   const steps = desireStepsFor(enemy)
   const stageBadge = stageBadgeText(state, enemy)
-  const routeStops = [enemy.pos, ...enemy.route].map(coordKey)
-  const routePickups = forecast && intent
+  const routeStops = enemy.hidden ? [] : [enemy.pos, ...enemy.route].map(coordKey)
+  const routePickups = !enemy.hidden && forecast && intent
     ? FLAG_ORDER.filter(item => intent.counts[item.key] > 0).map(item => `${item.label} ×${intent.counts[item.key]}`)
     : []
 
@@ -117,7 +117,7 @@ export function EnemyDossierPopup({
       className={`enemy-dossier-popup ${open ? '' : 'withheld'}`}
       data-enemy-dossier={enemy.id}
       style={{ left: `${pos.left}px`, top: `${pos.top}px` }}
-      aria-label={`Hostile dossier ${enemy.hidden ? '' : enemy.id}`}
+      aria-label={enemy.hidden ? 'Hostile dossier' : `Hostile dossier ${enemy.id}`}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
@@ -184,9 +184,28 @@ export function EnemyDossierPopup({
             const stepIntent = intent?.steps[i]
             const armed = stepIntent ? stepIntent.armed : false
             const hits = stepIntent ? stepIntent.hitsPlayer : false
-            const previewing = activePreviewStepIndex === i
+            const previewing = !enemy.hidden && activePreviewStepIndex === i
             const trigger = chips[i]?.sure ? 'SURE' : 'BASH'
             const stateWord = hits ? 'HITS' : armed ? 'ARMED' : 'IDLE'
+            const content = (
+              <>
+                <span className="step-roman">{ROMAN[i] ?? String(i + 1)}</span>
+                <strong className="step-dmg">{shown(state, enemy, step.amount)}</strong>
+                <span className="step-geom">{desireShapeText(step)}</span>
+                <span className="step-rule">{trigger}</span>
+                <em className="step-state">{live ? trigger : stateWord}</em>
+              </>
+            )
+            if (enemy.hidden) {
+              return (
+                <div
+                  key={i}
+                  className={`dossier-step-row no-preview ${chips[i]?.sure ? 'sure' : ''} ${armed ? 'armed' : ''} ${hits ? 'hits' : ''}`}
+                >
+                  {content}
+                </div>
+              )
+            }
             return (
               <button
                 type="button"
@@ -198,11 +217,7 @@ export function EnemyDossierPopup({
                 onBlur={onClearStep}
                 onClick={() => onPreviewStep(i)}
               >
-                <span className="step-roman">{ROMAN[i] ?? String(i + 1)}</span>
-                <strong className="step-dmg">{shown(state, enemy, step.amount)}</strong>
-                <span className="step-geom">{desireShapeText(step)}</span>
-                <span className="step-rule">{trigger}</span>
-                <em className="step-state">{live ? trigger : stateWord}</em>
+                {content}
               </button>
             )
           })}
@@ -212,11 +227,11 @@ export function EnemyDossierPopup({
       <section className="dossier-section dossier-route-block">
         <div className="dossier-section-head">
           <span>ROUTE</span>
-          <em>{enemy.routeLength ? `${routeStops.length - 1} STEP${routeStops.length - 1 === 1 ? '' : 'S'}` : 'STATIC'}</em>
+          <em>{enemy.hidden ? 'UNDISCLOSED' : enemy.routeLength ? `${routeStops.length - 1} STEP${routeStops.length - 1 === 1 ? '' : 'S'}` : 'STATIC'}</em>
         </div>
-        <p className="dossier-route">{routeStops.join(' → ')}</p>
+        <p className="dossier-route">{enemy.hidden ? WITHHELD : routeStops.join(' → ')}</p>
         {routePickups.length > 0 && <p className="dossier-pickups">COLLECTS: {routePickups.join(' · ')}</p>}
-        {enemy.effectCell && <p className="enemy-purge">PURGE → {coordKey(enemy.effectCell)}</p>}
+        {enemy.effectCell && <p className="enemy-purge">PURGE → {enemy.hidden ? WITHHELD : coordKey(enemy.effectCell)}</p>}
       </section>
     </aside>
   )
